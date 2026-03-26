@@ -334,10 +334,6 @@ Remove
 </p>
 <div class="flex gap-4 w-full">
 <button class="flex-[1.5] py-4 px-6 rounded-xl bg-secondary hover:bg-secondary/90 text-white font-bold tracking-tight shadow-xl shadow-black/20 transition-all text-sm flex items-center justify-center gap-2" type="submit">Download Travel Request <span class="material-symbols-outlined text-lg">download</span></button>
-
-{{-- <button class="flex-[1.5] py-4 px-6 rounded-xl bg-secondary hover:bg-secondary/90 text-white font-bold tracking-tight shadow-xl shadow-black/20 transition-all text-sm flex items-center justify-center gap-2" type="submit">
-                                Submit Travel Request
-                                <span class="material-symbols-outlined text-lg">send</span> --}}
 </button>
 </div>
 </div>
