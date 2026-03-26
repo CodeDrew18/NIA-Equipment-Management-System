@@ -114,49 +114,25 @@
 </div>
 </div>
 </header>
-<form class="space-y-10 px-4">
+<form id="request-form" class="space-y-10 px-4" method="POST" action="{{route('request-form.submit')}}" enctype="multipart/form-data">
 <!-- Section 1: Requestor & Trip Core Info -->
-{{-- <section>
-  <div class="flex items-center gap-3 mb-6">
-    <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white">
-      <span class="material-symbols-outlined">info</span>
+  @csrf
+  @if ($errors->any())
+    <div class="rounded-xl border border-error/30 bg-error-container p-4 text-on-error-container">
+      <p class="font-semibold mb-2">Please correct the following:</p>
+      <ul class="list-disc pl-5 space-y-1 text-sm">
+        @foreach ($errors->all() as $error)
+          <li>{{ $error }}</li>
+        @endforeach
+      </ul>
     </div>
-    <h2 class="text-xl font-bold text-primary tracking-tight">Request Details</h2>
-  </div>
+  @endif
 
-  <div class="grid grid-cols-3 gap-6">
-    <!-- First column with 3 content items -->
-    <div class="space-y-6">
-      <div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-slate-100">
-        <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Date of Request</label>
-        <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" type="date" value="<?php echo date('Y-m-d'); ?>"/>
-      </div>
-
-      <div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-slate-100">
-        <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">To Be Used By</label>
-        <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Division / Personnel" type="text"/>
-      </div>
-
-      <div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-slate-100">
-        <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Destination</label>
-        <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Site Location" type="text"/>
-      </div>
+  @if (session('success'))
+    <div class="rounded-xl border border-secondary/30 bg-secondary-container p-4 text-on-secondary-container text-sm font-semibold">
+      {{ session('success') }}
     </div>
-
-    <!-- Second column with 2 content items -->
-    <div class="space-y-6">
-      <div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-slate-100">
-        <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Date & Time Used: (FROM)</label>
-        <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" type="datetime-local"/>
-      </div>
-
-      <div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-slate-100">
-        <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Date & Time Used: (TO)</label>
-        <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" type="datetime-local"/>
-      </div>
-    </div>
-  </div>
-</section> --}}
+  @endif
 
 <section>
   <div class="flex items-center gap-3 mb-6">
@@ -170,17 +146,17 @@
     <!-- First row: 3 columns -->
     <div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-slate-100">
       <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Date of Request</label>
-      <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" type="date" value="<?php echo date('Y-m-d'); ?>"/>
+      <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" type="date" name="request_date" value="{{ old('request_date', date('Y-m-d')) }}"/>
     </div>
 
     <div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-slate-100">
       <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">To Be Used By</label>
-      <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Division / Personnel" type="text"/>
+      <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Division / Personnel" type="text" name="requested_by" value="{{ old('requested_by') }}"/>
     </div>
 
     <div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-slate-100">
       <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Destination</label>
-      <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Site Location" type="text"/>
+      <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Site Location" type="text" name="destination" value="{{ old('destination') }}"/>
     </div>
   </div>
 
@@ -188,12 +164,12 @@
     <!-- Second row: 2 columns that span like the first row -->
     <div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-slate-100 col-span-1">
       <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Date & Time Used: <b>(FROM)</b></label>
-      <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" type="datetime-local"/>
+      <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" type="datetime-local" name="date_time_from" value="{{ old('date_time_from') }}"/>
     </div>
 
     <div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-slate-100 col-span-1">
       <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Date & Time Used: <b>(TO)</b></label>
-      <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" type="datetime-local"/>
+      <input class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" type="datetime-local" name="date_time_to" value="{{ old('date_time_to') }}"/>
     </div>
   </div>
 </section>
@@ -204,7 +180,7 @@
 <span class="material-symbols-outlined text-primary">description</span>
 <label class="text-sm font-bold uppercase tracking-widest text-primary">Purpose of Request</label>
 </div>
-<textarea class="w-full bg-white border border-slate-200 rounded-xl px-4 py-4 focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none shadow-sm text-on-surface" placeholder="Describe the specific purpose and work to be performed..." rows="3"></textarea>
+<textarea class="w-full bg-white border border-slate-200 rounded-xl px-4 py-4 focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none shadow-sm text-on-surface" placeholder="Describe the specific purpose and work to be performed..." rows="3" name="purpose">{{ old('purpose') }}</textarea>
 </div>
 </section>
 <!-- Section 3: Equipment & Project -->
@@ -218,23 +194,24 @@
 </div>
 <div class="bg-surface-container-low p-6 rounded-2xl h-full border border-slate-200/50">
 <div class="space-y-6">
+<input type="hidden" id="vehicle-type-input" name="vehicle_type" value="{{ old('vehicle_type', 'coaster') }}"/>
 <div class="grid gap-3 grid-cols-3">
-<button class="flex flex-col items-center gap-2 p-3 rounded-xl border-2 border-primary bg-white text-primary font-bold shadow-sm" type="button">
+<button class="vehicle-option flex flex-col items-center gap-2 p-3 rounded-xl border-2 border-primary bg-white text-primary font-bold shadow-sm" data-vehicle-type="coaster" type="button">
 <span class="material-symbols-outlined text-2xl">directions_bus</span>
 <span class="text-[10px] uppercase tracking-tighter">Coaster</span>
 </button>
-<button class="flex flex-col items-center gap-2 p-3 rounded-xl border border-outline-variant bg-surface-container-highest text-on-surface-variant hover:bg-white transition-all" type="button">
+<button class="vehicle-option flex flex-col items-center gap-2 p-3 rounded-xl border border-outline-variant bg-surface-container-highest text-on-surface-variant hover:bg-white transition-all" data-vehicle-type="van" type="button">
 <span class="material-symbols-outlined text-2xl">airport_shuttle</span>
 <span class="text-[10px] uppercase tracking-tighter">Van</span>
 </button>
-<button class="flex flex-col items-center gap-2 p-3 rounded-xl border border-outline-variant bg-surface-container-highest text-on-surface-variant hover:bg-white transition-all" type="button">
+<button class="vehicle-option flex flex-col items-center gap-2 p-3 rounded-xl border border-outline-variant bg-surface-container-highest text-on-surface-variant hover:bg-white transition-all" data-vehicle-type="pickup" type="button">
 <span class="material-symbols-outlined text-2xl">directions_car</span>
 <span class="text-[10px] uppercase tracking-tighter">Pick-up</span>
 </button>
 </div>
 <div>
 <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Quantity</label>
-<input class="w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" value="1"/>
+<input class="w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_quantity" value="{{ old('vehicle_quantity', 1) }}" min="1" max="99"/>
 </div>
 </div>
 </div>
@@ -247,25 +224,33 @@
 <h2 class="text-xl font-bold text-primary tracking-tight">Assigned Personnel</h2>
 </div>
 <div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-<div class="space-y-4" id="personnel-list">
+<div class="flex items-center justify-between gap-3 pb-1">
+<p class="text-[11px] font-bold uppercase tracking-widest text-slate-500">Personnel Entries <span id="personnel-count" class="ml-1 text-primary">(1)</span></p>
+<button id="add-personnel-button" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all text-xs font-bold uppercase tracking-wider" type="button">
+<span class="material-symbols-outlined text-lg">add</span>
+    Add Personnel
+  </button>
+</div>
+<div id="personnel-list" class="space-y-4 max-h-[24rem] overflow-y-auto pr-1">
 <!-- Personnel Row 1 -->
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end pb-4 border-b border-slate-100 last:border-0">
+<div class="personnel-row grid grid-cols-1 md:grid-cols-2 gap-4 items-end pb-4 border-b border-slate-100 last:border-0" data-index="0">
 <div class="space-y-1">
 <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500">Personnel ID Number</label>
-<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary font-mono" maxlength="6" pattern="\d{6}" placeholder="000000" type="number"/>
+<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary font-mono no-spin" maxlength="6" pattern="\d{6}" placeholder="000000" type="text" inputmode="numeric" name="division_personnel[0][id_number]" value="{{ old('division_personnel.0.id_number') }}" data-role="personnel-id"/>
 </div>
 <div class="space-y-1">
 <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500">Name  </label>
-<input class="w-full bg-slate-50 border border-slate-100 rounded-lg px-4 py-2 text-sm text-slate-400 cursor-not-allowed" disabled="" placeholder="Personnel Name" type="text"/>
+<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Personnel Name" type="text" name="division_personnel[0][name]" value="{{ old('division_personnel.0.name') }}" data-role="personnel-name" readonly/>
+</div>
+<div class="md:col-span-2 flex justify-end">
+<button class="remove-personnel-btn hidden items-center gap-1 px-3 py-2 rounded-lg bg-error-container text-on-error-container hover:opacity-90 transition-all text-xs font-bold uppercase tracking-wider" type="button" data-role="remove-personnel">
+<span class="material-symbols-outlined text-base">delete</span>
+Remove
+</button>
 </div>
 </div>
 </div>
-<div class="mt-6 flex justify-end">
-<button class="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all text-xs font-bold uppercase tracking-wider" type="button">
-<span class="material-symbols-outlined text-lg">add</span>
-        Add Personnel
-    </button>
-</div>
+<p id="add-personnel-error" class="hidden text-xs font-semibold text-error text-right">Complete the current personnel name before adding a new row.</p>
 </div>
 </section>
 </div>
@@ -286,7 +271,7 @@
       <span class="material-symbols-outlined text-4xl text-slate-400 mb-2">cloud_upload</span>
       <p class="text-sm font-semibold text-on-surface">Click or drag files to upload</p>
       <p class="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">Supported: PDF, DOC, DOCX (Max 10MB)</p>
-      <input id="attachment-input" type="file" class="hidden" accept=".pdf,.doc,.docx"/>
+      <input id="attachment-input" type="file" class="hidden" accept=".pdf,.doc,.docx" name="attachments[]" multiple/>
     </label>
 
     <!-- Attached Files List -->
@@ -309,9 +294,9 @@
 <div class="bg-white border-2 border-secondary/20 p-8 rounded-2xl shadow-sm">
 <div class="flex flex-col md:flex-row md:items-center gap-4 mb-6">
 <p class="text-on-surface font-medium">I hereby certify that vehicle RP/RPT:</p>
-<input class="flex-1 max-w-[200px] border-b-2 border-slate-200 focus:border-secondary border-t-0 border-x-0 bg-transparent px-2 py-1 font-bold text-secondary" placeholder="Vehicle ID #" type="text"/>
+<input class="flex-1 max-w-[200px] border-b-2 border-slate-200 focus:border-secondary border-t-0 border-x-0 bg-transparent px-2 py-1 font-bold text-secondary" placeholder="Vehicle ID #" type="text" name="vehicle_id" value="{{ old('vehicle_id') }}"/>
 <p class="text-on-surface font-medium">and Driver:</p>
-<input class="flex-1 max-w-[250px] border-b-2 border-slate-200 focus:border-secondary border-t-0 border-x-0 bg-transparent px-2 py-1 font-bold text-secondary" placeholder="Full Name" type="text"/>
+<input class="flex-1 max-w-[250px] border-b-2 border-slate-200 focus:border-secondary border-t-0 border-x-0 bg-transparent px-2 py-1 font-bold text-secondary" placeholder="Full Name" type="text" name="driver_name" value="{{ old('driver_name') }}"/>
 </div>
 <div class="flex items-center gap-3 text-secondary">
 <span class="material-symbols-outlined">verified</span>
@@ -348,11 +333,11 @@
     By submitting, you certify that the vehicle and personnel will be used solely for the approved official trip and in accordance with NIA travel guidelines.
 </p>
 <div class="flex gap-4 w-full">
-<button class="flex-1 py-4 px-6 rounded-xl border-2 border-white/20 hover:bg-white/10 font-bold tracking-tight transition-all flex items-center justify-center gap-2 text-sm" type="button">Download File <span class="material-symbols-outlined text-lg">download</span></button>
+<button class="flex-[1.5] py-4 px-6 rounded-xl bg-secondary hover:bg-secondary/90 text-white font-bold tracking-tight shadow-xl shadow-black/20 transition-all text-sm flex items-center justify-center gap-2" type="submit">Download Travel Request <span class="material-symbols-outlined text-lg">download</span></button>
 
-<button class="flex-[1.5] py-4 px-6 rounded-xl bg-secondary hover:bg-secondary/90 text-white font-bold tracking-tight shadow-xl shadow-black/20 transition-all text-sm flex items-center justify-center gap-2" type="submit">
+{{-- <button class="flex-[1.5] py-4 px-6 rounded-xl bg-secondary hover:bg-secondary/90 text-white font-bold tracking-tight shadow-xl shadow-black/20 transition-all text-sm flex items-center justify-center gap-2" type="submit">
                                 Submit Travel Request
-                                <span class="material-symbols-outlined text-lg">send</span>
+                                <span class="material-symbols-outlined text-lg">send</span> --}}
 </button>
 </div>
 </div>
@@ -366,13 +351,286 @@
 
 <script>
   (function () {
+    const vehicleTypeInput = document.getElementById('vehicle-type-input');
+    const requestForm = document.getElementById('request-form');
+    const vehicleButtons = Array.from(document.querySelectorAll('.vehicle-option'));
+    const personnelList = document.getElementById('personnel-list');
+    const personnelCount = document.getElementById('personnel-count');
+    const addPersonnelButton = document.getElementById('add-personnel-button');
+    const addPersonnelError = document.getElementById('add-personnel-error');
     const input = document.getElementById('attachment-input');
     const list = document.getElementById('attached-files-list');
     const emptyState = document.getElementById('attached-files-empty');
 
-    if (!input || !list || !emptyState) {
+    if (!vehicleTypeInput || !requestForm || vehicleButtons.length === 0 || !personnelList || !personnelCount || !addPersonnelButton || !addPersonnelError || !input || !list || !emptyState) {
       return;
     }
+
+    function updatePersonnelCount() {
+      personnelCount.textContent = '(' + getPersonnelRows().length + ')';
+    }
+
+    function setSelectedVehicleType(type) {
+      vehicleTypeInput.value = type;
+
+      vehicleButtons.forEach(function (button) {
+        const isActive = button.getAttribute('data-vehicle-type') === type;
+        button.classList.toggle('border-2', isActive);
+        button.classList.toggle('border-primary', isActive);
+        button.classList.toggle('bg-white', isActive);
+        button.classList.toggle('text-primary', isActive);
+
+        button.classList.toggle('border', !isActive);
+        button.classList.toggle('border-outline-variant', !isActive);
+        button.classList.toggle('bg-surface-container-highest', !isActive);
+        button.classList.toggle('text-on-surface-variant', !isActive);
+      });
+    }
+
+    vehicleButtons.forEach(function (button) {
+      button.addEventListener('click', function () {
+        setSelectedVehicleType(button.getAttribute('data-vehicle-type'));
+      });
+    });
+
+    setSelectedVehicleType(vehicleTypeInput.value || 'coaster');
+
+    function normalizePersonnelId(rawValue) {
+      return String(rawValue || '').replace(/\D/g, '').slice(0, 6);
+    }
+
+    async function fetchPersonnelName(personnelId) {
+      const response = await fetch('/request-form/personnel/' + personnelId, {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return response.json();
+    }
+
+    function updateRemoveButtons() {
+      const rows = Array.from(personnelList.querySelectorAll('.personnel-row'));
+      const canRemove = rows.length > 1;
+
+      rows.forEach(function (row) {
+        const removeButton = row.querySelector('[data-role="remove-personnel"]');
+
+        if (!removeButton) {
+          return;
+        }
+
+        removeButton.classList.toggle('hidden', !canRemove);
+        removeButton.classList.toggle('inline-flex', canRemove);
+      });
+    }
+
+    function getPersonnelRows() {
+      return Array.from(personnelList.querySelectorAll('.personnel-row'));
+    }
+
+    function reindexPersonnelRows() {
+      const rows = getPersonnelRows();
+
+      rows.forEach(function (row, index) {
+        row.setAttribute('data-index', String(index));
+
+        const idInput = row.querySelector('[data-role="personnel-id"]');
+        const nameInput = row.querySelector('[data-role="personnel-name"]');
+
+        if (idInput) {
+          idInput.name = 'division_personnel[' + index + '][id_number]';
+        }
+
+        if (nameInput) {
+          nameInput.name = 'division_personnel[' + index + '][name]';
+        }
+      });
+
+      nextPersonnelIndex = rows.length;
+    }
+
+    function pruneEmptyPersonnelRows() {
+      const rows = getPersonnelRows();
+
+      rows.forEach(function (row) {
+        const idInput = row.querySelector('[data-role="personnel-id"]');
+        const nameInput = row.querySelector('[data-role="personnel-name"]');
+
+        if (!idInput || !nameInput) {
+          return;
+        }
+
+        const idValue = normalizePersonnelId(idInput.value);
+        const nameValue = String(nameInput.value || '').trim();
+
+        if (idValue === '' && nameValue === '' && getPersonnelRows().length > 1) {
+          row.remove();
+        }
+      });
+
+      reindexPersonnelRows();
+      updateRemoveButtons();
+      updatePersonnelCount();
+    }
+
+    function hasInvalidPersonnelRows() {
+      const rows = getPersonnelRows();
+      let hasInvalid = false;
+
+      rows.forEach(function (row) {
+        const idInput = row.querySelector('[data-role="personnel-id"]');
+        const nameInput = row.querySelector('[data-role="personnel-name"]');
+
+        if (!idInput || !nameInput) {
+          return;
+        }
+
+        const idValue = normalizePersonnelId(idInput.value);
+        const nameValue = String(nameInput.value || '').trim();
+        const invalid = idValue === '' || nameValue === '';
+
+        idInput.classList.toggle('ring-2', invalid && idValue === '');
+        idInput.classList.toggle('ring-error/40', invalid && idValue === '');
+        nameInput.classList.toggle('ring-2', invalid && nameValue === '');
+        nameInput.classList.toggle('ring-error/40', invalid && nameValue === '');
+
+        hasInvalid = hasInvalid || invalid;
+      });
+
+      return hasInvalid;
+    }
+
+    function bindPersonnelRowEvents(row) {
+      const personnelIdInput = row.querySelector('[data-role="personnel-id"]');
+      const personnelNameInput = row.querySelector('[data-role="personnel-name"]');
+      const removeButton = row.querySelector('[data-role="remove-personnel"]');
+
+      if (!personnelIdInput || !personnelNameInput || !removeButton) {
+        return;
+      }
+
+      let lastLookupValue = '';
+      const runPersonnelLookup = async function () {
+        const sanitizedId = normalizePersonnelId(personnelIdInput.value);
+        personnelIdInput.value = sanitizedId;
+
+        if (sanitizedId.length !== 6) {
+          if (personnelNameInput.value === '' || lastLookupValue !== sanitizedId) {
+            personnelNameInput.value = '';
+          }
+          lastLookupValue = sanitizedId;
+          return;
+        }
+
+        lastLookupValue = sanitizedId;
+        const result = await fetchPersonnelName(sanitizedId);
+
+        if (!result || lastLookupValue !== sanitizedId) {
+          personnelNameInput.value = '';
+          personnelNameInput.classList.add('ring-2', 'ring-error/40');
+          return;
+        }
+
+        personnelNameInput.value = result.name || '';
+        personnelNameInput.classList.remove('ring-2', 'ring-error/40');
+        addPersonnelError.classList.add('hidden');
+      };
+
+      personnelIdInput.addEventListener('input', runPersonnelLookup);
+      personnelIdInput.addEventListener('blur', runPersonnelLookup);
+
+      if (normalizePersonnelId(personnelIdInput.value).length === 6 && !personnelNameInput.value) {
+        runPersonnelLookup();
+      }
+
+      removeButton.addEventListener('click', function () {
+        row.remove();
+        reindexPersonnelRows();
+        updateRemoveButtons();
+        updatePersonnelCount();
+      });
+    }
+
+    function createPersonnelRow(index) {
+      const row = document.createElement('div');
+      row.className = 'personnel-row grid grid-cols-1 md:grid-cols-2 gap-4 items-end pb-4 border-b border-slate-100 last:border-0';
+      row.setAttribute('data-index', String(index));
+      row.innerHTML = '<div class="space-y-1">'
+        + '<label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500">Personnel ID Number</label>'
+        + '<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary font-mono no-spin" maxlength="6" pattern="\\d{6}" placeholder="000000" type="text" inputmode="numeric" name="division_personnel[' + index + '][id_number]" data-role="personnel-id"/>'
+        + '</div>'
+        + '<div class="space-y-1">'
+        + '<label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500">Name</label>'
+        + '<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Personnel Name" type="text" name="division_personnel[' + index + '][name]" data-role="personnel-name" readonly/>'
+        + '</div>'
+        + '<div class="md:col-span-2 flex justify-end">'
+        + '<button class="remove-personnel-btn items-center gap-1 px-3 py-2 rounded-lg bg-error-container text-on-error-container hover:opacity-90 transition-all text-xs font-bold uppercase tracking-wider inline-flex" type="button" data-role="remove-personnel">'
+        + '<span class="material-symbols-outlined text-base">delete</span>'
+        + 'Remove'
+        + '</button>'
+        + '</div>';
+
+      return row;
+    }
+
+    function hasEmptyPersonnelName() {
+      const rows = Array.from(personnelList.querySelectorAll('.personnel-row'));
+      let hasEmpty = false;
+
+      rows.forEach(function (row) {
+        const nameInput = row.querySelector('[data-role="personnel-name"]');
+
+        if (!nameInput) {
+          return;
+        }
+
+        const isEmpty = String(nameInput.value || '').trim() === '';
+        nameInput.classList.toggle('ring-2', isEmpty);
+        nameInput.classList.toggle('ring-error/40', isEmpty);
+        hasEmpty = hasEmpty || isEmpty;
+      });
+
+      return hasEmpty;
+    }
+
+    let nextPersonnelIndex = getPersonnelRows().length;
+    getPersonnelRows().forEach(bindPersonnelRowEvents);
+    reindexPersonnelRows();
+    updateRemoveButtons();
+    updatePersonnelCount();
+
+    addPersonnelButton.addEventListener('click', function () {
+      if (hasEmptyPersonnelName()) {
+        addPersonnelError.textContent = 'Complete the current personnel name before adding a new row.';
+        addPersonnelError.classList.remove('hidden');
+        return;
+      }
+
+      addPersonnelError.classList.add('hidden');
+      const row = createPersonnelRow(nextPersonnelIndex);
+      personnelList.appendChild(row);
+      bindPersonnelRowEvents(row);
+      nextPersonnelIndex += 1;
+      reindexPersonnelRows();
+      updateRemoveButtons();
+      updatePersonnelCount();
+      row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+
+    requestForm.addEventListener('submit', function (event) {
+      pruneEmptyPersonnelRows();
+
+      if (hasInvalidPersonnelRows()) {
+        event.preventDefault();
+        addPersonnelError.textContent = 'Every personnel row must have a valid 6-digit ID and an auto-filled name.';
+        addPersonnelError.classList.remove('hidden');
+      }
+    });
 
     function formatFileSize(bytes) {
       if (bytes >= 1024 * 1024) {

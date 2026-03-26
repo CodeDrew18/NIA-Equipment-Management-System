@@ -255,7 +255,7 @@
     Start a transportation request for service vehicles, align trip details, and keep maintenance and dispatch records up to date.
 </p>
 <button class="px-12 py-5 bg-secondary text-on-secondary rounded-xl font-bold text-lg hover:bg-secondary/90 transition-all shadow-xl hover:shadow-secondary/30">
-    Open Transportation Request Form
+    <a href="{{ route('request-form') }}" class="text-on-secondary no-underline">Proceed to Transportation Request Form</a>
 </button>
 </div>
 </div>

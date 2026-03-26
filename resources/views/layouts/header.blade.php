@@ -218,7 +218,7 @@
 	}
 </style>
 @php
-	$operationsActive = request()->routeIs('request-form');
+	$operationsActive = request()->routeIs('request-form') || request()->routeIs('vehicle-available')	;
 	$reportsActive = request()->routeIs('reports');
 	$evaluationsActive = request()->routeIs('evaluations');
 @endphp
@@ -232,6 +232,7 @@
 		Operations <span class="nav-caret">&#9662;</span>
 	</button>
 	<div class="nav-dropdown-menu" role="menu" aria-label="Operations menu">
+		<a class="nav-dropdown-item" href="{{ route('vehicle-available') }}" role="menuitem">Vehicle Availability</a>
 		<a class="nav-dropdown-item" href="{{ route('request-form') }}" role="menuitem">Transportation Request</a>
 		<a class="nav-dropdown-item" href="#" role="menuitem">Daily Driver's Trip Ticket</a>
 		<a class="nav-dropdown-item" href="#" role="menuitem">Daily Equipment Utilization Report</a>
