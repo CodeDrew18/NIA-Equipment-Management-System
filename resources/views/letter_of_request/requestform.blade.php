@@ -128,9 +128,16 @@
     </div>
   @endif
 
+  @if (session('error'))
+    <div class="rounded-xl border border-error/30 bg-error-container p-4 text-on-error-container text-sm font-semibold">
+      {{ session('error') }}
+    </div>
+  @endif
+
   @if (session('success'))
-    <div class="rounded-xl border border-secondary/30 bg-secondary-container p-4 text-on-secondary-container text-sm font-semibold">
-      {{ session('success') }}
+    <div class="rounded-xl border border-secondary/30 bg-secondary-container p-4 text-on-secondary-container text-sm font-semibold flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <span>{{ session('success') }}</span>
+  
     </div>
   @endif
 
@@ -194,24 +201,47 @@
 </div>
 <div class="bg-surface-container-low p-6 rounded-2xl h-full border border-slate-200/50">
 <div class="space-y-6">
-<input type="hidden" id="vehicle-type-input" name="vehicle_type" value="{{ old('vehicle_type', 'coaster') }}"/>
-<div class="grid gap-3 grid-cols-3">
-<button class="vehicle-option flex flex-col items-center gap-2 p-3 rounded-xl border-2 border-primary bg-white text-primary font-bold shadow-sm" data-vehicle-type="coaster" type="button">
-<span class="material-symbols-outlined text-2xl">directions_bus</span>
-<span class="text-[10px] uppercase tracking-tighter">Coaster</span>
-</button>
-<button class="vehicle-option flex flex-col items-center gap-2 p-3 rounded-xl border border-outline-variant bg-surface-container-highest text-on-surface-variant hover:bg-white transition-all" data-vehicle-type="van" type="button">
-<span class="material-symbols-outlined text-2xl">airport_shuttle</span>
-<span class="text-[10px] uppercase tracking-tighter">Van</span>
-</button>
-<button class="vehicle-option flex flex-col items-center gap-2 p-3 rounded-xl border border-outline-variant bg-surface-container-highest text-on-surface-variant hover:bg-white transition-all" data-vehicle-type="pickup" type="button">
-<span class="material-symbols-outlined text-2xl">directions_car</span>
-<span class="text-[10px] uppercase tracking-tighter">Pick-up</span>
-</button>
-</div>
-<div>
-<label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Quantity</label>
-<input class="w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_quantity" value="{{ old('vehicle_quantity', 1) }}" min="1" max="99"/>
+<p class="text-[11px] font-bold uppercase tracking-widest text-slate-500">Select one or more vehicle types</p>
+
+<div class="space-y-3">
+  <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row>
+    <div class="flex items-center gap-2">
+      <input id="vehicle-coaster" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[0][selected]" value="1" {{ old('vehicle_requests.0.selected') ? 'checked' : '' }} />
+      <input type="hidden" name="vehicle_requests[0][type]" value="coaster" />
+      <span class="material-symbols-outlined text-primary text-lg">directions_bus</span>
+      <label for="vehicle-coaster" class="text-sm font-bold text-on-surface">Coaster</label>
+    </div>
+    <div class="flex items-center gap-2">
+      <label class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Qty</label>
+      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[0][quantity]" value="{{ old('vehicle_requests.0.quantity', 1) }}" min="1" max="99" {{ old('vehicle_requests.0.selected') ? '' : 'disabled' }} />
+    </div>
+  </div>
+
+  <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row>
+    <div class="flex items-center gap-2">
+      <input id="vehicle-van" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[1][selected]" value="1" {{ old('vehicle_requests.1.selected') ? 'checked' : '' }} />
+      <input type="hidden" name="vehicle_requests[1][type]" value="van" />
+      <span class="material-symbols-outlined text-primary text-lg">airport_shuttle</span>
+      <label for="vehicle-van" class="text-sm font-bold text-on-surface">Van</label>
+    </div>
+    <div class="flex items-center gap-2">
+      <label class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Qty</label>
+      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[1][quantity]" value="{{ old('vehicle_requests.1.quantity', 1) }}" min="1" max="99" {{ old('vehicle_requests.1.selected') ? '' : 'disabled' }} />
+    </div>
+  </div>
+
+  <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row>
+    <div class="flex items-center gap-2">
+      <input id="vehicle-pickup" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[2][selected]" value="1" {{ old('vehicle_requests.2.selected') ? 'checked' : '' }} />
+      <input type="hidden" name="vehicle_requests[2][type]" value="pickup" />
+      <span class="material-symbols-outlined text-primary text-lg">directions_car</span>
+      <label for="vehicle-pickup" class="text-sm font-bold text-on-surface">Pick-up</label>
+    </div>
+    <div class="flex items-center gap-2">
+      <label class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Qty</label>
+      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[2][quantity]" value="{{ old('vehicle_requests.2.quantity', 1) }}" min="1" max="99" {{ old('vehicle_requests.2.selected') ? '' : 'disabled' }} />
+    </div>
+  </div>
 </div>
 </div>
 </div>
@@ -305,7 +335,7 @@ Remove
 </div>
 </section>
 <!-- Section 5: Authorization & Approval -->
-<section class="bg-primary text-white p-10 rounded-3xl relative overflow-hidden">
+<section class="bg-primary text-white p-10 rounded-3xl relative overflow-hidden"> 
 <div class="absolute -right-20 -top-20 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
 <div class="relative z-10">
 <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-end">
@@ -333,23 +363,42 @@ Remove
     By submitting, you certify that the vehicle and personnel will be used solely for the approved official trip and in accordance with NIA travel guidelines.
 </p>
 <div class="flex gap-4 w-full">
-<button class="flex-[1.5] py-4 px-6 rounded-xl bg-secondary hover:bg-secondary/90 text-white font-bold tracking-tight shadow-xl shadow-black/20 transition-all text-sm flex items-center justify-center gap-2" type="submit">Download Travel Request <span class="material-symbols-outlined text-lg">download</span></button>
-</button>
+<button id="primary-download-trigger" class="flex-[1.5] py-4 px-6 rounded-xl bg-secondary hover:bg-secondary/90 text-white font-bold tracking-tight shadow-xl shadow-black/20 transition-all text-sm flex items-center justify-center gap-2" type="button">Download Travel Request <span class="material-symbols-outlined text-lg">download</span></button>
 </div>
 </div>
 </div>
 </div>
 </section>
 </form>
+
+<div id="confirm-download-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4">
+  <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
+    <div class="mb-4 flex items-center gap-3 text-primary">
+      <span class="material-symbols-outlined">help</span>
+      <h3 class="text-lg font-bold">Confirm Download</h3>
+    </div>
+    <p class="text-sm text-on-surface-variant">Are you sure you want to download?</p>
+    <div class="mt-6 flex justify-end gap-3">
+      <button id="confirm-download-no" type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50">No</button>
+      <button id="confirm-download-yes" type="button" class="rounded-lg bg-secondary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-secondary/90">Yes</button>
+    </div>
+  </div>
+</div>
+
+<div id="download-loading-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/45 px-4">
+  <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center">
+    <div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary"></div>
+    <p class="text-sm font-semibold text-on-surface">Preparing your download...</p>
+  </div>
+</div>
 </main>
 
 @include('layouts.footer')
 
 <script>
   (function () {
-    const vehicleTypeInput = document.getElementById('vehicle-type-input');
     const requestForm = document.getElementById('request-form');
-    const vehicleButtons = Array.from(document.querySelectorAll('.vehicle-option'));
+    const vehicleRequestRows = Array.from(document.querySelectorAll('[data-vehicle-row]'));
     const personnelList = document.getElementById('personnel-list');
     const personnelCount = document.getElementById('personnel-count');
     const addPersonnelButton = document.getElementById('add-personnel-button');
@@ -357,8 +406,18 @@ Remove
     const input = document.getElementById('attachment-input');
     const list = document.getElementById('attached-files-list');
     const emptyState = document.getElementById('attached-files-empty');
+    const primaryDownloadTrigger = document.getElementById('primary-download-trigger');
+    const confirmDownloadModal = document.getElementById('confirm-download-modal');
+    const confirmDownloadYes = document.getElementById('confirm-download-yes');
+    const confirmDownloadNo = document.getElementById('confirm-download-no');
+    const downloadLoadingModal = document.getElementById('download-loading-modal');
+    const generatedDownloadUrl = @json(session('download_file') ? route('request-form.download', ['filename' => session('download_file')]) : null);
+    const shouldAutoDownload = @json((bool) session('auto_download'));
 
-    if (!vehicleTypeInput || !requestForm || vehicleButtons.length === 0 || !personnelList || !personnelCount || !addPersonnelButton || !addPersonnelError || !input || !list || !emptyState) {
+    let pendingDownloadAction = null;
+    let hasConfirmedSubmit = false;
+
+    if (!requestForm || !personnelList || !personnelCount || !addPersonnelButton || !addPersonnelError || !input || !list || !emptyState) {
       return;
     }
 
@@ -366,30 +425,128 @@ Remove
       personnelCount.textContent = '(' + getPersonnelRows().length + ')';
     }
 
-    function setSelectedVehicleType(type) {
-      vehicleTypeInput.value = type;
+    function showConfirmModal(action) {
+      pendingDownloadAction = action;
+      if (!confirmDownloadModal) {
+        return;
+      }
 
-      vehicleButtons.forEach(function (button) {
-        const isActive = button.getAttribute('data-vehicle-type') === type;
-        button.classList.toggle('border-2', isActive);
-        button.classList.toggle('border-primary', isActive);
-        button.classList.toggle('bg-white', isActive);
-        button.classList.toggle('text-primary', isActive);
+      confirmDownloadModal.classList.remove('hidden');
+      confirmDownloadModal.classList.add('flex');
+    }
 
-        button.classList.toggle('border', !isActive);
-        button.classList.toggle('border-outline-variant', !isActive);
-        button.classList.toggle('bg-surface-container-highest', !isActive);
-        button.classList.toggle('text-on-surface-variant', !isActive);
+    function hideConfirmModal() {
+      pendingDownloadAction = null;
+      if (!confirmDownloadModal) {
+        return;
+      }
+
+      confirmDownloadModal.classList.add('hidden');
+      confirmDownloadModal.classList.remove('flex');
+    }
+
+    function showLoadingModal() {
+      if (!downloadLoadingModal) {
+        return;
+      }
+
+      downloadLoadingModal.classList.remove('hidden');
+      downloadLoadingModal.classList.add('flex');
+    }
+
+    function hideLoadingModal() {
+      if (!downloadLoadingModal) {
+        return;
+      }
+
+      downloadLoadingModal.classList.add('hidden');
+      downloadLoadingModal.classList.remove('flex');
+    }
+
+    function setPrimaryButtonBusy(isBusy) {
+      if (!primaryDownloadTrigger) {
+        return;
+      }
+
+      primaryDownloadTrigger.disabled = isBusy;
+      primaryDownloadTrigger.classList.toggle('pointer-events-none', isBusy);
+      primaryDownloadTrigger.classList.toggle('opacity-80', isBusy);
+    }
+
+    function startBackgroundDownload(downloadUrl) {
+      const iframeId = 'hidden-download-frame';
+      let frame = document.getElementById(iframeId);
+      let isCompleted = false;
+
+      function completeDownloadUI() {
+        if (isCompleted) {
+          return;
+        }
+
+        isCompleted = true;
+        hideLoadingModal();
+        setPrimaryButtonBusy(false);
+        window.removeEventListener('focus', handleWindowFocus);
+      }
+
+      function handleWindowFocus() {
+        completeDownloadUI();
+      }
+
+      if (!frame) {
+        frame = document.createElement('iframe');
+        frame.id = iframeId;
+        frame.style.display = 'none';
+        document.body.appendChild(frame);
+      }
+
+      const separator = downloadUrl.indexOf('?') === -1 ? '?' : '&';
+      frame.onload = function () {
+        completeDownloadUI();
+      };
+
+      window.addEventListener('focus', handleWindowFocus);
+      frame.src = downloadUrl + separator + 'download_ts=' + Date.now();
+
+      setTimeout(function () {
+        completeDownloadUI();
+      }, 2000);
+    }
+
+    function bindVehicleRequestRows() {
+      vehicleRequestRows.forEach(function (row) {
+        const checkbox = row.querySelector('.vehicle-request-checkbox');
+        const quantityInput = row.querySelector('.vehicle-request-quantity');
+
+        if (!checkbox || !quantityInput) {
+          return;
+        }
+
+        function applyState() {
+          const isSelected = checkbox.checked;
+          quantityInput.disabled = !isSelected;
+
+          if (isSelected && (!quantityInput.value || Number(quantityInput.value) < 1)) {
+            quantityInput.value = '1';
+          }
+
+          row.classList.toggle('border-primary/50', isSelected);
+          row.classList.toggle('bg-white', isSelected);
+        }
+
+        checkbox.addEventListener('change', applyState);
+        applyState();
       });
     }
 
-    vehicleButtons.forEach(function (button) {
-      button.addEventListener('click', function () {
-        setSelectedVehicleType(button.getAttribute('data-vehicle-type'));
+    function hasSelectedVehicleRequests() {
+      return vehicleRequestRows.some(function (row) {
+        const checkbox = row.querySelector('.vehicle-request-checkbox');
+        return checkbox && checkbox.checked;
       });
-    });
+    }
 
-    setSelectedVehicleType(vehicleTypeInput.value || 'coaster');
+    bindVehicleRequestRows();
 
     function normalizePersonnelId(rawValue) {
       return String(rawValue || '').replace(/\D/g, '').slice(0, 6);
@@ -619,13 +776,39 @@ Remove
     });
 
     requestForm.addEventListener('submit', function (event) {
+      if (generatedDownloadUrl) {
+        event.preventDefault();
+        showConfirmModal({ type: 'download', url: generatedDownloadUrl });
+        return;
+      }
+
       pruneEmptyPersonnelRows();
+
+      if (!hasSelectedVehicleRequests()) {
+        event.preventDefault();
+        hasConfirmedSubmit = false;
+        hideLoadingModal();
+        addPersonnelError.textContent = 'Select at least one vehicle type and quantity.';
+        addPersonnelError.classList.remove('hidden');
+        return;
+      }
 
       if (hasInvalidPersonnelRows()) {
         event.preventDefault();
+        hasConfirmedSubmit = false;
+        hideLoadingModal();
         addPersonnelError.textContent = 'Every personnel row must have a valid 6-digit ID and an auto-filled name.';
         addPersonnelError.classList.remove('hidden');
+        return;
       }
+
+      if (!hasConfirmedSubmit) {
+        event.preventDefault();
+        showConfirmModal({ type: 'submit' });
+        return;
+      }
+
+      hasConfirmedSubmit = false;
     });
 
     function formatFileSize(bytes) {
@@ -711,6 +894,66 @@ Remove
     }
 
     input.addEventListener('change', renderAttachedFiles);
+
+    if (primaryDownloadTrigger) {
+      primaryDownloadTrigger.addEventListener('click', function () {
+        if (generatedDownloadUrl) {
+          showConfirmModal({ type: 'download', url: generatedDownloadUrl });
+          return;
+        }
+
+        showConfirmModal({ type: 'submit' });
+      });
+    }
+
+    if (confirmDownloadNo) {
+      confirmDownloadNo.addEventListener('click', function () {
+        hideConfirmModal();
+        hideLoadingModal();
+      });
+    }
+
+    if (confirmDownloadModal) {
+      confirmDownloadModal.addEventListener('click', function (event) {
+        if (event.target === confirmDownloadModal) {
+          hideConfirmModal();
+          hideLoadingModal();
+        }
+      });
+    }
+
+    if (confirmDownloadYes) {
+      confirmDownloadYes.addEventListener('click', function () {
+        const action = pendingDownloadAction;
+
+        if (!action) {
+          hideConfirmModal();
+          return;
+        }
+
+        if (action.type === 'submit') {
+          hideConfirmModal();
+          showLoadingModal();
+          hasConfirmedSubmit = true;
+          requestForm.requestSubmit();
+          return;
+        }
+
+        if (action.type === 'download' && action.url) {
+          hideConfirmModal();
+          showLoadingModal();
+          setPrimaryButtonBusy(true);
+
+          startBackgroundDownload(action.url);
+        }
+      });
+    }
+
+    if (shouldAutoDownload && generatedDownloadUrl) {
+      showLoadingModal();
+      setPrimaryButtonBusy(true);
+      startBackgroundDownload(generatedDownloadUrl);
+    }
   })();
 </script>
 

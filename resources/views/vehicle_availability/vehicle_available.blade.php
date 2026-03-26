@@ -92,7 +92,7 @@
 </div>
 <div class="flex gap-4">
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10 flex flex-col min-w-[140px]">
-<span class="text-label-md font-semibold text-primary/60 uppercase tracking-widest text-xs mb-1">Total Fleet</span>
+<span class="text-label-md font-semibold text-primary/60 uppercase tracking-widest text-xs mb-1">Total Vehicles</span>
 <span class="text-3xl font-bold text-primary">06 Units</span>
 </div>
 <div class="bg-primary p-6 rounded-xl shadow-md flex flex-col justify-center min-w-[140px]">
