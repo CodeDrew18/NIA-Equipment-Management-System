@@ -33,11 +33,26 @@ class requestFormController extends Controller
             'division_personnel' => ['required', 'array', 'min:1'],
             'division_personnel.*.id_number' => ['required', 'digits:6', 'exists:users,personnel_id'],
             'division_personnel.*.name' => ['required', 'string', 'max:255'],
+            'requesting_division_name' => ['required', 'string', 'max:255'],
+            'requesting_division_position' => ['required', 'string', 'max:255'],
             'vehicle_id' => ['nullable', 'string', 'max:100'],
             'driver_name' => ['nullable', 'string', 'max:255'],
             'attachments' => ['nullable', 'array'],
             'attachments.*' => ['file', 'mimes:pdf,doc,docx', 'max:10240'],
         ]);
+
+        $businessPassengers = collect($validated['division_personnel'] ?? [])
+            ->map(function (array $passenger) {
+                return [
+                    'id_number' => (string) ($passenger['id_number'] ?? ''),
+                    'name' => trim((string) ($passenger['name'] ?? '')),
+                ];
+            })
+            ->filter(function (array $passenger) {
+                return $passenger['id_number'] !== '' && $passenger['name'] !== '';
+            })
+            ->values()
+            ->all();
 
         $selectedVehicleRequests = collect($validated['vehicle_requests'])
             ->filter(function (array $vehicleRequest) {
@@ -89,7 +104,11 @@ class requestFormController extends Controller
             'purpose' => $validated['purpose'],
             'vehicle_type' => $vehicleSummary,
             'vehicle_quantity' => $vehicleTotalQuantity,
-            'division_personnel' => $validated['division_personnel'],
+            'business_passengers' => $businessPassengers,
+            'division_personnel' => [[
+                'name' => $validated['requesting_division_name'],
+                'position' => $validated['requesting_division_position'],
+            ]],
             'vehicle_id' => $validated['vehicle_id'] ?? null,
             'driver_name' => $validated['driver_name'] ?? null,
             'attachments' => $storedAttachments,
@@ -109,7 +128,11 @@ class requestFormController extends Controller
 
         // Data's
 
+        $divisionManager = "ENGR. EMILIO M. DOMAGAS JR.";
+
         // Date Cell Activation
+
+        // Date of the Request Travel
         $daterow = 10;
 
         $sheet->mergeCells('H10:I10');
@@ -118,12 +141,59 @@ class requestFormController extends Controller
         $sheet->mergeCells('C12:J12');
         $sheet->setCellValue('C12', $validated['requested_by']);
 
-        for ($row = 13; $row <= 15; $row++) {
-            $sheet->mergeCells("C{$row}:J{$row}");
-            $sheet->setCellValue("C{$row}", $validated['purpose']);
+        // Purpose of the Request Travel
+        // Wrap long text into multiple rows starting at row 13.
+        $purposeLines = preg_split('/\r\n|\r|\n/', wordwrap(trim($validated['purpose']), 85));
+
+        // Template allocates rows 13-15 for purpose.
+        // If purpose needs more lines, push the rows below (destination/date-time) down.
+        $basePurposeLines = 3;
+        $extraPurposeLines = max(0, count($purposeLines) - $basePurposeLines);
+        if ($extraPurposeLines > 0) {
+            $sheet->insertNewRowBefore(16, $extraPurposeLines);
         }
 
+        $row = 13;
+        foreach ($purposeLines as $line) {
+            $sheet->mergeCells("C{$row}:J{$row}");
+            $sheet->setCellValue("C{$row}", $line);
+            $row++;
+        }
 
+        $destinationRow = 16 + $extraPurposeLines;
+        $dateTimeUsedRow = 17 + $extraPurposeLines;
+
+        $sheet->mergeCells("C{$destinationRow}:J{$destinationRow}");
+        $sheet->setCellValue("C{$destinationRow}", $validated['destination']);
+
+        $sheet->mergeCells("C{$dateTimeUsedRow}:J{$dateTimeUsedRow}");
+        $sheet->setCellValue(
+            "C{$dateTimeUsedRow}",
+            $validated['date_time_from'] . ' to ' . $validated['date_time_to']
+        );
+
+        // Requesting Personnel's Name and Position
+        $requestingDivisionRow = 20 + $extraPurposeLines;
+        $sheet->mergeCells("C{$requestingDivisionRow}:F{$requestingDivisionRow}");
+        $sheet->setCellValue("C{$requestingDivisionRow}", $validated['requesting_division_name']);
+
+        $sheet->mergeCells("G{$requestingDivisionRow}:J{$requestingDivisionRow}");
+        $sheet->setCellValue("G{$requestingDivisionRow}", $validated['requesting_division_position']);
+
+
+        // Plate Number and Driver's Name
+        $vehicleInfoRow = 23 + $extraPurposeLines;
+        $sheet->mergeCells("E{$vehicleInfoRow}:F{$vehicleInfoRow}");
+        $sheet->setCellValue("E{$vehicleInfoRow}", $validated['vehicle_id'] ?? 'N/A');
+
+        $sheet->mergeCells("H{$vehicleInfoRow}:J{$vehicleInfoRow}");
+        $sheet->setCellValue("H{$vehicleInfoRow}", $validated['driver_name'] ?? 'N/A');
+
+
+        // Division Manager's Name
+        $divisionManagerRow = 28 + $extraPurposeLines;
+        $sheet->mergeCells("G{$divisionManagerRow}:I{$divisionManagerRow}");
+        $sheet->setCellValue("G{$divisionManagerRow}", $divisionManager);
 
         //For the Process of Excel Download File
 

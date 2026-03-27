@@ -251,7 +251,7 @@
 <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white">
 <span class="material-symbols-outlined">person_add</span>
 </div>
-<h2 class="text-xl font-bold text-primary tracking-tight">Assigned Personnel</h2>
+<h2 class="text-xl font-bold text-primary tracking-tight">Business Passengers</h2>
 </div>
 <div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
 <div class="flex items-center justify-between gap-3 pb-1">
@@ -262,17 +262,16 @@
   </button>
 </div>
 <div id="personnel-list" class="space-y-4 max-h-[24rem] overflow-y-auto pr-1">
-<!-- Personnel Row 1 -->
 <div class="personnel-row grid grid-cols-1 md:grid-cols-2 gap-4 items-end pb-4 border-b border-slate-100 last:border-0" data-index="0">
 <div class="space-y-1">
-<label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500">Personnel ID Number</label>
+<label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500">Passenger ID Number</label>
 <input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary font-mono no-spin" maxlength="6" pattern="\d{6}" placeholder="000000" type="text" inputmode="numeric" name="division_personnel[0][id_number]" value="{{ old('division_personnel.0.id_number') }}" data-role="personnel-id"/>
 </div>
 <div class="space-y-1">
-<label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500">Name  </label>
+<label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500">Name</label>
 <input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Personnel Name" type="text" name="division_personnel[0][name]" value="{{ old('division_personnel.0.name') }}" data-role="personnel-name" readonly/>
 </div>
-<div class="md:col-span-2 flex justify-end">
+<div class="md:col-span-3 flex justify-end">
 <button class="remove-personnel-btn hidden items-center gap-1 px-3 py-2 rounded-lg bg-error-container text-on-error-container hover:opacity-90 transition-all text-xs font-bold uppercase tracking-wider" type="button" data-role="remove-personnel">
 <span class="material-symbols-outlined text-base">delete</span>
 Remove
@@ -280,13 +279,34 @@ Remove
 </div>
 </div>
 </div>
-<p id="add-personnel-error" class="hidden text-xs font-semibold text-error text-right">Complete the current personnel name before adding a new row.</p>
+<p id="add-personnel-error" class="hidden text-xs font-semibold text-error text-right">Complete the current passenger name before adding a new row.</p>
 </div>
 </section>
 </div>
 
+<section class="mt-8 mb-5 pt-6">
+<div class="flex items-center gap-3 mb-6">
+<div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white">
+<span class="material-symbols-outlined">group_work</span>
+</div>
+<h2 class="text-xl font-bold text-primary tracking-tight">Requesting Division</h2>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div>
+<label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Name</label>
+<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Authorized Requestor Name" type="text" name="requesting_division_name" value="{{ old('requesting_division_name') }}"/>
+</div>
+<div>
+<label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Position</label>
+<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Official Designation" type="text" name="requesting_division_position" value="{{ old('requesting_division_position') }}"/>
+</div>
+</div>
+</div>
+</section>
+
 <!-- Section 4: Dispatch Certification -->
-<section class="pt-5 mt-5">
+<section class="pt-5">
   <div class="flex items-center gap-3 mb-6">
     <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white">
       <span class="material-symbols-outlined">attach_file</span>
@@ -403,6 +423,8 @@ Remove
     const personnelCount = document.getElementById('personnel-count');
     const addPersonnelButton = document.getElementById('add-personnel-button');
     const addPersonnelError = document.getElementById('add-personnel-error');
+    const requestingDivisionName = requestForm ? requestForm.querySelector('input[name="requesting_division_name"]') : null;
+    const requestingDivisionPosition = requestForm ? requestForm.querySelector('input[name="requesting_division_position"]') : null;
     const input = document.getElementById('attachment-input');
     const list = document.getElementById('attached-files-list');
     const emptyState = document.getElementById('attached-files-empty');
@@ -417,9 +439,11 @@ Remove
     let pendingDownloadAction = null;
     let hasConfirmedSubmit = false;
 
-    if (!requestForm || !personnelList || !personnelCount || !addPersonnelButton || !addPersonnelError || !input || !list || !emptyState) {
+    if (!requestForm || !input || !list || !emptyState) {
       return;
     }
+
+    const hasPersonnelSection = !!(personnelList && personnelCount && addPersonnelButton && addPersonnelError);
 
     function updatePersonnelCount() {
       personnelCount.textContent = '(' + getPersonnelRows().length + ')';
@@ -721,7 +745,7 @@ Remove
         + '<label class="block text-[10px] font-bold uppercase tracking-widest text-slate-500">Name</label>'
         + '<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Personnel Name" type="text" name="division_personnel[' + index + '][name]" data-role="personnel-name" readonly/>'
         + '</div>'
-        + '<div class="md:col-span-2 flex justify-end">'
+        + '<div class="md:col-span-3 flex justify-end">'
         + '<button class="remove-personnel-btn items-center gap-1 px-3 py-2 rounded-lg bg-error-container text-on-error-container hover:opacity-90 transition-all text-xs font-bold uppercase tracking-wider inline-flex" type="button" data-role="remove-personnel">'
         + '<span class="material-symbols-outlined text-base">delete</span>'
         + 'Remove'
@@ -751,54 +775,75 @@ Remove
       return hasEmpty;
     }
 
-    let nextPersonnelIndex = getPersonnelRows().length;
-    getPersonnelRows().forEach(bindPersonnelRowEvents);
-    reindexPersonnelRows();
-    updateRemoveButtons();
-    updatePersonnelCount();
+    let nextPersonnelIndex = hasPersonnelSection ? getPersonnelRows().length : 0;
 
-    addPersonnelButton.addEventListener('click', function () {
-      if (hasEmptyPersonnelName()) {
-        addPersonnelError.textContent = 'Complete the current personnel name before adding a new row.';
-        addPersonnelError.classList.remove('hidden');
-        return;
-      }
-
-      addPersonnelError.classList.add('hidden');
-      const row = createPersonnelRow(nextPersonnelIndex);
-      personnelList.appendChild(row);
-      bindPersonnelRowEvents(row);
-      nextPersonnelIndex += 1;
+    if (hasPersonnelSection) {
+      getPersonnelRows().forEach(bindPersonnelRowEvents);
       reindexPersonnelRows();
       updateRemoveButtons();
       updatePersonnelCount();
-      row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    });
+
+      addPersonnelButton.addEventListener('click', function () {
+        if (hasEmptyPersonnelName()) {
+          addPersonnelError.textContent = 'Complete the current passenger name before adding a new row.';
+          addPersonnelError.classList.remove('hidden');
+          return;
+        }
+
+        addPersonnelError.classList.add('hidden');
+        const row = createPersonnelRow(nextPersonnelIndex);
+        personnelList.appendChild(row);
+        bindPersonnelRowEvents(row);
+        nextPersonnelIndex += 1;
+        reindexPersonnelRows();
+        updateRemoveButtons();
+        updatePersonnelCount();
+        row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    }
 
     requestForm.addEventListener('submit', function (event) {
-      if (generatedDownloadUrl) {
-        event.preventDefault();
-        showConfirmModal({ type: 'download', url: generatedDownloadUrl });
-        return;
+      if (hasPersonnelSection) {
+        pruneEmptyPersonnelRows();
       }
-
-      pruneEmptyPersonnelRows();
 
       if (!hasSelectedVehicleRequests()) {
         event.preventDefault();
         hasConfirmedSubmit = false;
         hideLoadingModal();
-        addPersonnelError.textContent = 'Select at least one vehicle type and quantity.';
+        if (addPersonnelError) {
+          addPersonnelError.textContent = 'Select at least one vehicle type and quantity.';
+          addPersonnelError.classList.remove('hidden');
+        }
+        return;
+      }
+
+      if (hasPersonnelSection && hasInvalidPersonnelRows()) {
+        event.preventDefault();
+        hasConfirmedSubmit = false;
+        hideLoadingModal();
+        addPersonnelError.textContent = 'Every passenger row must have a valid 6-digit ID and an auto-filled name.';
         addPersonnelError.classList.remove('hidden');
         return;
       }
 
-      if (hasInvalidPersonnelRows()) {
+      const divisionName = requestingDivisionName ? String(requestingDivisionName.value || '').trim() : '';
+      const divisionPosition = requestingDivisionPosition ? String(requestingDivisionPosition.value || '').trim() : '';
+
+      if (requestingDivisionName) {
+        requestingDivisionName.classList.toggle('ring-2', divisionName === '');
+        requestingDivisionName.classList.toggle('ring-error/40', divisionName === '');
+      }
+
+      if (requestingDivisionPosition) {
+        requestingDivisionPosition.classList.toggle('ring-2', divisionPosition === '');
+        requestingDivisionPosition.classList.toggle('ring-error/40', divisionPosition === '');
+      }
+
+      if ((requestingDivisionName && divisionName === '') || (requestingDivisionPosition && divisionPosition === '')) {
         event.preventDefault();
         hasConfirmedSubmit = false;
         hideLoadingModal();
-        addPersonnelError.textContent = 'Every personnel row must have a valid 6-digit ID and an auto-filled name.';
-        addPersonnelError.classList.remove('hidden');
         return;
       }
 
@@ -897,11 +942,6 @@ Remove
 
     if (primaryDownloadTrigger) {
       primaryDownloadTrigger.addEventListener('click', function () {
-        if (generatedDownloadUrl) {
-          showConfirmModal({ type: 'download', url: generatedDownloadUrl });
-          return;
-        }
-
         showConfirmModal({ type: 'submit' });
       });
     }

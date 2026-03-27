@@ -24,6 +24,9 @@ return new class extends Migration
             $table->string('vehicle_type');
             $table->unsignedSmallInteger('vehicle_quantity')->default(1);
 
+            // Requesting business passengers info as JSON
+            $table->json('business_passengers')->nullable();
+
             // Requesting Division personnel info as JSON
             $table->json('division_personnel')->nullable();
             // Example: [{"name":"John Doe","id_number":"123456"}]

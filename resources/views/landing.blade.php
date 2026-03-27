@@ -87,7 +87,10 @@
 <!-- Hero Section -->
 <section class="relative min-h-[870px] flex items-center px-8 lg:px-24 overflow-hidden">
 <div class="absolute inset-0 z-0">
-<img class="w-full h-full object-cover opacity-20 grayscale brightness-75" data-alt="Heavy excavator working on a large scale irrigation canal project" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7yZYrVsU-LsmUdn_So_BH_ptxzelJ6guZ079QLKK6RIOqIWRq6nkdgMdgGcOgZ2amjmuyOLWPl0rBHarKat0m4XZIKd00MpjneV77prssUUUylalbSINy-zY2At3iIr2vvnbIzK8tOymmWmr58-pHZySPiNxNxCN4dCZAjeGAoqXIIUAuSJ14AcHL-_a2smqr1l3yZsMvbDOmPRXaWJ4plGadG0QbLIbOn00fdAaOzRCSgzEVjubj86DkmhitiicyG6znlZ5MUkwR"/>
+    {{-- <img class="w-full h-full object-cover opacity-20 grayscale brightness-75" data-alt="Heavy excavator working on a large scale irrigation canal project" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7yZYrVsU-LsmUdn_So_BH_ptxzelJ6guZ079QLKK6RIOqIWRq6nkdgMdgGcOgZ2amjmuyOLWPl0rBHarKat0m4XZIKd00MpjneV77prssUUUylalbSINy-zY2At3iIr2vvnbIzK8tOymmWmr58-pHZySPiNxNxCN4dCZAjeGAoqXIIUAuSJ14AcHL-_a2smqr1l3yZsMvbDOmPRXaWJ4plGadG0QbLIbOn00fdAaOzRCSgzEVjubj86DkmhitiicyG6znlZ5MUkwR"/> --}}
+<video class="w-full h-full object-cover  brightness-75" autoplay muted loop playsinline>
+<source src="{{ asset('landing-video.mp4') }}" type="video/mp4"/>
+</video>
 <div class="absolute inset-0 bg-gradient-to-tr from-background via-background/90 to-transparent"></div>
 </div>
 <div class="relative z-10 max-w-4xl">

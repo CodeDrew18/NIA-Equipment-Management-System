@@ -21,6 +21,7 @@ class TransportationRequestFormModel extends Model
         'purpose',
         'vehicle_type',
         'vehicle_quantity',
+        'business_passengers',
         'division_personnel',
         'vehicle_id',
         'driver_name',
@@ -31,6 +32,7 @@ class TransportationRequestFormModel extends Model
         'request_date' => 'date',
         'date_time_from' => 'datetime',
         'date_time_to' => 'datetime',
+        'business_passengers' => 'array',   
         'division_personnel' => 'array',
         'attachments' => 'array',
     ];
