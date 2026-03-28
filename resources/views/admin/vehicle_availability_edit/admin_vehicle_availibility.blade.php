@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Vehicle Availability - Institutional Management</title>
+<title>Admin Vehicle Availability - Institutional Management</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
@@ -73,25 +73,30 @@ body { font-family: 'Public Sans', sans-serif; }
 </style>
 </head>
 <body class="bg-background text-on-surface flex flex-col min-h-screen antialiased">
-@include('layouts.header')
+@include('layouts.admin_header')
 
 <main class="flex-grow px-8 pb-8 pt-28 md:pt-32 max-w-7xl mx-auto w-full">
+@if (session('admin_vehicle_success'))
+<div class="mb-6 rounded-lg border border-secondary/30 bg-secondary/10 px-4 py-3 text-sm font-semibold text-secondary">
+    {{ session('admin_vehicle_success') }}
+</div>
+@endif
+
 <section class="mb-10 flex flex-col md:flex-row justify-between md:items-end gap-6">
 <div class="max-w-2xl">
-<h1 class="text-4xl font-extrabold text-primary mb-2 tracking-tight">Vehicle Availability</h1>
-<p class="text-on-surface-variant leading-relaxed">National Irrigation Administration: Real-time monitoring of regional logistics and institutional transport resources.</p>
+<h1 class="text-4xl font-extrabold text-primary mb-2 tracking-tight">Admin Vehicle Availability</h1>
+<p class="text-on-surface-variant leading-relaxed">Update each vehicle's assigned driver and operational status.</p>
 </div>
-<div class="flex gap-4">
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10 flex flex-col min-w-[170px]">
 <span class="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-1">Total Vehicles</span>
-<span id="total-vehicles-count" class="text-3xl font-bold text-primary">{{ $totalVehicles }} Units</span>
-</div>
+<span class="text-3xl font-bold text-primary">{{ $totalVehicles }} Units</span>
 </div>
 </section>
 
-<div id="vehicles-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 @forelse ($vehicles as $vehicle)
-<div class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/20 shadow-sm hover:shadow-md transition-all">
+<form method="POST" action="{{ route('admin.vehicle-availability.update', $vehicle) }}" enctype="multipart/form-data" class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/20 shadow-sm hover:shadow-md transition-all">
+@csrf
 <div class="flex justify-between items-start mb-4 gap-3">
 <div>
 <p class="text-xs font-semibold uppercase tracking-widest text-primary/60">{{ $vehicle->vehicle_type }}</p>
@@ -108,125 +113,95 @@ body { font-family: 'Public Sans', sans-serif; }
 </span>
 </div>
 
-<div class="h-40 rounded-lg overflow-hidden bg-surface-container-low mb-4">
+<label for="vehicle_image_{{ $vehicle->id }}" class="group relative block h-32 rounded-lg overflow-hidden bg-surface-container-low mb-4 cursor-pointer border border-outline-variant/30 hover:border-primary/60 transition-colors" title="Click to upload vehicle image">
 @if ($vehicle->image_url)
-<img src="{{ $vehicle->image_url }}" alt="{{ $vehicle->vehicle_code }}" class="w-full h-full object-cover"/>
+<img id="vehicle_image_preview_{{ $vehicle->id }}" src="{{ $vehicle->image_url }}" alt="{{ $vehicle->vehicle_code }}" class="w-full h-full object-cover"/>
 @else
-<div class="w-full h-full flex items-center justify-center text-outline">
+<img id="vehicle_image_preview_{{ $vehicle->id }}" src="" alt="{{ $vehicle->vehicle_code }}" class="hidden w-full h-full object-cover"/>
+<div id="vehicle_image_placeholder_{{ $vehicle->id }}" class="w-full h-full flex items-center justify-center text-outline">
 <span class="material-symbols-outlined text-4xl">airport_shuttle</span>
 </div>
 @endif
+<div class="absolute inset-0 bg-black/35 text-white text-xs font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+Click to Upload
+</div>
+</label>
+<input
+id="vehicle_image_{{ $vehicle->id }}"
+name="vehicle_image"
+type="file"
+accept="image/png,image/jpeg,image/webp"
+onchange="previewVehicleImage(event, {{ $vehicle->id }})"
+class="hidden"
+/>
+
+<div class="space-y-3">
+<div>
+<label class="text-xs font-semibold uppercase tracking-wider text-primary/60" for="driver_name_{{ $vehicle->id }}">Driver Name</label>
+<input
+id="driver_name_{{ $vehicle->id }}"
+name="driver_name"
+type="text"
+value="{{ old('driver_name', $vehicle->driver_name) }}"
+class="mt-1 block w-full rounded-lg border-outline-variant text-sm focus:border-primary focus:ring-primary"
+placeholder="Enter driver name"
+/>
 </div>
 
-<div class="bg-surface-container-low/50 p-3 rounded-lg border border-outline-variant/20 mb-4">
-<p class="text-[10px] font-semibold uppercase tracking-wider text-primary/60">Vehicle Driver</p>
-<p class="text-sm font-bold text-on-surface">{{ $vehicle->driver_name ?: 'Unassigned' }}</p>
+<div>
+<label class="text-xs font-semibold uppercase tracking-wider text-primary/60" for="status_{{ $vehicle->id }}">Status</label>
+<select
+id="status_{{ $vehicle->id }}"
+name="status"
+class="mt-1 block w-full rounded-lg border-outline-variant text-sm focus:border-primary focus:ring-primary"
+>
+@foreach (['Available', 'On Business Trip', 'Reserved', 'Maintenance', 'Unavailable'] as $status)
+<option value="{{ $status }}" @selected(old('status', $vehicle->status) === $status)>{{ $status }}</option>
+@endforeach
+</select>
 </div>
 
-<div class="flex justify-between items-center text-sm text-on-surface-variant">
-<span>{{ $vehicle->capacity_label ?: 'No capacity set' }}</span>
-<span class="font-semibold text-primary">Live</span>
+{{-- <p class="-mt-2 text-[10px] text-on-surface-variant">Accepted: JPG, PNG, WEBP (max 4MB). Click the image area to select a file.</p> --}}
+
+<div class="text-xs text-on-surface-variant">{{ $vehicle->capacity_label ?: 'No capacity set' }}</div>
+
+<button type="submit" class="w-full rounded-lg bg-primary text-on-primary py-2 text-sm font-semibold hover:bg-primary-container transition-colors">
+Save Changes
+</button>
 </div>
-</div>
+</form>
 @empty
 <div class="col-span-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-8 text-center text-on-surface-variant font-semibold">
-No vehicle records found.
+No vehicle records found. Add vehicle records to the table first.
 </div>
 @endforelse
 </div>
 </main>
 
-@include('layouts.footer')
+@include('layouts.admin_footer')
 <script>
-    const vehiclesGrid = document.getElementById('vehicles-grid');
-    const totalVehiclesCount = document.getElementById('total-vehicles-count');
-    const vehiclesDataUrl = "{{ route('vehicle-available.data') }}";
-
-    function escapeHtml(value) {
-        return String(value ?? '')
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;')
-            .replaceAll("'", '&#039;');
+function previewVehicleImage(event, vehicleId) {
+    const input = event.target;
+    const file = input.files && input.files[0] ? input.files[0] : null;
+    if (!file) {
+        return;
     }
 
-    function statusBadgeClass(status) {
-        if (status === 'Available') return 'bg-tertiary-fixed text-on-tertiary-fixed-variant';
-        if (status === 'Reserved') return 'bg-secondary-container text-on-secondary-container';
-        if (status === 'On Business Trip') return 'bg-primary-fixed text-on-primary-fixed-variant';
-        return 'bg-error-container text-on-error-container';
+    const preview = document.getElementById(`vehicle_image_preview_${vehicleId}`);
+    const placeholder = document.getElementById(`vehicle_image_placeholder_${vehicleId}`);
+
+    if (!preview) {
+        return;
     }
 
-    function vehicleCardMarkup(vehicle) {
-        const imageSection = vehicle.image_url
-            ? `<img src="${escapeHtml(vehicle.image_url)}" alt="${escapeHtml(vehicle.vehicle_code)}" class="w-full h-full object-cover"/>`
-            : `<div class="w-full h-full flex items-center justify-center text-outline"><span class="material-symbols-outlined text-4xl">airport_shuttle</span></div>`;
+    const objectUrl = URL.createObjectURL(file);
+    preview.src = objectUrl;
+    preview.classList.remove('hidden');
 
-        return `
-<div class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/20 shadow-sm hover:shadow-md transition-all">
-    <div class="flex justify-between items-start mb-4 gap-3">
-        <div>
-            <p class="text-xs font-semibold uppercase tracking-widest text-primary/60">${escapeHtml(vehicle.vehicle_type)}</p>
-            <h3 class="text-xl font-bold text-on-surface">${escapeHtml(vehicle.vehicle_code)}</h3>
-        </div>
-        <span class="px-3 py-1 rounded-full text-xs font-bold ${statusBadgeClass(vehicle.status)}">
-            ${escapeHtml(vehicle.status)}
-        </span>
-    </div>
-
-    <div class="h-40 rounded-lg overflow-hidden bg-surface-container-low mb-4">
-        ${imageSection}
-    </div>
-
-    <div class="bg-surface-container-low/50 p-3 rounded-lg border border-outline-variant/20 mb-4">
-        <p class="text-[10px] font-semibold uppercase tracking-wider text-primary/60">Vehicle Driver</p>
-        <p class="text-sm font-bold text-on-surface">${escapeHtml(vehicle.driver_name || 'Unassigned')}</p>
-    </div>
-
-    <div class="flex justify-between items-center text-sm text-on-surface-variant">
-        <span>${escapeHtml(vehicle.capacity_label || 'No capacity set')}</span>
-        <span class="font-semibold text-primary">Live</span>
-    </div>
-</div>`;
+    if (placeholder) {
+        placeholder.classList.add('hidden');
     }
-
-    function noDataMarkup() {
-        return `<div class="col-span-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-8 text-center text-on-surface-variant font-semibold">No vehicle records found.</div>`;
-    }
-
-    async function refreshVehiclesAjax() {
-        try {
-            const response = await fetch(vehiclesDataUrl, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                cache: 'no-store',
-            });
-
-            if (!response.ok) {
-                return;
-            }
-
-            const payload = await response.json();
-            const vehicles = Array.isArray(payload.vehicles) ? payload.vehicles : [];
-
-            totalVehiclesCount.textContent = `${payload.totalVehicles ?? 0} Units`;
-
-            if (vehicles.length === 0) {
-                vehiclesGrid.innerHTML = noDataMarkup();
-                return;
-            }
-
-            vehiclesGrid.innerHTML = vehicles.map(vehicleCardMarkup).join('');
-        } catch (error) {
-            console.error('Vehicle AJAX refresh failed', error);
-        }
-    }
-
-    setInterval(refreshVehiclesAjax, 1000);
+}
 </script>
 </body>
 </html>

@@ -54,6 +54,17 @@ class requestFormController extends Controller
             ->values()
             ->all();
 
+        $passengerNames = collect($businessPassengers)
+            ->pluck('name')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $purposeWithPassengers = trim($validated['purpose']);
+        if ($passengerNames->isNotEmpty()) {
+            $purposeWithPassengers .= "\nPassengers: " . $passengerNames->implode(', ');
+        }
+
         $selectedVehicleRequests = collect($validated['vehicle_requests'])
             ->filter(function (array $vehicleRequest) {
                 return !empty($vehicleRequest['selected']);
@@ -94,14 +105,14 @@ class requestFormController extends Controller
             }
         }
 
-        TransportationRequestFormModel::create([
+        $transportationRequest = TransportationRequestFormModel::create([
             'form_id' => 'REQ-' . now()->format('Y') . '-' . strtoupper(Str::random(4)),
             'request_date' => $validated['request_date'],
             'requested_by' => $validated['requested_by'],
             'destination' => $validated['destination'],
             'date_time_from' => $validated['date_time_from'],
             'date_time_to' => $validated['date_time_to'],
-            'purpose' => $validated['purpose'],
+            'purpose' => $purposeWithPassengers,
             'vehicle_type' => $vehicleSummary,
             'vehicle_quantity' => $vehicleTotalQuantity,
             'business_passengers' => $businessPassengers,
@@ -112,6 +123,7 @@ class requestFormController extends Controller
             'vehicle_id' => $validated['vehicle_id'] ?? null,
             'driver_name' => $validated['driver_name'] ?? null,
             'attachments' => $storedAttachments,
+            'status' => 'To be Signed',
         ]);
 
         // For the Logic of the Excel Form 05/ Transportation Request Form
@@ -143,7 +155,7 @@ class requestFormController extends Controller
 
         // Purpose of the Request Travel
         // Wrap long text into multiple rows starting at row 13.
-        $purposeLines = preg_split('/\r\n|\r|\n/', wordwrap(trim($validated['purpose']), 85));
+        $purposeLines = preg_split('/\r\n|\r|\n/', wordwrap($purposeWithPassengers, 85));
 
         // Template allocates rows 13-15 for purpose.
         // If purpose needs more lines, push the rows below (destination/date-time) down.
@@ -208,9 +220,13 @@ class requestFormController extends Controller
             $tempPath = $outputDirectory . DIRECTORY_SEPARATOR . $filename;
             $writer->save($tempPath);
 
+            $transportationRequest->update([
+                'generated_filename' => $filename,
+            ]);
+
             return redirect()
                 ->route('request-form')
-                ->with('success', 'Transportation request download successfully.')
+                ->with('request_form_success', 'Transportation request download successfully.')
                 ->with('download_file', $filename)
                 ->with('auto_download', true);
         } catch (\Throwable $e) {
@@ -225,10 +241,20 @@ class requestFormController extends Controller
         $safeFilename = basename($filename);
         $path = storage_path('app/public/generated_forms/' . $safeFilename);
 
+        $transportationRequest = TransportationRequestFormModel::query()
+            ->where('generated_filename', $safeFilename)
+            ->first();
+
         if (pathinfo($safeFilename, PATHINFO_EXTENSION) !== 'xlsx' || !is_readable($path)) {
             return redirect()
                 ->route('request-form')
                 ->with('error', 'The requested spreadsheet file is unavailable. Please submit the form again.');
+        }
+
+        if ($transportationRequest) {
+            $transportationRequest->update([
+                'status' => 'To be Signed',
+            ]);
         }
 
         return response()->download($path)->deleteFileAfterSend(true);

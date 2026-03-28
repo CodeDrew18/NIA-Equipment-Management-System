@@ -134,9 +134,9 @@
     </div>
   @endif
 
-  @if (session('success'))
+  @if (session('request_form_success'))
     <div class="rounded-xl border border-secondary/30 bg-secondary-container p-4 text-on-secondary-container text-sm font-semibold flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      <span>{{ session('success') }}</span>
+      <span>{{ session('request_form_success') }}</span>
   
     </div>
   @endif

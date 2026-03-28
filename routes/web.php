@@ -24,3 +24,35 @@ Route::get('/request-form/download/{filename}', [requestFormController::class, '
 Route::get('/request-form/personnel/{personnelId}', [requestFormController::class, 'personnelLookup'])->name('request-form.personnel-lookup');
 
 Route::get("/vehicle-available", [vehicleAvailabilityController::class, 'vehicleAvailability'])->name('vehicle-available');
+Route::get('/vehicle-available/data', [vehicleAvailabilityController::class, 'vehiclesData'])->name('vehicle-available.data');
+
+
+// Admin Dashboard
+Route::get("/admin/dashboard", [App\Http\Controllers\admin\dashboardController::class, 'index'])->name('admin.dashboard');
+Route::get('/admin/dashboard/data', [App\Http\Controllers\admin\dashboardController::class, 'dashboardData'])->name('admin.dashboard.data');
+Route::post(
+    '/admin/dashboard/requests/{transportationRequest}/status',
+    [App\Http\Controllers\admin\dashboardController::class, 'updateRequestStatus']
+)->name('admin.dashboard.requests.update-status');
+
+// Admin Operations
+Route::get("/admin/vehicle-availability", [App\Http\Controllers\admin\adminVehicleAvailabilityController::class, 'index'])->name('admin.vehicle-availability');
+Route::post(
+    '/admin/vehicle-availability/{vehicle}',
+    [App\Http\Controllers\admin\adminVehicleAvailabilityController::class, 'update']
+)->name('admin.vehicle-availability.update');
+
+Route::get("/admin/daily-trip-ticket", [App\Http\Controllers\admin\dailyTripTicketController::class, 'index'])->name('admin.daily-trip-ticket');
+Route::get('/admin/daily-trip-ticket/data', [App\Http\Controllers\admin\dailyTripTicketController::class, 'data'])->name('admin.daily-trip-ticket.data');
+Route::post('/admin/daily-trip-ticket/{transportationRequest}/status', [App\Http\Controllers\admin\dailyTripTicketController::class, 'updateStatus'])->name('admin.daily-trip-ticket.status');
+Route::get('/admin/daily-trip-ticket/{transportationRequest}/print', [App\Http\Controllers\admin\dailyTripTicketController::class, 'print'])->name('admin.daily-trip-ticket.print');
+
+Route::prefix('admin')->group(function () {
+    Route::fallback(function () {
+        return response()->view('admin.404_admin', [], 404);
+    });
+});
+
+Route::fallback(function () {
+    return response()->view('404', [], 404);
+});
