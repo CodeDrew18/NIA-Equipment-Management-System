@@ -6,16 +6,17 @@ use App\Http\Controllers\Controller;
 use App\Models\TransportationRequestFormModel;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class dailyTripTicketController extends Controller
 {
-    private const DTT_STATUS_OPTIONS = ['Pending', 'To be Signed', 'Dispatched'];
+    private const DTT_STATUS_OPTIONS = ['Signed', 'Dispatched'];
 
     public function index(Request $request)
     {
-        return view('admin.daily_drivers_trip_ticket.blade.trip_ticket', $this->buildPayload($request));
+        return view('admin.daily_drivers_trip_ticket.trip_ticket', $this->buildPayload($request));
     }
 
     public function data(Request $request)
@@ -53,8 +54,8 @@ class dailyTripTicketController extends Controller
                     'dateRangeLabel' => $this->dateRangeLabel($item),
                     'daysTotalLabel' => $this->daysTotalLabel($item),
                     'dttCount' => $this->dttCount($item),
-                    'status' => (string) ($item->status ?? 'Pending'),
-                    'printUrl' => route('admin.daily-trip-ticket.print', $item),
+                    'status' => (string) ($item->status ?? 'Signed'),
+                    'downloadUrl' => route('admin.daily-trip-ticket.download', $item),
                     'updateStatusUrl' => route('admin.daily-trip-ticket.status', $item),
                 ];
             })->values(),
@@ -83,7 +84,7 @@ class dailyTripTicketController extends Controller
             ->with('admin_dtt_success', 'DTT status updated to ' . $validated['status'] . '.');
     }
 
-    public function print(TransportationRequestFormModel $transportationRequest)
+    public function download(TransportationRequestFormModel $transportationRequest)
     {
         $templatePath = storage_path('app/public/forms/DRIVERS_TRIP_TICKET_FORM-1_rev_09.xlsx');
         if (!is_readable($templatePath)) {
@@ -109,30 +110,47 @@ class dailyTripTicketController extends Controller
             ->values()
             ->implode(', ');
 
-        // These cells are mapped for DTT template population.
-        $sheet->setCellValue('B3', (string) ($transportationRequest->form_id ?? 'N/A'));
-        $sheet->setCellValue('H3', (string) (($requestDate?->format('Y-m-d')) ?? now()->format('Y-m-d')));
-        $sheet->setCellValue('B5', (string) ($transportationRequest->requestor_name ?: $transportationRequest->requested_by ?: 'N/A'));
-        $sheet->setCellValue('H5', (string) ($transportationRequest->requestor_position ?: 'N/A'));
-        $sheet->setCellValue('B7', (string) ($transportationRequest->destination ?: 'N/A'));
-        $sheet->setCellValue('B9', (string) ($transportationRequest->purpose ?: 'N/A'));
-        $sheet->setCellValue('B11', (string) ($transportationRequest->vehicle_type ?: 'N/A'));
-        $sheet->setCellValue('H11', (string) ($transportationRequest->vehicle_quantity ?? '1'));
-        $sheet->setCellValue('B13', (string) ($transportationRequest->driver_name ?: 'N/A'));
-        $sheet->setCellValue('H13', (string) ($passengerNames !== '' ? $passengerNames : 'N/A'));
-        $sheet->setCellValue('B15', (string) (($from?->format('Y-m-d H:i')) ?? 'N/A'));
-        $sheet->setCellValue('H15', (string) (($to?->format('Y-m-d H:i')) ?? 'N/A'));
-        $sheet->setCellValue('B17', $this->dateRangeLabel($transportationRequest));
-        $sheet->setCellValue('H17', (string) $this->dttCount($transportationRequest));
-        $sheet->setCellValue('B19', (string) ($transportationRequest->status ?? 'Pending'));
+        $sheet->mergeCells('S6:V6');
+        $sheet->setCellValue('S6', (string) ($transportationRequest->form_id ?? 'N/A'));
+
+        $sheet->mergeCells('E9:L9');
+        $sheet->setCellValue('E9', (string) ($transportationRequest->vehicle_id ?: $transportationRequest->vehicle_id ?: 'N/A'));
+
+        $sheet->mergeCells('O9:V9');
+        $sheet->setCellValue('O9', (string) ($transportationRequest->driver_name ?: 'N/A'));
+
+        $sheet->mergeCells('E10:V10');
+        $sheet->setCellValue('E10', (string) ($passengerNames !== '' ? $passengerNames : 'N/A'));
+
+        $sheet->mergeCells('E11:V11');
+        $sheet->setCellValue('E11', (string) ($transportationRequest->destination ?: 'N/A'));
+
+        $sheet->mergeCells('E12:V12');
+        $sheet->setCellValue('E12', (string) ($transportationRequest->purpose ?: 'N/A'));
+
+        $fromDate = $from ? Carbon::parse($from) : null;
+        $toDate   = $to ? Carbon::parse($to) : null;
+
+        // FROM
+        $sheet->mergeCells('H13:M13');
+        $sheet->setCellValue('H13', $fromDate ? $fromDate->format('d/m/Y') : 'N/A'); // Date
+        $sheet->mergeCells('P13:S13');
+        $sheet->setCellValue('P13', $fromDate ? $fromDate->format('H:i') : 'N/A');   // Time
+
+        // TO
+        $sheet->mergeCells('H15:M15');
+        $sheet->setCellValue('H15', $toDate ? $toDate->format('d/m/Y') : 'N/A'); // Date
+        $sheet->mergeCells('P15:S15');
+        $sheet->setCellValue('P15', $toDate ? $toDate->format('H:i') : 'N/A');   // Time
+
 
         $outputDirectory = storage_path('app/public/generated_forms');
         if (!is_dir($outputDirectory)) {
             mkdir($outputDirectory, 0755, true);
         }
 
-        $fileName = 'DTT_' . ($transportationRequest->form_id ?: 'REQUEST') . '_' . now()->format('Ymd_His') . '.xlsx';
-        $safeFileName = preg_replace('/[^A-Za-z0-9._-]/', '_', $fileName) ?: ('DTT_' . now()->format('Ymd_His') . '.xlsx');
+        $fileName = 'DTT_' . ($transportationRequest->form_id ?: 'REQUEST') . '_' . now()->format('Ymd_His_u') . '_' . Str::lower(Str::random(6)) . '.xlsx';
+        $safeFileName = preg_replace('/[^A-Za-z0-9._-]/', '_', $fileName) ?: ('DTT_' . now()->format('Ymd_His_u') . '_' . Str::lower(Str::random(6)) . '.xlsx');
         $outputPath = $outputDirectory . DIRECTORY_SEPARATOR . $safeFileName;
 
         $writer = new Xlsx($spreadsheet);
@@ -156,6 +174,7 @@ class dailyTripTicketController extends Controller
         $toDate = $validated['to'] ?? '';
 
         $baseQuery = TransportationRequestFormModel::query()
+            ->whereIn('status', self::DTT_STATUS_OPTIONS)
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($nested) use ($search) {
                     $nested->where('form_id', 'like', '%' . $search . '%')
@@ -173,7 +192,7 @@ class dailyTripTicketController extends Controller
                 $query->whereDate('request_date', '<=', $toDate);
             });
 
-        $pendingStatuses = ['Pending', 'To be Signed'];
+        $pendingStatuses = ['Signed'];
 
         $requests = (clone $baseQuery)
             ->orderByDesc('request_date')

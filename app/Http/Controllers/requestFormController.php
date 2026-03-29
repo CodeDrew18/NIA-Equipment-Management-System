@@ -4,6 +4,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\AdminVehicleAvailability;
 use App\Models\TransportationRequestFormModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -14,7 +15,35 @@ class requestFormController extends Controller
 {
     public function requestForm()
     {
-        return view('letter_of_request/requestform');
+        $availableVehicleTypes = [
+            'coaster' => false,
+            'van' => false,
+            'pickup' => false,
+        ];
+
+        $vehicleTypeLabels = AdminVehicleAvailability::query()
+            ->where('status', 'Available')
+            ->pluck('vehicle_type');
+
+        foreach ($vehicleTypeLabels as $vehicleTypeLabel) {
+            $label = strtolower((string) $vehicleTypeLabel);
+
+            if (str_contains($label, 'coaster')) {
+                $availableVehicleTypes['coaster'] = true;
+            }
+
+            if (str_contains($label, 'van')) {
+                $availableVehicleTypes['van'] = true;
+            }
+
+            if (str_contains($label, 'pickup') || str_contains($label, 'pick-up')) {
+                $availableVehicleTypes['pickup'] = true;
+            }
+        }
+
+        return view('letter_of_request/requestform', [
+            'availableVehicleTypes' => $availableVehicleTypes,
+        ]);
     }
 
     public function submitRequestForm(Request $request)
@@ -83,6 +112,43 @@ class requestFormController extends Controller
         if ($selectedVehicleRequests->isEmpty()) {
             return back()
                 ->withErrors(['vehicle_requests' => 'Select at least one vehicle type and quantity.'])
+                ->withInput();
+        }
+
+        $availableVehicleTypes = [
+            'coaster' => false,
+            'van' => false,
+            'pickup' => false,
+        ];
+
+        $vehicleTypeLabels = AdminVehicleAvailability::query()
+            ->where('status', 'Available')
+            ->pluck('vehicle_type');
+
+        foreach ($vehicleTypeLabels as $vehicleTypeLabel) {
+            $label = strtolower((string) $vehicleTypeLabel);
+
+            if (str_contains($label, 'coaster')) {
+                $availableVehicleTypes['coaster'] = true;
+            }
+
+            if (str_contains($label, 'van')) {
+                $availableVehicleTypes['van'] = true;
+            }
+
+            if (str_contains($label, 'pickup') || str_contains($label, 'pick-up')) {
+                $availableVehicleTypes['pickup'] = true;
+            }
+        }
+
+        $requestedVehicleTypes = $selectedVehicleRequests->pluck('type')->unique();
+        $hasUnavailableVehicle = $requestedVehicleTypes->contains(function (string $type) use ($availableVehicleTypes) {
+            return empty($availableVehicleTypes[$type]);
+        });
+
+        if ($hasUnavailableVehicle) {
+            return back()
+                ->withErrors(['vehicle_requests' => 'One or more selected vehicles are currently unavailable.'])
                 ->withInput();
         }
 

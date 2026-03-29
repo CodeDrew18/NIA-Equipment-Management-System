@@ -203,7 +203,12 @@
 <div class="space-y-6">
 <p class="text-[11px] font-bold uppercase tracking-widest text-slate-500">Select one or more vehicle types</p>
 
+@php
+  $availableVehicleTypes = $availableVehicleTypes ?? ['coaster' => true, 'van' => true, 'pickup' => true];
+@endphp
+
 <div class="space-y-3">
+  @if ($availableVehicleTypes['coaster'])
   <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row>
     <div class="flex items-center gap-2">
       <input id="vehicle-coaster" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[0][selected]" value="1" {{ old('vehicle_requests.0.selected') ? 'checked' : '' }} />
@@ -216,7 +221,9 @@
       <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[0][quantity]" value="{{ old('vehicle_requests.0.quantity', 1) }}" min="1" max="99" {{ old('vehicle_requests.0.selected') ? '' : 'disabled' }} />
     </div>
   </div>
+  @endif
 
+  @if ($availableVehicleTypes['van'])
   <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row>
     <div class="flex items-center gap-2">
       <input id="vehicle-van" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[1][selected]" value="1" {{ old('vehicle_requests.1.selected') ? 'checked' : '' }} />
@@ -229,7 +236,9 @@
       <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[1][quantity]" value="{{ old('vehicle_requests.1.quantity', 1) }}" min="1" max="99" {{ old('vehicle_requests.1.selected') ? '' : 'disabled' }} />
     </div>
   </div>
+  @endif
 
+  @if ($availableVehicleTypes['pickup'])
   <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row>
     <div class="flex items-center gap-2">
       <input id="vehicle-pickup" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[2][selected]" value="1" {{ old('vehicle_requests.2.selected') ? 'checked' : '' }} />
@@ -242,6 +251,13 @@
       <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[2][quantity]" value="{{ old('vehicle_requests.2.quantity', 1) }}" min="1" max="99" {{ old('vehicle_requests.2.selected') ? '' : 'disabled' }} />
     </div>
   </div>
+  @endif
+
+  @if (!$availableVehicleTypes['coaster'] && !$availableVehicleTypes['van'] && !$availableVehicleTypes['pickup'])
+  <div class="rounded-xl border border-error/30 bg-error-container px-4 py-3 text-xs font-semibold text-on-error-container">
+    No vehicles are currently marked as Available.
+  </div>
+  @endif
 </div>
 </div>
 </div>

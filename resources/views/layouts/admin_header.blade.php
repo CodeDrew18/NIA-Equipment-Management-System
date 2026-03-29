@@ -218,9 +218,10 @@
 	}
 </style>
 @php
-	$operationsActive = request()->routeIs('request-form') || request()->routeIs('admin.vehicle-availability') || request()->routeIs('admin.daily-trip-ticket');
+	$operationsActive = request()->routeIs('admin.transportation-request') || request()->routeIs('admin.vehicle-availability') || request()->routeIs('admin.daily-trip-ticket');
 	$reportsActive = request()->routeIs('reports');
 	$evaluationsActive = request()->routeIs('evaluations');
+	$transportationRequestActive = request()->routeIs('admin.transportation-request');
 @endphp
 <div class="flex justify-between items-center w-full px-8 py-4 max-w-full h-20">
 <div class="flex items-center gap-8">
@@ -233,7 +234,7 @@
 	</button>
 	<div class="nav-dropdown-menu" role="menu" aria-label="Operations menu">
 		<a class="nav-dropdown-item" href="{{ route('admin.vehicle-availability') }}" role="menuitem">Vehicle Availability</a>
-            {{-- <a class="nav-dropdown-item" href="{{ route('request-form') }}" role="menuitem">Transportation Request</a>--}} 
+            <a class="nav-dropdown-item {{ $transportationRequestActive ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' : '' }}" href="{{ route('admin.transportation-request') }}" role="menuitem">Transportation Request</a>
 		<a class="nav-dropdown-item" href="{{ route('admin.daily-trip-ticket') }}" role="menuitem">Daily Driver's Trip Ticket</a>
             {{-- <a class="nav-dropdown-item" href="#" role="menuitem">Daily Equipment Utilization Report</a> --}}
             {{-- <a class="nav-dropdown-item" href="#" role="menuitem">Fuel Issuance Slips</a> --}}
@@ -264,18 +265,17 @@
 </div>
 <div id="mobile-nav-panel" class="lg:hidden hidden px-8 pb-5">
 	<div class="mt-1 rounded-xl border border-slate-200/70 dark:border-slate-700/70 bg-white/90 dark:bg-slate-800/90 p-3 shadow-sm space-y-1">
-		<a class="mobile-nav-link {{ request()->routeIs('landing-page') ? 'mobile-nav-link-active' : '' }}" href="{{ route('landing-page') }}">Dashboard</a>
+		<a class="mobile-nav-link {{ request()->routeIs('admin.dashboard') ? 'mobile-nav-link-active' : '' }}" href="{{ route('admin.dashboard') }}">Dashboard</a>
 
-		<details class="mobile-nav-group" {{ $operationsActive ? 'open' : '' }}>
+		<details class="mobile-nav-group" {{ $operationsActive ? 'open' : '' }}>	
 			<summary class="mobile-nav-link {{ $operationsActive ? 'mobile-nav-link-active' : '' }} flex items-center justify-between cursor-pointer">
 				<span>Operations</span>
 				<span class="mobile-nav-summary-caret">&#9662;</span>
 			</summary>
 			<div class="pt-1 pb-1 space-y-1">
-				<a class="mobile-nav-subitem {{ request()->routeIs('request-form') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('request-form') }}">Transportation Request</a>
-				<a class="mobile-nav-subitem" href="#">Daily Driver's Trip Ticket</a>
-				<a class="mobile-nav-subitem" href="#">Daily Equipment Utilization Report</a>
-				<a class="mobile-nav-subitem" href="#">Fuel Issuance Slips</a>
+				<a class="mobile-nav-subitem {{ request()->routeIs('admin.vehicle-availability') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.vehicle-availability') }}">Vehicle Availability</a>
+				<a class="mobile-nav-subitem {{ request()->routeIs('admin.transportation-request') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.transportation-request') }}">Transportation Request</a>	
+				<a class="mobile-nav-subitem {{ request()->routeIs('admin.daily-trip-ticket') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.daily-trip-ticket') }}">Daily Driver's Trip Ticket</a>
 			</div>
 		</details>
 
@@ -299,16 +299,47 @@
 		const toggleButton = document.getElementById('mobile-nav-toggle');
 		const panel = document.getElementById('mobile-nav-panel');
 		const icon = document.getElementById('mobile-nav-icon');
+		const closeSelectors = 'a, button, summary';
 
 		if (!toggleButton || !panel || !icon) {
 			return;
 		}
 
+		function setMenuState(isOpen) {
+			panel.classList.toggle('hidden', !isOpen);
+			toggleButton.setAttribute('aria-expanded', String(isOpen));
+			icon.textContent = isOpen ? 'close' : 'menu';
+		}
+
 		toggleButton.addEventListener('click', function () {
-			const isHidden = panel.classList.contains('hidden');
-			panel.classList.toggle('hidden');
-			toggleButton.setAttribute('aria-expanded', String(isHidden));
-			icon.textContent = isHidden ? 'close' : 'menu';
+			const willOpen = panel.classList.contains('hidden');
+			setMenuState(willOpen);
+		});
+
+		document.addEventListener('keydown', function (event) {
+			if (event.key === 'Escape') {
+				setMenuState(false);
+			}
+		});
+
+		document.addEventListener('click', function (event) {
+			if (panel.classList.contains('hidden')) {
+				return;
+			}
+
+			const clickInsidePanel = panel.contains(event.target);
+			const clickToggle = toggleButton.contains(event.target);
+
+			if (!clickInsidePanel && !clickToggle) {
+				setMenuState(false);
+			}
+		});
+
+		panel.addEventListener('click', function (event) {
+			const actionTarget = event.target.closest(closeSelectors);
+			if (actionTarget && actionTarget.tagName === 'A') {
+				setMenuState(false);
+			}
 		});
 	})();
 </script>

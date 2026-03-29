@@ -175,17 +175,16 @@
 <td class="px-6 py-5 text-center"><span class="inline-flex items-center justify-center px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container font-bold text-sm">{{ max(1, optional($item->date_time_from)->startOfDay()?->diffInDays(optional($item->date_time_to)->startOfDay() ?? optional($item->date_time_from)->startOfDay()) + 1) }}</span></td>
 <td class="px-6 py-5">
 @php
-    $status = (string) ($item->status ?? 'Pending');
+    $status = (string) ($item->status ?? 'Signed');
 @endphp
 <select data-status-url="{{ route('admin.daily-trip-ticket.status', $item) }}" class="dtt-status-select w-full border border-outline-variant rounded-md py-2 px-2 text-sm bg-white">
-<option value="Pending" @selected($status === 'Pending')>Pending</option>
-<option value="To be Signed" @selected($status === 'To be Signed')>To be Signed</option>
+<option value="Signed" @selected($status === 'Signed')>Signed</option>
 <option value="Dispatched" @selected($status === 'Dispatched')>Dispatched</option>
 </select>
 </td>
 <td class="px-6 py-5 text-right">
 <div class="flex items-center justify-end gap-2">
-<a href="{{ route('admin.daily-trip-ticket.print', $item) }}" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[10px] uppercase rounded-md hover:bg-primary hover:text-white transition-all shadow-sm">
+<a href="{{ route('admin.daily-trip-ticket.download', $item) }}" class="dtt-download-link flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[10px] uppercase rounded-md hover:bg-primary hover:text-white transition-all shadow-sm">
 <span class="material-symbols-outlined text-[14px]">print</span>
 Print DTTs
 </a>
@@ -222,6 +221,19 @@ Print DTTs
 </div>
 </main>
 
+<div id="dtt-download-success-message" class="fixed inset-x-0 top-24 z-[65] hidden px-4">
+<div class="mx-auto max-w-md border border-secondary/30 bg-secondary-container p-4 text-on-secondary-container shadow-2xl">
+<p class="text-sm font-semibold">Download started successfully.</p>
+</div>
+</div>
+
+<div id="dtt-download-loading-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/45 px-4">
+<div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center">
+<div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary"></div>
+<p class="text-sm font-semibold text-on-surface">Preparing your download...</p>
+</div>
+</div>
+
 @include('layouts.admin_footer')
 
 <script>
@@ -240,11 +252,14 @@ const dttEls = {
     coaster: document.getElementById('count-coaster'),
     van: document.getElementById('count-van'),
     pickup: document.getElementById('count-pickup'),
+    downloadSuccessMessage: document.getElementById('dtt-download-success-message'),
+    downloadLoadingModal: document.getElementById('dtt-download-loading-modal'),
 };
 
 const dttDataUrl = "{{ route('admin.daily-trip-ticket.data') }}";
 const dttCsrfToken = "{{ csrf_token() }}";
 let dttCurrentPage = {{ $requests->currentPage() }};
+let dttDownloadInProgress = false;
 
 function esc(value) {
     return String(value ?? '')
@@ -256,7 +271,7 @@ function esc(value) {
 }
 
 function dttStatusOptions(selectedStatus) {
-    const options = ['Pending', 'To be Signed', 'Dispatched'];
+    const options = ['Signed', 'Dispatched'];
     return options
         .map((option) => `<option value="${esc(option)}"${option === selectedStatus ? ' selected' : ''}>${esc(option)}</option>`)
         .join('');
@@ -270,8 +285,101 @@ function dttRow(item) {
 <td class="px-6 py-5"><div class="text-sm font-semibold text-on-surface">${esc(item.dateRangeLabel)}</div><div class="text-[10px] font-bold text-outline uppercase tracking-tight">${esc(item.daysTotalLabel)}</div></td>
 <td class="px-6 py-5 text-center"><span class="inline-flex items-center justify-center px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container font-bold text-sm">${esc(item.dttCount)}</span></td>
 <td class="px-6 py-5"><select data-status-url="${esc(item.updateStatusUrl)}" class="dtt-status-select w-full border border-outline-variant rounded-md py-2 px-2 text-sm bg-white">${dttStatusOptions(item.status)}</select></td>
-<td class="px-6 py-5 text-right"><div class="flex items-center justify-end gap-2"><a href="${esc(item.printUrl)}" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[10px] uppercase rounded-md hover:bg-primary hover:text-white transition-all shadow-sm"><span class="material-symbols-outlined text-[14px]">print</span>Print DTTs</a></div></td>
+<td class="px-6 py-5 text-right"><div class="flex items-center justify-end gap-2"><a href="${esc(item.downloadUrl)}" class="dtt-download-link flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[10px] uppercase rounded-md hover:bg-primary hover:text-white transition-all shadow-sm"><span class="material-symbols-outlined text-[14px]">print</span>Print DTTs</a></div></td>
 </tr>`;
+}
+
+function showDttDownloadLoadingModal() {
+    if (!dttEls.downloadLoadingModal) {
+        return;
+    }
+    dttEls.downloadLoadingModal.classList.remove('hidden');
+    dttEls.downloadLoadingModal.classList.add('flex');
+}
+
+function hideDttDownloadLoadingModal() {
+    if (!dttEls.downloadLoadingModal) {
+        return;
+    }
+    dttEls.downloadLoadingModal.classList.add('hidden');
+    dttEls.downloadLoadingModal.classList.remove('flex');
+}
+
+function showDttDownloadSuccessMessage() {
+    if (!dttEls.downloadSuccessMessage) {
+        return;
+    }
+
+    dttEls.downloadSuccessMessage.classList.remove('hidden');
+
+    clearTimeout(showDttDownloadSuccessMessage.timerId);
+    showDttDownloadSuccessMessage.timerId = setTimeout(function () {
+        dttEls.downloadSuccessMessage.classList.add('hidden');
+    }, 2500);
+}
+
+function setDttDownloadLinkBusy(linkEl, isBusy) {
+    if (!linkEl) {
+        return;
+    }
+
+    linkEl.classList.toggle('pointer-events-none', isBusy);
+    linkEl.classList.toggle('opacity-80', isBusy);
+}
+
+function startDttExcelDownload(url, linkEl) {
+    if (!url) {
+        return;
+    }
+
+    if (dttDownloadInProgress) {
+        return;
+    }
+
+    dttDownloadInProgress = true;
+    setDttDownloadLinkBusy(linkEl, true);
+
+    const iframeId = 'hidden-download-frame';
+    let frame = document.getElementById(iframeId);
+    let isCompleted = false;
+
+    function completeDownloadUI() {
+        if (isCompleted) {
+            return;
+        }
+
+        isCompleted = true;
+        dttDownloadInProgress = false;
+        setDttDownloadLinkBusy(linkEl, false);
+        hideDttDownloadLoadingModal();
+        showDttDownloadSuccessMessage();
+        window.removeEventListener('focus', handleWindowFocus);
+    }
+
+    function handleWindowFocus() {
+        completeDownloadUI();
+    }
+
+    if (!frame) {
+        frame = document.createElement('iframe');
+        frame.id = iframeId;
+        frame.style.display = 'none';
+        document.body.appendChild(frame);
+    }
+
+    const separator = url.indexOf('?') === -1 ? '?' : '&';
+
+    frame.onload = function () {
+        completeDownloadUI();
+    };
+
+    showDttDownloadLoadingModal();
+    window.addEventListener('focus', handleWindowFocus);
+    frame.src = url + separator + 'download_ts=' + Date.now();
+
+    setTimeout(function () {
+        completeDownloadUI();
+    }, 2000);
 }
 
 function syncStatusSelectOriginalValues() {
@@ -415,9 +523,19 @@ dttEls.tbody.addEventListener('change', function (event) {
     updateDttStatus(selectEl);
 });
 
+dttEls.tbody.addEventListener('click', function (event) {
+    const downloadLink = event.target.closest('.dtt-download-link');
+    if (!downloadLink) {
+        return;
+    }
+
+    event.preventDefault();
+    startDttExcelDownload(downloadLink.getAttribute('href'), downloadLink);
+});
+
 syncStatusSelectOriginalValues();
 
-setInterval(() => refreshDtt(dttCurrentPage), 10000);
+// setInterval(() => refreshDtt(dttCurrentPage), 1000);
 </script>
 </body>
 </html>

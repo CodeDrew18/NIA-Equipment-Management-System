@@ -42,11 +42,17 @@ Route::post(
     [App\Http\Controllers\admin\adminVehicleAvailabilityController::class, 'update']
 )->name('admin.vehicle-availability.update');
 
+// Admin Daily Driver's Trip Ticket
 Route::get("/admin/daily-trip-ticket", [App\Http\Controllers\admin\dailyTripTicketController::class, 'index'])->name('admin.daily-trip-ticket');
 Route::get('/admin/daily-trip-ticket/data', [App\Http\Controllers\admin\dailyTripTicketController::class, 'data'])->name('admin.daily-trip-ticket.data');
 Route::post('/admin/daily-trip-ticket/{transportationRequest}/status', [App\Http\Controllers\admin\dailyTripTicketController::class, 'updateStatus'])->name('admin.daily-trip-ticket.status');
-Route::get('/admin/daily-trip-ticket/{transportationRequest}/print', [App\Http\Controllers\admin\dailyTripTicketController::class, 'print'])->name('admin.daily-trip-ticket.print');
+Route::get('/admin/daily-trip-ticket/{transportationRequest}/download', [App\Http\Controllers\admin\dailyTripTicketController::class, 'download'])->name('admin.daily-trip-ticket.download');
 
+// Admin Transportation Request
+Route::get("/admin/transportation-request", [App\Http\Controllers\admin\adminTransportationRequest::class, 'index'])->name('admin.transportation-request');
+Route::post('/admin/transportation-request/{transportationRequest}/status', [App\Http\Controllers\admin\adminTransportationRequest::class, 'updateStatus'])->name('admin.transportation-request.status');
+
+// 404 Fallback Routes
 Route::prefix('admin')->group(function () {
     Route::fallback(function () {
         return response()->view('admin.404_admin', [], 404);

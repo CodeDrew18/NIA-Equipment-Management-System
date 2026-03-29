@@ -234,9 +234,9 @@
 	<div class="nav-dropdown-menu" role="menu" aria-label="Operations menu">
 		<a class="nav-dropdown-item" href="{{ route('vehicle-available') }}" role="menuitem">Vehicle Availability</a>
 		<a class="nav-dropdown-item" href="{{ route('request-form') }}" role="menuitem">Transportation Request</a>
-		<a class="nav-dropdown-item" href="#" role="menuitem">Daily Driver's Trip Ticket</a>
-		<a class="nav-dropdown-item" href="#" role="menuitem">Daily Equipment Utilization Report</a>
-		<a class="nav-dropdown-item" href="#" role="menuitem">Fuel Issuance Slips</a>
+		{{-- <a class="nav-dropdown-item" href="#" role="menuitem">Daily Driver's Trip Ticket</a> --}}
+		{{-- <a class="nav-dropdown-item" href="#" role="menuitem">Daily Equipment Utilization Report</a>
+		<a class="nav-dropdown-item" href="#" role="menuitem">Fuel Issuance Slips</a> --}}
 	</div>
 </div>
 <div class="nav-dropdown">

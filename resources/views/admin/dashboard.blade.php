@@ -170,8 +170,8 @@
 <div class="px-8 py-6 border-b border-outline-variant/10 flex items-center justify-between bg-surface-container-low/30">
 <h2 class="text-lg font-extrabold text-primary tracking-tight">Recent Transportation Requests</h2>
 <div class="flex gap-2">
-<button class="px-4 py-2 text-xs font-bold uppercase tracking-widest text-primary hover:bg-primary/5 rounded-lg transition-all">Export Report</button>
-<button class="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-primary text-on-primary rounded-lg shadow-sm hover:shadow-md transition-all">View All</button>
+{{-- <button class="px-4 py-2 text-xs font-bold uppercase tracking-widest text-primary hover:bg-primary/5 rounded-lg transition-all">Export Report</button>
+<button class="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-primary text-on-primary rounded-lg shadow-sm hover:shadow-md transition-all">View All</button> --}}
 </div>
 </div>
 <div class="overflow-x-auto">
