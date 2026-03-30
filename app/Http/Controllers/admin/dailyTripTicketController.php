@@ -173,8 +173,7 @@ class dailyTripTicketController extends Controller
         $fromDate = $validated['from'] ?? '';
         $toDate = $validated['to'] ?? '';
 
-        $baseQuery = TransportationRequestFormModel::query()
-            ->whereIn('status', self::DTT_STATUS_OPTIONS)
+        $filteredQuery = TransportationRequestFormModel::query()
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($nested) use ($search) {
                     $nested->where('form_id', 'like', '%' . $search . '%')
@@ -192,19 +191,18 @@ class dailyTripTicketController extends Controller
                 $query->whereDate('request_date', '<=', $toDate);
             });
 
-        $pendingStatuses = ['Signed'];
-
-        $requests = (clone $baseQuery)
+        $requests = (clone $filteredQuery)
+            ->where('status', 'Signed')
             ->orderByDesc('request_date')
             ->orderByDesc('id')
             ->paginate(10)
             ->withQueryString();
 
-        $totalDtts = (clone $baseQuery)->count();
-        $pendingDtts = (clone $baseQuery)->whereIn('status', $pendingStatuses)->count();
-        $completedDtts = (clone $baseQuery)->whereNotIn('status', $pendingStatuses)->count();
+        $totalDtts = (clone $filteredQuery)->where('status', 'Signed')->count();
+        $pendingDtts = (clone $filteredQuery)->where('status', 'Signed')->count();
+        $completedDtts = (clone $filteredQuery)->where('status', 'Dispatched')->count();
 
-        $vehicleRows = (clone $baseQuery)->pluck('vehicle_type');
+        $vehicleRows = (clone $filteredQuery)->where('status', 'Signed')->pluck('vehicle_type');
         $vehicleTypeCounts = [
             'coaster' => 0,
             'van' => 0,

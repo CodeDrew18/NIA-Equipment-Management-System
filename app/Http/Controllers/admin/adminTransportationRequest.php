@@ -5,6 +5,7 @@ namespace App\Http\Controllers\admin;
 use App\Http\Controllers\Controller;
 use App\Models\TransportationRequestFormModel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class adminTransportationRequest extends Controller
 {
@@ -48,5 +49,28 @@ class adminTransportationRequest extends Controller
         return redirect()
             ->route('admin.transportation-request')
             ->with('admin_transportation_request_success', 'Request status updated to ' . $validated['status'] . '.');
+    }
+
+    public function viewAttachment(TransportationRequestFormModel $transportationRequest, int $index)
+    {
+        $attachments = is_array($transportationRequest->attachments) ? $transportationRequest->attachments : [];
+
+        if (!array_key_exists($index, $attachments)) {
+            abort(404);
+        }
+
+        $attachment = $attachments[$index];
+        $relativePath = $attachment['file_path'] ?? null;
+
+        if (!$relativePath || !Storage::disk('public')->exists($relativePath)) {
+            abort(404);
+        }
+
+        $absolutePath = Storage::disk('public')->path($relativePath);
+        $filename = $attachment['file_name'] ?? basename($relativePath);
+
+        return response()->file($absolutePath, [
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
     }
 }

@@ -137,6 +137,7 @@
 <th class="px-6 py-4">Request Date</th>
 <th class="px-6 py-4">Destination</th>
 <th class="px-6 py-4">Vehicle Type</th>
+<th class="px-6 py-4">Attachments</th>
 <th class="px-6 py-4 text-right">Action</th>
 </tr>
 </thead>
@@ -181,6 +182,26 @@
 </span>
 </td>
 <td class="px-6 py-5">
+@php
+    $attachments = is_array($item->attachments) ? $item->attachments : [];
+@endphp
+@if (count($attachments) > 0)
+<div class="space-y-1">
+@foreach ($attachments as $attachmentIndex => $attachment)
+@php
+    $attachmentName = $attachment['file_name'] ?? 'Attachment';
+@endphp
+<a href="{{ route('admin.transportation-request.attachment.view', ['transportationRequest' => $item->id, 'index' => $attachmentIndex]) }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-container hover:underline">
+<span class="material-symbols-outlined text-sm">attach_file</span>
+{{ $attachmentName }}
+</a>
+@endforeach
+</div>
+@else
+<span class="text-xs text-outline">No attachment</span>
+@endif
+</td>
+<td class="px-6 py-5">
 <form method="POST" action="{{ route('admin.transportation-request.status', $item) }}" class="flex items-center justify-end gap-2">
 @csrf
 <input type="hidden" name="status" value="Signed"/>
@@ -203,7 +224,7 @@
 </tr>
 @empty
 <tr>
-<td colspan="6" class="px-6 py-8 text-center text-sm font-semibold text-outline">No pending transportation requests found.</td>
+<td colspan="7" class="px-6 py-8 text-center text-sm font-semibold text-outline">No pending transportation requests found.</td>
 </tr>
 @endforelse
 </tbody>

@@ -189,7 +189,7 @@ class dashboardController extends Controller
         }
 
         $validated = $request->validate([
-            'status' => ['required', 'in:Approved,Rejected'],
+            'status' => ['required', 'in:Signed,Rejected'],
         ]);
 
         $transportationRequest->update([

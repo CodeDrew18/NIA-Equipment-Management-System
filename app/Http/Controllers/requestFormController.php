@@ -8,6 +8,7 @@ use App\Models\AdminVehicleAvailability;
 use App\Models\TransportationRequestFormModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -41,8 +42,14 @@ class requestFormController extends Controller
             }
         }
 
+        $drivers = User::query()
+            ->whereRaw("CONCAT(',', role, ',') LIKE '%,driver,%'")
+            ->orderBy('name')
+            ->get(['name']);
+
         return view('letter_of_request/requestform', [
             'availableVehicleTypes' => $availableVehicleTypes,
+            'drivers' => $drivers,
         ]);
     }
 
@@ -60,7 +67,13 @@ class requestFormController extends Controller
             'vehicle_requests.*.selected' => ['nullable', 'boolean'],
             'vehicle_requests.*.quantity' => ['nullable', 'integer', 'min:1', 'max:99'],
             'division_personnel' => ['required', 'array', 'min:1'],
-            'division_personnel.*.id_number' => ['required', 'digits:6', 'exists:users,personnel_id'],
+            'division_personnel.*.id_number' => [
+                'required',
+                'digits:6',
+                Rule::exists('users', 'personnel_id')->where(function ($query) {
+                    $query->whereRaw("CONCAT(',', role, ',') NOT LIKE '%,admin,%'");
+                }),
+            ],
             'division_personnel.*.name' => ['required', 'string', 'max:255'],
             'requesting_division_name' => ['required', 'string', 'max:255'],
             'requesting_division_position' => ['required', 'string', 'max:255'],

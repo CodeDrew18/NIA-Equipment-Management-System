@@ -218,10 +218,11 @@
 	}
 </style>
 @php
-	$operationsActive = request()->routeIs('admin.transportation-request') || request()->routeIs('admin.vehicle-availability') || request()->routeIs('admin.daily-trip-ticket');
+	$operationsActive = request()->routeIs('admin.transportation-request') || request()->routeIs('admin.vehicle-availability') || request()->routeIs('admin.daily-trip-ticket') || request()->routeIs('admin.fuel_issuance_slip');
 	$reportsActive = request()->routeIs('reports');
 	$evaluationsActive = request()->routeIs('evaluations');
 	$transportationRequestActive = request()->routeIs('admin.transportation-request');
+	$fuelIssuanceActive = request()->routeIs('admin.fuel_issuance_slip');
 @endphp
 <div class="flex justify-between items-center w-full px-8 py-4 max-w-full h-20">
 <div class="flex items-center gap-8">
@@ -237,7 +238,7 @@
             <a class="nav-dropdown-item {{ $transportationRequestActive ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' : '' }}" href="{{ route('admin.transportation-request') }}" role="menuitem">Transportation Request</a>
 		<a class="nav-dropdown-item" href="{{ route('admin.daily-trip-ticket') }}" role="menuitem">Daily Driver's Trip Ticket</a>
             {{-- <a class="nav-dropdown-item" href="#" role="menuitem">Daily Equipment Utilization Report</a> --}}
-            {{-- <a class="nav-dropdown-item" href="#" role="menuitem">Fuel Issuance Slips</a> --}}
+            <a class="nav-dropdown-item {{ $fuelIssuanceActive ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' : '' }}	" href="{{ route('admin.fuel_issuance_slip') }}" role="menuitem">Fuel Issuance Slips</a>
 	</div>
 </div>
 <div class="nav-dropdown">
@@ -252,7 +253,15 @@
 <a class="nav-link {{ $evaluationsActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('landing-page') }}">Evaluations</a>
 </nav>
 </div>
-<button
+
+<div class="flex items-center gap-3">
+	@auth
+	<form action="{{ route('logout') }}" method="POST" class="hidden lg:inline">
+		@csrf
+		<button type="submit" class="px-4 py-2 rounded-lg font-semibold text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-300 hover:bg-slate-200/70 dark:hover:bg-slate-700/60 transition-colors">Logout</button>
+	</form>
+	@endauth
+	<button
 	type="button"
 	id="mobile-nav-toggle"
 	class="lg:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-colors"
@@ -262,6 +271,7 @@
 >
 	<span id="mobile-nav-icon" class="material-symbols-outlined">menu</span>
 </button>
+</div>
 </div>
 <div id="mobile-nav-panel" class="lg:hidden hidden px-8 pb-5">
 	<div class="mt-1 rounded-xl border border-slate-200/70 dark:border-slate-700/70 bg-white/90 dark:bg-slate-800/90 p-3 shadow-sm space-y-1">
@@ -291,6 +301,12 @@
 		</details>
 
 		<a class="mobile-nav-link {{ $evaluationsActive ? 'mobile-nav-link-active' : '' }}" href="{{ route('landing-page') }}">Evaluations</a>
+		@auth
+		<form action="{{ route('logout') }}" method="POST">
+			@csrf
+			<button type="submit" class="mobile-nav-link w-full text-left">Logout</button>
+		</form>
+		@endauth
 	</div>
 </div>
 </header>
