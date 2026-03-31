@@ -13,6 +13,7 @@ class TransportationRequestFormModel extends Model
 
     protected $fillable = [
         'form_id',
+        'form_creator_id',
         'request_date',
         'requested_by',
         'destination',
@@ -27,6 +28,7 @@ class TransportationRequestFormModel extends Model
         'driver_name',
         'attachments',
         'status',
+        'rejection_reason',
         'generated_filename',
     ];
 

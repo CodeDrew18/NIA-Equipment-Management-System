@@ -219,7 +219,7 @@
 </style>
 @php
 	$operationsActive = request()->routeIs('admin.transportation-request') || request()->routeIs('admin.vehicle-availability') || request()->routeIs('admin.daily-trip-ticket') || request()->routeIs('admin.fuel_issuance_slip');
-	$reportsActive = request()->routeIs('reports');
+	$reportsActive = request()->routeIs('reports') || request()->routeIs('daily-equipment-utilization-report');
 	$evaluationsActive = request()->routeIs('evaluations');
 	$transportationRequestActive = request()->routeIs('admin.transportation-request');
 	$fuelIssuanceActive = request()->routeIs('admin.fuel_issuance_slip');
@@ -246,11 +246,11 @@
 		Reports <span class="nav-caret">&#9662;</span>
 	</button>
 	<div class="nav-dropdown-menu" role="menu" aria-label="Reports menu">
-		<a class="nav-dropdown-item" href="#" role="menuitem">Monthly Equipment Utilization Report</a>
+		<a class="nav-dropdown-item {{ request()->routeIs('daily-equipment-utilization-report') ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' : '' }}" href="{{ route('daily-equipment-utilization-report') }}" role="menuitem">Daily Equipment Utilization Report</a>
 		<a class="nav-dropdown-item" href="#" role="menuitem">Monhtly Fuel Consumption Report (Service Vehicle)</a>
 	</div>
 </div>
-<a class="nav-link {{ $evaluationsActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('landing-page') }}">Evaluations</a>
+{{-- <a class="nav-link {{ $evaluationsActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('landing-page') }}">Evaluations</a> --}}
 </nav>
 </div>
 
@@ -295,12 +295,12 @@
 				<span class="mobile-nav-summary-caret">&#9662;</span>
 			</summary>
 			<div class="pt-1 pb-1 space-y-1">
-				<a class="mobile-nav-subitem" href="#">Monthly Equipment Utilization Report</a>
+				<a class="mobile-nav-subitem {{ request()->routeIs('daily-equipment-utilization-report') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('daily-equipment-utilization-report') }}">Daily Equipment Utilization Report</a>
 				<a class="mobile-nav-subitem" href="#">Monhtly Fuel Consumption Report (Service Vehicle)</a>
 			</div>
 		</details>
 
-		<a class="mobile-nav-link {{ $evaluationsActive ? 'mobile-nav-link-active' : '' }}" href="{{ route('landing-page') }}">Evaluations</a>
+		{{-- <a class="mobile-nav-link {{ $evaluationsActive ? 'mobile-nav-link-active' : '' }}" href="{{ route('landing-page') }}">Evaluations</a> --}}
 		@auth
 		<form action="{{ route('logout') }}" method="POST">
 			@csrf

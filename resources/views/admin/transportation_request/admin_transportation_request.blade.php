@@ -111,6 +111,12 @@
 </div>
 @endif
 
+@if ($errors->has('rejection_reason'))
+<div class="mb-6 rounded-xl border border-error/30 bg-error-container p-4 text-on-error-container text-sm font-semibold">
+{{ $errors->first('rejection_reason') }}
+</div>
+@endif
+
 <div class="bg-surface-container-low rounded-xl p-4 mb-6 flex flex-wrap items-end justify-between gap-4 border border-outline-variant/10">
 <form method="GET" action="{{ route('admin.transportation-request') }}" class="flex flex-wrap items-end gap-4 w-full">
 <div class="flex flex-col">
@@ -202,24 +208,24 @@
 @endif
 </td>
 <td class="px-6 py-5">
-<form method="POST" action="{{ route('admin.transportation-request.status', $item) }}" class="flex items-center justify-end gap-2">
-@csrf
-<input type="hidden" name="status" value="Signed"/>
-<button type="submit" class="flex items-center gap-1 px-3 py-2 rounded-md bg-green-600 text-white text-[10px] font-bold uppercase tracking-wider hover:bg-green-700 transition-colors">
-    
-    <!-- Icon -->
-    <svg xmlns="http://www.w3.org/2000/svg" 
-         class="w-4 h-4" 
-         fill="none" 
-         viewBox="0 0 24 24" 
-         stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-              d="M9 12l2 2l4-4m6 2a9 9 0 11-18 0a9 9 0 0118 0z" />
-    </svg>
+<div class="flex items-center justify-end gap-2">
+        <form method="POST" action="{{ route('admin.transportation-request.status', $item) }}" class="inline">
+        @csrf
+        <input type="hidden" name="status" value="Signed"/>
+        <button type="submit" class="flex items-center gap-1 px-3 py-2 rounded-md bg-green-600 text-white text-[10px] font-bold uppercase tracking-wider hover:bg-green-700 transition-colors">
+            Approve
+        </button>
+    </form>
+    <button
+        type="button"
+        class="fi-open-reject-modal flex items-center gap-1 px-3 py-2 rounded-md bg-error text-white text-[10px] font-bold uppercase tracking-wider hover:bg-red-700 transition-colors"
+        data-action="{{ route('admin.transportation-request.status', $item) }}"
+        data-form-id="{{ $item->form_id }}"
+    >
+        Reject
+    </button>
 
-    Approve
-</button>
-</form>
+</div>
 </td>
 </tr>
 @empty
@@ -240,5 +246,75 @@ Showing {{ $requests->firstItem() ?? 0 }} to {{ $requests->lastItem() ?? 0 }} of
 </div>
 </div>
 </main>
+
+<div id="tr-reject-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4">
+    <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
+        <h3 class="text-lg font-bold text-on-surface">Reject Transportation Request</h3>
+        <p class="mt-2 text-sm text-on-surface-variant">Are you sure you want to reject <span id="tr-reject-form-id" class="font-semibold"></span>?</p>
+
+        <form id="tr-reject-form" method="POST" action="" class="mt-5 space-y-4">
+            @csrf
+            <input type="hidden" name="status" value="Rejected"/>
+            <div>
+                <label for="tr-rejection-reason" class="block text-xs font-bold uppercase tracking-wider text-outline mb-2">Reason for rejection</label>
+                <textarea id="tr-rejection-reason" name="rejection_reason" rows="4" class="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Enter the reason for rejection..." required></textarea>
+            </div>
+            <div class="flex justify-end gap-3 pt-1">
+                <button id="tr-reject-cancel" type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50">Cancel</button>
+                <button type="submit" class="rounded-lg bg-error px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-red-700">Confirm Reject</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @include('layouts.admin_footer')
+<script>
+    (function () {
+        const modal = document.getElementById('tr-reject-modal');
+        const rejectForm = document.getElementById('tr-reject-form');
+        const rejectFormId = document.getElementById('tr-reject-form-id');
+        const reasonField = document.getElementById('tr-rejection-reason');
+        const cancelButton = document.getElementById('tr-reject-cancel');
+
+        if (!modal || !rejectForm || !rejectFormId || !reasonField || !cancelButton) {
+            return;
+        }
+
+        function openModal(action, formId) {
+            rejectForm.action = action;
+            rejectFormId.textContent = formId || 'this request';
+            reasonField.value = '';
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(function () {
+                reasonField.focus();
+            }, 0);
+        }
+
+        function closeModal() {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        document.querySelectorAll('.fi-open-reject-modal').forEach(function (button) {
+            button.addEventListener('click', function () {
+                openModal(button.getAttribute('data-action'), button.getAttribute('data-form-id'));
+            });
+        });
+
+        cancelButton.addEventListener('click', closeModal);
+
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal) {
+                closeModal();
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        });
+    })();
+</script>
 </body></html>

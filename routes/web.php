@@ -27,11 +27,14 @@ Route::middleware('auth')->group(function () {
         ->where('filename', '.*')
         ->name('request-form.download');
     Route::get('/request-form/personnel/{personnelId}', [requestFormController::class, 'personnelLookup'])->name('request-form.personnel-lookup');
+    Route::get('/request-form/{transportationRequest}/attachments/{index}', [requestFormController::class, 'viewOwnAttachment'])->name('request-form.attachment.view');
 
     Route::get("/vehicle-available", [vehicleAvailabilityController::class, 'vehicleAvailability'])->name('vehicle-available');
     Route::get('/vehicle-available/data', [vehicleAvailabilityController::class, 'vehiclesData'])->name('vehicle-available.data');
 
     Route::get("/evaluation-performance", [evaluationPerformanceController::class, 'index'])->name('evaluation-performance');
+
+    Route::get("/daily-equipment-utilization-report", [App\Http\Controllers\dailyUtilizationReportController::class, 'index'])->name('daily-equipment-utilization-report');
 
     // Admin Dashboard
     Route::get("/admin/dashboard", [App\Http\Controllers\admin\dashboardController::class, 'index'])->name('admin.dashboard');

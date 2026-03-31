@@ -88,7 +88,11 @@
 </head>
 <body class="bg-background text-on-background flex flex-col min-h-screen">
 <!-- TopNavBar -->
-@include('layouts.header')
+@if(Auth::check() && Auth::user()->role === 'admin')
+    @include('layouts.admin_header')
+@else
+    @include('layouts.header')
+@endif
 <!-- Main Content Canvas -->
 <main class="flex-grow flex items-center justify-center pt-24 px-6 relative overflow-hidden">
 <!-- Background Architectural Motif -->
@@ -142,5 +146,9 @@
 </div>
 </main>
 <!-- Footer -->
-@include('layouts.footer')
+@if(Auth::check() && Auth::user()->role === 'admin')
+    @include('layouts.admin_footer')
+@else
+    @include('layouts.footer')
+@endif
 </body></html>

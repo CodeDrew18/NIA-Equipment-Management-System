@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Storage;
 
 class adminTransportationRequest extends Controller
 {
-    private const STATUS_OPTIONS = ['To be Signed', 'Signed'];
+    private const STATUS_OPTIONS = ['To be Signed', 'Signed', 'Rejected'];
 
     public function index(Request $request)
     {
@@ -40,10 +40,14 @@ class adminTransportationRequest extends Controller
     {
         $validated = $request->validate([
             'status' => ['required', 'in:' . implode(',', self::STATUS_OPTIONS)],
+            'rejection_reason' => ['nullable', 'string', 'max:2000', 'required_if:status,Rejected'],
         ]);
 
         $transportationRequest->update([
             'status' => $validated['status'],
+            'rejection_reason' => $validated['status'] === 'Rejected'
+                ? trim((string) ($validated['rejection_reason'] ?? ''))
+                : null,
         ]);
 
         return redirect()

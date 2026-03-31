@@ -38,8 +38,11 @@ class dashboardController extends Controller
                 'pageUrls' => $pendingRequests->getUrlRange(1, $pendingRequests->lastPage()),
             ],
             'requests' => $pendingRequests->map(function ($requestItem) {
+                $attachments = is_array($requestItem->attachments) ? $requestItem->attachments : [];
+
                 return [
                     'id' => $requestItem->id,
+                    'formId' => (string) ($requestItem->form_id ?? ('Request #' . $requestItem->id)),
                     'requestDate' => optional($requestItem->request_date)->format('M d, Y') ?? 'N/A',
                     'requestorName' => $requestItem->requestor_name,
                     'requestorPosition' => $requestItem->requestor_position,
@@ -47,6 +50,16 @@ class dashboardController extends Controller
                     'vehicleType' => $requestItem->vehicle_type,
                     'vehicleQuantity' => $requestItem->vehicle_quantity,
                     'status' => $requestItem->status,
+                    'rejectionReason' => (string) ($requestItem->rejection_reason ?? ''),
+                    'attachments' => collect($attachments)->values()->map(function ($attachment, $index) use ($requestItem) {
+                        return [
+                            'name' => (string) ($attachment['file_name'] ?? ('Attachment ' . ($index + 1))),
+                            'url' => route('admin.transportation-request.attachment.view', [
+                                'transportationRequest' => $requestItem->id,
+                                'index' => $index,
+                            ]),
+                        ];
+                    })->all(),
                 ];
             })->values(),
         ]);
@@ -190,10 +203,14 @@ class dashboardController extends Controller
 
         $validated = $request->validate([
             'status' => ['required', 'in:Signed,Rejected'],
+            'rejection_reason' => ['nullable', 'string', 'max:2000', 'required_if:status,Rejected'],
         ]);
 
         $transportationRequest->update([
             'status' => $validated['status'],
+            'rejection_reason' => $validated['status'] === 'Rejected'
+                ? trim((string) ($validated['rejection_reason'] ?? ''))
+                : null,
         ]);
 
         return redirect()

@@ -218,7 +218,7 @@
 	}
 </style>
 @php
-	$operationsActive = request()->routeIs('request-form') || request()->routeIs('vehicle-available');
+	$operationsActive = request()->routeIs('request-form') || request()->routeIs('vehicle-available') || request()->routeIs('daily-equipment-utilization-report');
 	$reportsActive = request()->routeIs('reports');
 	$evaluationsActive = request()->routeIs('evaluation-performance');
 @endphp
@@ -234,9 +234,8 @@
 	<div class="nav-dropdown-menu" role="menu" aria-label="Operations menu">
 		<a class="nav-dropdown-item" href="{{ route('vehicle-available') }}" role="menuitem">Vehicle Availability</a>
 		<a class="nav-dropdown-item" href="{{ route('request-form') }}" role="menuitem">Transportation Request</a>
-		{{-- <a class="nav-dropdown-item" href="#" role="menuitem">Daily Driver's Trip Ticket</a> --}}
-		{{-- <a class="nav-dropdown-item" href="#" role="menuitem">Daily Equipment Utilization Report</a>
-		<a class="nav-dropdown-item" href="#" role="menuitem">Fuel Issuance Slips</a> --}}
+		<a class="nav-dropdown-item" href="{{ route('daily-equipment-utilization-report') }}" role="menuitem">Daily Equipment Utilization Report</a>
+			
 	</div>
 </div>
 <div class="nav-dropdown">
@@ -283,7 +282,7 @@
 			<div class="pt-1 pb-1 space-y-1">
 				<a class="mobile-nav-subitem {{ request()->routeIs('request-form') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('request-form') }}">Transportation Request</a>
 				<a class="mobile-nav-subitem" href="#">Daily Driver's Trip Ticket</a>
-				<a class="mobile-nav-subitem" href="#">Daily Equipment Utilization Report</a>
+				<a class="mobile-nav-subitem {{ request()->routeIs('daily-equipment-utilization-report') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('daily-equipment-utilization-report') }}">Daily Equipment Utilization Report</a>
 				<a class="mobile-nav-subitem" href="#">Fuel Issuance Slips</a>
 			</div>
 		</details>

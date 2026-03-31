@@ -102,11 +102,11 @@
 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4 no-print">
     <div>
         <h1 class="text-3xl font-extrabold text-primary tracking-tight font-headline">Fuel Issuance Slip</h1>
-        <p class="text-on-surface-variant mt-1">Office Copy generated from dispatched transportation requests.</p>
+        <p class="text-on-surface-variant mt-1">Copy generated from dispatched transportation requests.</p>
     </div>
     <button id="fi-print-office-copy" type="button" class="flex items-center gap-2 bg-white border border-outline-variant px-5 py-2.5 rounded-lg text-primary font-semibold hover:bg-surface-container-low transition-all active:scale-95 shadow-sm">
         <span class="material-symbols-outlined text-[20px]">print</span>
-        Print Office Copy
+        Print Copy
     </button>
 </div>
 
@@ -155,7 +155,7 @@
                 <td class="px-6 py-4 text-right">
                     <button type="button" data-request-id="{{ $item->id }}" class="fi-select-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-primary text-white text-[11px] font-bold uppercase tracking-wider hover:bg-primary-container transition-colors">
                         <span class="material-symbols-outlined text-sm">visibility</span>
-                        View Office Copy
+                        View Copy
                     </button>
                 </td>
             </tr>
@@ -198,7 +198,7 @@
             </div>
             <div>
                 <p class="text-[10px] uppercase tracking-widest text-primary-fixed/70 font-bold">Document Type</p>
-                <p class="text-white font-bold text-lg">OFFICE COPY</p>
+                <p class="text-white font-bold text-lg">TRANSPORTATION COPY</p>
             </div>
         </div>
         <div class="text-right">
@@ -225,25 +225,37 @@
         <div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10">
             <p class="text-xs font-bold text-primary uppercase tracking-widest mb-4">Please issue the following:</p>
             <div class="space-y-4 text-sm font-semibold">
-                <div class="flex items-end gap-2 border-b border-outline-variant/30 pb-1">
-                    <span class="text-on-surface-variant">GASOLINE (Extra/Reg)</span>
-                    <input id="fi-gasoline" type="number" min="0" step="0.01" class="w-32 bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" required/>
-                    <span class="text-on-surface ml-auto w-16 text-right">ltrs</span>
+                <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
+                    <span class="col-span-5 text-on-surface-variant">GASOLINE (Extra/Reg)</span>
+                    <input id="fi-gasoline" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" required/>
+                    <span class="col-span-1 text-center text-on-surface-variant">@</span>
+                    <input id="fi-gasoline-price" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" placeholder="0.00" required/>
+                    <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
+                    <span class="col-span-1 text-right text-on-surface">ltrs</span>
                 </div>
-                <div class="flex items-end gap-2 border-b border-outline-variant/30 pb-1">
-                    <span class="text-on-surface-variant">DIESEL FUEL</span>
-                    <input id="fi-diesel" type="number" min="0" step="0.01" class="w-32 bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" required/>
-                    <span class="text-on-surface ml-auto w-16 text-right">ltrs</span>
+                <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
+                    <span class="col-span-5 text-on-surface-variant">DIESEL FUEL</span>
+                    <input id="fi-diesel" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" required/>
+                    <span class="col-span-1 text-center text-on-surface-variant">@</span>
+                    <input id="fi-diesel-price" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" placeholder="0.00" required/>
+                    <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
+                    <span class="col-span-1 text-right text-on-surface">ltrs</span>
                 </div>
-                <div class="flex items-end gap-2 border-b border-outline-variant/30 pb-1">
-                    <span class="text-on-surface-variant">FUEL SAVE</span>
-                    <input id="fi-fuel-save" type="number" min="0" step="0.01" class="w-32 bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" required/>
-                    <span class="text-on-surface ml-auto w-16 text-right">ltrs</span>
+                <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
+                    <span class="col-span-5 text-on-surface-variant">FUEL SAVE</span>
+                    <input id="fi-fuel-save" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" required/>
+                    <span class="col-span-1 text-center text-on-surface-variant">@</span>
+                    <input id="fi-fuel-save-price" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" placeholder="0.00" required/>
+                    <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
+                    <span class="col-span-1 text-right text-on-surface">ltrs</span>
                 </div>
-                <div class="flex items-end gap-2 border-b border-outline-variant/30 pb-1">
-                    <span class="text-on-surface-variant">V-POWER</span>
-                    <input id="fi-vpower" type="number" min="0" step="0.01" class="w-32 bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" required/>
-                    <span class="text-on-surface ml-auto w-16 text-right">kg/ltrs</span>
+                <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
+                    <span class="col-span-5 text-on-surface-variant">V-POWER</span>
+                    <input id="fi-vpower" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" required/>
+                    <span class="col-span-1 text-center text-on-surface-variant">@</span>
+                    <input id="fi-vpower-price" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" placeholder="0.00" required/>
+                    <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
+                    <span class="col-span-1 text-right text-on-surface">kg/ltrs</span>
                 </div>
                 <div class="flex items-end gap-2 border-b border-outline-variant/40 pb-1 pt-2">
                     <span class="font-bold text-primary uppercase">TOTAL AMOUNT</span>
@@ -309,9 +321,13 @@ const fiEls = {
     driverName: document.getElementById('fi-driver-name'),
     divisionManagerName: document.getElementById('fi-division-manager-name'),
     gasoline: document.getElementById('fi-gasoline'),
+    gasolinePrice: document.getElementById('fi-gasoline-price'),
     diesel: document.getElementById('fi-diesel'),
+    dieselPrice: document.getElementById('fi-diesel-price'),
     fuelSave: document.getElementById('fi-fuel-save'),
+    fuelSavePrice: document.getElementById('fi-fuel-save-price'),
     vpower: document.getElementById('fi-vpower'),
+    vpowerPrice: document.getElementById('fi-vpower-price'),
     totalAmount: document.getElementById('fi-total-amount'),
     printButton: document.getElementById('fi-print-office-copy'),
     validationMessage: document.getElementById('fi-validation-message'),
@@ -349,7 +365,7 @@ function fiRow(item) {
         <td class="px-6 py-4 text-right">
             <button type="button" data-request-id="${fiEsc(item.id)}" class="fi-select-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-primary text-white text-[11px] font-bold uppercase tracking-wider hover:bg-primary-container transition-colors">
                 <span class="material-symbols-outlined text-sm">visibility</span>
-                View Office Copy
+                View Copy
             </button>
         </td>
     </tr>`;
@@ -403,21 +419,39 @@ function fiUpdateOfficeCopy(selected) {
 }
 
 function fiToNumber(value) {
-    const parsed = Number(value);
+    const sanitized = String(value ?? '').replaceAll(',', '').trim();
+    const parsed = Number(sanitized);
     return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function fiRecalculateTotal() {
-    const total = fiToNumber(fiEls.gasoline.value)
-        + fiToNumber(fiEls.diesel.value)
-        + fiToNumber(fiEls.fuelSave.value)
-        + fiToNumber(fiEls.vpower.value);
+function fiFormatCurrency(value) {
+    return value.toLocaleString('en-PH', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+}
 
-    fiEls.totalAmount.textContent = total.toFixed(2);
+function fiRecalculateTotal() {
+    const total = (fiToNumber(fiEls.gasoline.value) * fiToNumber(fiEls.gasolinePrice.value))
+        + (fiToNumber(fiEls.diesel.value) * fiToNumber(fiEls.dieselPrice.value))
+        + (fiToNumber(fiEls.fuelSave.value) * fiToNumber(fiEls.fuelSavePrice.value))
+        + (fiToNumber(fiEls.vpower.value) * fiToNumber(fiEls.vpowerPrice.value));
+
+    fiEls.totalAmount.textContent = fiFormatCurrency(total);
 }
 
 function fiValidateRequiredFields() {
-    const requiredFields = [fiEls.dealer, fiEls.gasoline, fiEls.diesel, fiEls.fuelSave, fiEls.vpower];
+    const requiredFields = [
+        fiEls.dealer,
+        fiEls.gasoline,
+        fiEls.gasolinePrice,
+        fiEls.diesel,
+        fiEls.dieselPrice,
+        fiEls.fuelSave,
+        fiEls.fuelSavePrice,
+        fiEls.vpower,
+        fiEls.vpowerPrice,
+    ];
     let hasError = false;
 
     requiredFields.forEach(function (field) {
@@ -433,7 +467,7 @@ function fiValidateRequiredFields() {
     });
 
     if (hasError) {
-        fiEls.validationMessage.textContent = 'Dealer, Gasoline, Diesel, Fuel Save, and V-Power are required.';
+        fiEls.validationMessage.textContent = 'Dealer, all fuel quantities, and all fuel prices per liter are required.';
         fiEls.validationMessage.classList.remove('hidden');
         return false;
     }
@@ -625,14 +659,22 @@ fiEls.confirmPrintModal.addEventListener('click', function (event) {
 
 ['input', 'change'].forEach(function (eventName) {
     fiEls.gasoline.addEventListener(eventName, fiRecalculateTotal);
+    fiEls.gasolinePrice.addEventListener(eventName, fiRecalculateTotal);
     fiEls.diesel.addEventListener(eventName, fiRecalculateTotal);
+    fiEls.dieselPrice.addEventListener(eventName, fiRecalculateTotal);
     fiEls.fuelSave.addEventListener(eventName, fiRecalculateTotal);
+    fiEls.fuelSavePrice.addEventListener(eventName, fiRecalculateTotal);
     fiEls.vpower.addEventListener(eventName, fiRecalculateTotal);
+    fiEls.vpowerPrice.addEventListener(eventName, fiRecalculateTotal);
     fiEls.dealer.addEventListener(eventName, fiValidateRequiredFields);
     fiEls.gasoline.addEventListener(eventName, fiValidateRequiredFields);
+    fiEls.gasolinePrice.addEventListener(eventName, fiValidateRequiredFields);
     fiEls.diesel.addEventListener(eventName, fiValidateRequiredFields);
+    fiEls.dieselPrice.addEventListener(eventName, fiValidateRequiredFields);
     fiEls.fuelSave.addEventListener(eventName, fiValidateRequiredFields);
+    fiEls.fuelSavePrice.addEventListener(eventName, fiValidateRequiredFields);
     fiEls.vpower.addEventListener(eventName, fiValidateRequiredFields);
+    fiEls.vpowerPrice.addEventListener(eventName, fiValidateRequiredFields);
 });
 
 fiRecalculateTotal();

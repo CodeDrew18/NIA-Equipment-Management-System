@@ -11,11 +11,15 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class requestFormController extends Controller
 {
     public function requestForm()
     {
+        $user = Auth::user();
+
         $availableVehicleTypes = [
             'coaster' => false,
             'van' => false,
@@ -47,9 +51,18 @@ class requestFormController extends Controller
             ->orderBy('name')
             ->get(['name']);
 
+        $requesterMessages = TransportationRequestFormModel::query()
+            ->where('form_creator_id', $user?->personnel_id)
+            ->where('status', 'Rejected')
+            ->whereNotNull('rejection_reason')
+            ->orderByDesc('updated_at')
+            ->limit(5)
+            ->get();
+
         return view('letter_of_request/requestform', [
             'availableVehicleTypes' => $availableVehicleTypes,
             'drivers' => $drivers,
+            'requesterMessages' => $requesterMessages,
         ]);
     }
 
@@ -184,8 +197,11 @@ class requestFormController extends Controller
             }
         }
 
+        $user = Auth::user();
+
         $transportationRequest = TransportationRequestFormModel::create([
             'form_id' => 'REQ-' . now()->format('Y') . '-' . strtoupper(Str::random(4)),
+            'form_creator_id' => $user->personnel_id,
             'request_date' => $validated['request_date'],
             'requested_by' => $validated['requested_by'],
             'destination' => $validated['destination'],
@@ -357,6 +373,35 @@ class requestFormController extends Controller
         return response()->json([
             'personnel_id' => $user->personnel_id,
             'name' => $user->name,
+        ]);
+    }
+
+    public function viewOwnAttachment(TransportationRequestFormModel $transportationRequest, int $index)
+    {
+        $user = Auth::user();
+
+        if (!$user || (string) $transportationRequest->form_creator_id !== (string) $user->personnel_id) {
+            abort(403);
+        }
+
+        $attachments = is_array($transportationRequest->attachments) ? $transportationRequest->attachments : [];
+
+        if (!array_key_exists($index, $attachments)) {
+            abort(404);
+        }
+
+        $attachment = $attachments[$index];
+        $relativePath = $attachment['file_path'] ?? null;
+
+        if (!$relativePath || !Storage::disk('public')->exists($relativePath)) {
+            abort(404);
+        }
+
+        $absolutePath = Storage::disk('public')->path($relativePath);
+        $filename = $attachment['file_name'] ?? basename($relativePath);
+
+        return response()->file($absolutePath, [
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
         ]);
     }
 }

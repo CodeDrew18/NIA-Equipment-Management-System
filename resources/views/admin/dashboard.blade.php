@@ -89,6 +89,11 @@
   {{ session('admin_dashboard_success') }}
 </div>
 @endif
+@if ($errors->has('rejection_reason'))
+<div class="mb-6 rounded-lg border border-error/30 bg-error-container px-4 py-3 text-sm font-semibold text-on-error-container">
+  {{ $errors->first('rejection_reason') }}
+</div>
+@endif
 <!-- Hero Header -->
 <header class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
 <div>
@@ -182,6 +187,7 @@
 <th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-outline">Requestor</th>
 <th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-outline">Vehicle Type</th>
 <th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-outline">Vehicle Total</th>
+<th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-outline">Attachments</th>
 <th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-outline">Status</th>
 <th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-outline text-right">Actions</th>
 </tr>
@@ -215,10 +221,27 @@
 </div>
 </td>
 <td class="px-8 py-5">
+@php
+  $dashboardAttachments = is_array($transportationRequest->attachments) ? $transportationRequest->attachments : [];
+@endphp
+@if (count($dashboardAttachments) > 0)
+  <div class="space-y-1">
+    @foreach ($dashboardAttachments as $attachmentIndex => $attachment)
+      <a href="{{ route('admin.transportation-request.attachment.view', ['transportationRequest' => $transportationRequest->id, 'index' => $attachmentIndex]) }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-container hover:underline">
+        <span class="material-symbols-outlined text-sm">attach_file</span>
+        {{ $attachment['file_name'] ?? 'Attachment' }}
+      </a>
+    @endforeach
+  </div>
+@else
+  <span class="text-xs text-outline">No attachment</span>
+@endif
+</td>
+<td class="px-8 py-5">
 <span @class([
   'inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider',
   'bg-tertiary-fixed text-on-tertiary-fixed-variant' => $transportationRequest->status === 'Pending',
-  'bg-secondary-container text-on-secondary-container' => $transportationRequest->status === 'Approved',
+  'bg-secondary-container text-on-secondary-container' => $transportationRequest->status === 'Signed',
   'bg-error-container text-on-error-container' => $transportationRequest->status === 'Rejected',
   'bg-primary-fixed text-on-primary-fixed-variant' => $transportationRequest->status === 'To be Signed',
 ])>
@@ -229,15 +252,18 @@
 <div class="flex items-center justify-end gap-2">
   <form action="{{ route('admin.dashboard.requests.update-status', $transportationRequest) }}" method="POST" class="inline">
     @csrf
-    <input type="hidden" name="status" value="Approved">
+    <input type="hidden" name="status" value="Signed">
     <button type="submit" class="rounded-md bg-secondary px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white hover:opacity-90">
       Approve
     </button>
   </form>
-  <form action="{{ route('admin.dashboard.requests.update-status', $transportationRequest) }}" method="POST" class="inline">
-    @csrf
-    <input type="hidden" name="status" value="Rejected">
-    <button type="submit" class="rounded-md bg-error px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white hover:opacity-90">
+  <form action="{{ route('admin.dashboard.requests.update-status', $transportationRequest) }}" method="POST" class="inline dashboard-reject-form">
+    <button
+      type="button"
+      class="dashboard-open-reject-modal rounded-md bg-error px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white hover:opacity-90"
+      data-action="{{ route('admin.dashboard.requests.update-status', $transportationRequest) }}"
+      data-form-id="{{ $transportationRequest->form_id }}"
+    >
       Reject
     </button>
   </form>
@@ -246,7 +272,7 @@
 </tr>
 @empty
 <tr>
-<td colspan="6" class="px-8 py-8 text-center text-sm font-semibold text-outline">No to be signed transportation requests found.</td>
+<td colspan="8" class="px-8 py-8 text-center text-sm font-semibold text-outline">No to be signed transportation requests found.</td>
 </tr>
 @endforelse
 </tbody>
@@ -288,6 +314,27 @@
 </div>
 </section>
 </main>
+
+<div id="dashboard-reject-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4">
+  <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
+    <h3 class="text-lg font-bold text-on-surface">Reject Transportation Request</h3>
+    <p class="mt-2 text-sm text-on-surface-variant">Are you sure you want to reject <span id="dashboard-reject-form-id" class="font-semibold"></span>?</p>
+
+    <form id="dashboard-reject-form" method="POST" action="" class="mt-5 space-y-4">
+      @csrf
+      <input type="hidden" name="status" value="Rejected">
+      <div>
+        <label for="dashboard-rejection-reason" class="block text-xs font-bold uppercase tracking-wider text-outline mb-2">Reason for rejection</label>
+        <textarea id="dashboard-rejection-reason" name="rejection_reason" rows="4" class="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Enter the reason for rejection..." required></textarea>
+      </div>
+      <div class="flex justify-end gap-3 pt-1">
+        <button id="dashboard-reject-cancel" type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50">Cancel</button>
+        <button type="submit" class="rounded-lg bg-error px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-red-700">Confirm Reject</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 @include('layouts.admin_footer')
 <script>
   const dashboardDataUrl = "{{ route('admin.dashboard.data') }}";
@@ -322,13 +369,19 @@
 
   function requestStatusClass(status) {
     if (status === 'Pending') return 'bg-tertiary-fixed text-on-tertiary-fixed-variant';
-    if (status === 'Approved') return 'bg-secondary-container text-on-secondary-container';
+    if (status === 'Signed') return 'bg-secondary-container text-on-secondary-container';
     if (status === 'Rejected') return 'bg-error-container text-on-error-container';
     return 'bg-primary-fixed text-on-primary-fixed-variant';
   }
 
   function dashboardRequestRow(item) {
     const actionUrl = dashboardStatusUpdateUrlTemplate.replace('__ID__', item.id);
+    const attachments = Array.isArray(item.attachments) ? item.attachments : [];
+    const attachmentsHtml = attachments.length > 0
+      ? attachments.map(function (attachment) {
+          return `<a href="${escapeHtml(attachment.url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-container hover:underline"><span class="material-symbols-outlined text-sm">attach_file</span>${escapeHtml(attachment.name)}</a>`;
+        }).join('<br>')
+      : '<span class="text-xs text-outline">No attachment</span>';
 
     return `
 <tr class="hover:bg-surface-container-low/20 transition-colors">
@@ -354,6 +407,7 @@
       <span class="text-sm font-medium text-on-surface-variant">${escapeHtml(item.vehicleQuantity)}</span>
     </div>
   </td>
+  <td class="px-8 py-5">${attachmentsHtml}</td>
   <td class="px-8 py-5">
     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${requestStatusClass(item.status)}">${escapeHtml(item.status)}</span>
   </td>
@@ -361,13 +415,11 @@
     <div class="flex items-center justify-end gap-2">
       <form action="${actionUrl}" method="POST" class="inline">
         <input type="hidden" name="_token" value="${dashboardCsrfToken}">
-        <input type="hidden" name="status" value="Approved">
+        <input type="hidden" name="status" value="Signed">
         <button type="submit" class="rounded-md bg-secondary px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white hover:opacity-90">Approve</button>
       </form>
-      <form action="${actionUrl}" method="POST" class="inline">
-        <input type="hidden" name="_token" value="${dashboardCsrfToken}">
-        <input type="hidden" name="status" value="Rejected">
-        <button type="submit" class="rounded-md bg-error px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white hover:opacity-90">Reject</button>
+      <form action="${actionUrl}" method="POST" class="inline dashboard-reject-form">
+        <button type="button" class="dashboard-open-reject-modal rounded-md bg-error px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white hover:opacity-90" data-action="${escapeHtml(actionUrl)}" data-form-id="${escapeHtml(item.formId || ('Request #' + item.id))}">Reject</button>
       </form>
     </div>
   </td>
@@ -375,7 +427,7 @@
   }
 
   function dashboardNoRows() {
-    return '<tr><td colspan="6" class="px-8 py-8 text-center text-sm font-semibold text-outline">No to be signed transportation requests found.</td></tr>';
+    return '<tr><td colspan="8" class="px-8 py-8 text-center text-sm font-semibold text-outline">No to be signed transportation requests found.</td></tr>';
   }
 
   function renderDashboardPagination(pagination) {
@@ -465,6 +517,67 @@
     const page = Number(pageButton.getAttribute('data-page'));
     if (page > 0) {
       refreshDashboard(page);
+    }
+  });
+
+  const dashboardRejectModal = document.getElementById('dashboard-reject-modal');
+  const dashboardRejectForm = document.getElementById('dashboard-reject-form');
+  const dashboardRejectFormId = document.getElementById('dashboard-reject-form-id');
+  const dashboardRejectReason = document.getElementById('dashboard-rejection-reason');
+  const dashboardRejectCancel = document.getElementById('dashboard-reject-cancel');
+
+  function openDashboardRejectModal(action, formId) {
+    if (!dashboardRejectModal || !dashboardRejectForm || !dashboardRejectFormId || !dashboardRejectReason) {
+      return;
+    }
+
+    dashboardRejectForm.action = action;
+    dashboardRejectFormId.textContent = formId || 'this request';
+    dashboardRejectReason.value = '';
+    dashboardRejectModal.classList.remove('hidden');
+    dashboardRejectModal.classList.add('flex');
+
+    setTimeout(function () {
+      dashboardRejectReason.focus();
+    }, 0);
+  }
+
+  function closeDashboardRejectModal() {
+    if (!dashboardRejectModal) {
+      return;
+    }
+
+    dashboardRejectModal.classList.add('hidden');
+    dashboardRejectModal.classList.remove('flex');
+  }
+
+  document.addEventListener('click', function (event) {
+    const trigger = event.target.closest('.dashboard-open-reject-modal');
+    if (!trigger) {
+      return;
+    }
+
+    openDashboardRejectModal(
+      trigger.getAttribute('data-action'),
+      trigger.getAttribute('data-form-id')
+    );
+  });
+
+  if (dashboardRejectCancel) {
+    dashboardRejectCancel.addEventListener('click', closeDashboardRejectModal);
+  }
+
+  if (dashboardRejectModal) {
+    dashboardRejectModal.addEventListener('click', function (event) {
+      if (event.target === dashboardRejectModal) {
+        closeDashboardRejectModal();
+      }
+    });
+  }
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+      closeDashboardRejectModal();
     }
   });
 
