@@ -221,7 +221,11 @@
 	$operationsActive = request()->routeIs('request-form') || request()->routeIs('vehicle-available') || request()->routeIs('daily-equipment-utilization-report');
 	$reportsActive = request()->routeIs('reports') || request()->routeIs('monthly-official-travel-report');
 	$evaluationsActive = request()->routeIs('evaluation-performance');
-	$monthlyTravelReportActive = request()->routeIs('monthly-official-travel-report');
+	$dropdownActiveClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200';
+	$vehicleAvailabilityActive = request()->routeIs('vehicle-available');
+	$requestFormActive = request()->routeIs('request-form');
+	$dailyEquipmentUtilizationReportActive = request()->routeIs('daily-equipment-utilization-report');
+	$monthlyOfficialTravelReportActive = request()->routeIs('monthly-official-travel-report');
 @endphp
 <div class="flex justify-between items-center w-full px-8 py-4 max-w-full h-20">
 <div class="flex items-center gap-8">
@@ -233,9 +237,9 @@
 		Operations <span class="nav-caret">&#9662;</span>
 	</button>
 	<div class="nav-dropdown-menu" role="menu" aria-label="Operations menu">
-		<a class="nav-dropdown-item" href="{{ route('vehicle-available') }}" role="menuitem">Vehicle Availability</a>
-		<a class="nav-dropdown-item" href="{{ route('request-form') }}" role="menuitem">Transportation Request</a>
-		<a class="nav-dropdown-item" href="{{ route('daily-equipment-utilization-report') }}" role="menuitem">Daily Equipment Utilization Report</a>
+		<a class="nav-dropdown-item {{ $vehicleAvailabilityActive ? $dropdownActiveClass : '' }}" href="{{ route('vehicle-available') }}" role="menuitem">Vehicle Availability</a>
+		<a class="nav-dropdown-item {{ $requestFormActive ? $dropdownActiveClass : '' }}" href="{{ route('request-form') }}" role="menuitem">Transportation Request</a>
+		<a class="nav-dropdown-item {{ $dailyEquipmentUtilizationReportActive ? $dropdownActiveClass : '' }}" href="{{ route('daily-equipment-utilization-report') }}" role="menuitem">Daily Equipment Utilization Report</a>
 			
 	</div>
 </div>
@@ -244,7 +248,7 @@
 		Reports <span class="nav-caret">&#9662;</span>
 	</button>
 	<div class="nav-dropdown-menu" role="menu" aria-label="Reports menu">
-		<a class="nav-dropdown-item" href="{{ route('monthly-official-travel-report') }}" role="menuitem">Monthly Official Travel Report</a>
+		<a class="nav-dropdown-item {{ $monthlyOfficialTravelReportActive ? $dropdownActiveClass : '' }}" href="{{ route('monthly-official-travel-report') }}" role="menuitem">Monthly Official Travel Report</a>
 		<a class="nav-dropdown-item" href="#" role="menuitem">Monthly Equipment Utilization Report</a>
 		<a class="nav-dropdown-item" href="#" role="menuitem">Monthly Fuel Consumption Report (Service Vehicle)</a>
 	</div>
@@ -295,7 +299,7 @@
 				<span class="mobile-nav-summary-caret">&#9662;</span>
 			</summary>
 			<div class="pt-1 pb-1 space-y-1">
-				<a class="nav-dropdown-item" href="{{ route('monthly-official-travel-report') }}" role="menuitem">Monthly Official Travel Report</a>
+				<a class="mobile-nav-subitem {{ $monthlyOfficialTravelReportActive ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('monthly-official-travel-report') }}">Monthly Official Travel Report</a>
 				<a class="mobile-nav-subitem" href="#">Monthly Equipment Utilization Report</a>
 				<a class="mobile-nav-subitem" href="#">Monthly Fuel Consumption Report (Service Vehicle)</a>
 			</div>

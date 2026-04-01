@@ -221,9 +221,13 @@
 	$operationsActive = request()->routeIs('admin.transportation-request') || request()->routeIs('admin.vehicle-availability') || request()->routeIs('admin.daily-trip-ticket') || request()->routeIs('admin.fuel_issuance_slip') || request()->routeIs('admin.vehicle_assignment');
 	$reportsActive = request()->routeIs('reports') || request()->routeIs('daily-equipment-utilization-report');
 	$evaluationsActive = request()->routeIs('evaluations');
+	$dropdownActiveClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200';
+	$vehicleAvailabilityActive = request()->routeIs('admin.vehicle-availability');
 	$transportationRequestActive = request()->routeIs('admin.transportation-request');
 	$vehicleAssignmentActive = request()->routeIs('admin.vehicle_assignment');
 	$fuelIssuanceActive = request()->routeIs('admin.fuel_issuance_slip');
+	$dailyTripTicketActive = request()->routeIs('admin.daily-trip-ticket');
+	$dailyEquipmentUtilizationReportActive = request()->routeIs('daily-equipment-utilization-report');
 @endphp
 <div class="flex justify-between items-center w-full px-8 py-4 max-w-full h-20">
 <div class="flex items-center gap-8">
@@ -235,12 +239,12 @@
 		Operations <span class="nav-caret">&#9662;</span>
 	</button>
 	<div class="nav-dropdown-menu" role="menu" aria-label="Operations menu">
-		<a class="nav-dropdown-item" href="{{ route('admin.vehicle-availability') }}" role="menuitem">Vehicle Availability</a>
-            <a class="nav-dropdown-item {{ $transportationRequestActive ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' : '' }}" href="{{ route('admin.transportation-request') }}" role="menuitem">Transportation Request</a>
-			 <a class="nav-dropdown-item {{ $vehicleAssignmentActive ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' : '' }}" href="{{ route('admin.vehicle_assignment') }}" role="menuitem">Vehicle Assignment</a>
-		<a class="nav-dropdown-item" href="{{ route('admin.daily-trip-ticket') }}" role="menuitem">Daily Driver's Trip Ticket</a>
+		<a class="nav-dropdown-item {{ $vehicleAvailabilityActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.vehicle-availability') }}" role="menuitem">Vehicle Availability</a>
+	            <a class="nav-dropdown-item {{ $transportationRequestActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.transportation-request') }}" role="menuitem">Transportation Request</a>
+			 <a class="nav-dropdown-item {{ $vehicleAssignmentActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.vehicle_assignment') }}" role="menuitem">Vehicle Assignment</a>
+		<a class="nav-dropdown-item {{ $dailyTripTicketActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.daily-trip-ticket') }}" role="menuitem">Daily Driver's Trip Ticket</a>
             {{-- <a class="nav-dropdown-item" href="#" role="menuitem">Daily Equipment Utilization Report</a> --}}
-            <a class="nav-dropdown-item {{ $fuelIssuanceActive ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' : '' }}	" href="{{ route('admin.fuel_issuance_slip') }}" role="menuitem">Fuel Issuance Slips</a>
+	            <a class="nav-dropdown-item {{ $fuelIssuanceActive ? $dropdownActiveClass : '' }}	" href="{{ route('admin.fuel_issuance_slip') }}" role="menuitem">Fuel Issuance Slips</a>
 	</div>
 </div>
 <div class="nav-dropdown">
@@ -248,7 +252,7 @@
 		Reports <span class="nav-caret">&#9662;</span>
 	</button>
 	<div class="nav-dropdown-menu" role="menu" aria-label="Reports menu">
-		<a class="nav-dropdown-item {{ request()->routeIs('daily-equipment-utilization-report') ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' : '' }}" href="{{ route('daily-equipment-utilization-report') }}" role="menuitem">Daily Equipment Utilization Report</a>
+		<a class="nav-dropdown-item {{ $dailyEquipmentUtilizationReportActive ? $dropdownActiveClass : '' }}" href="#" role="menuitem">Daily Equipment Utilization Report</a>
 		<a class="nav-dropdown-item" href="#" role="menuitem">Monhtly Fuel Consumption Report (Service Vehicle)</a>
 	</div>
 </div>
