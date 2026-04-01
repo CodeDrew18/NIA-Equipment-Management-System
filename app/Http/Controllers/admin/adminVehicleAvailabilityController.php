@@ -4,6 +4,7 @@ namespace App\Http\Controllers\admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminVehicleAvailability;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -16,9 +17,15 @@ class adminVehicleAvailabilityController extends Controller
             ->orderBy('vehicle_code')
             ->get();
 
+        $drivers = User::query()
+            ->whereRaw("CONCAT(',', role, ',') LIKE '%,driver,%'")
+            ->orderBy('name')
+            ->pluck('name');
+
         return view('admin.vehicle_availability_edit.admin_vehicle_availibility', [
             'vehicles' => $vehicles,
             'totalVehicles' => $vehicles->count(),
+            'drivers' => $drivers,
         ]);
     }
 

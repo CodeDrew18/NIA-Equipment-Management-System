@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminVehicleAvailability;
 use App\Models\TransportationRequestFormModel;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class dashboardController extends Controller
@@ -206,15 +208,78 @@ class dashboardController extends Controller
             'rejection_reason' => ['nullable', 'string', 'max:2000', 'required_if:status,Rejected'],
         ]);
 
-        $transportationRequest->update([
+        $previousVehicleCodes = $this->extractVehicleCodes((string) $transportationRequest->vehicle_id);
+
+        $updatePayload = [
             'status' => $validated['status'],
             'rejection_reason' => $validated['status'] === 'Rejected'
                 ? trim((string) ($validated['rejection_reason'] ?? ''))
                 : null,
-        ]);
+        ];
+
+        // Approval must always pass through admin vehicle assignment first.
+        if (in_array($validated['status'], ['Signed', 'Rejected'], true)) {
+            $updatePayload['vehicle_id'] = null;
+            $updatePayload['driver_name'] = null;
+        }
+
+        DB::transaction(function () use ($transportationRequest, $updatePayload, $previousVehicleCodes) {
+            $transportationRequest->update($updatePayload);
+            $this->releaseVehicleCodes($previousVehicleCodes);
+        });
+
+        if ($validated['status'] === 'Signed') {
+            return redirect()
+                ->route('admin.vehicle_assignment', ['request' => $transportationRequest->id])
+                ->with('admin_vehicle_assignment_success', 'Request approved. Assign an available vehicle before generating the Daily Driver\'s Trip Ticket.');
+        }
 
         return redirect()
             ->route('admin.dashboard')
             ->with('admin_dashboard_success', 'Request status updated to ' . $validated['status'] . '.');
+    }
+
+    private function releaseVehicleCodes(array $vehicleCodes): void
+    {
+        if (empty($vehicleCodes)) {
+            return;
+        }
+
+        AdminVehicleAvailability::query()
+            ->whereIn('vehicle_code', $vehicleCodes)
+            ->whereIn('status', ['On Business Trip', 'Reserved'])
+            ->update([
+                'status' => 'Available',
+            ]);
+    }
+
+    private function extractVehicleCodes(string $vehicleIds): array
+    {
+        $value = trim($vehicleIds);
+        if ($value === '') {
+            return [];
+        }
+
+        $decoded = json_decode($value, true);
+        if (is_array($decoded)) {
+            $tokens = $decoded;
+        } else {
+            $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        }
+
+        return collect($tokens)
+            ->map(function ($token) {
+                if (is_array($token)) {
+                    return trim((string) ($token['vehicle_code'] ?? $token['code'] ?? ''));
+                }
+
+                return trim((string) $token);
+            })
+            ->filter(function (string $code) {
+                return $code !== '';
+            })
+            ->unique()
+            ->values()
+            ->all();
     }
 }

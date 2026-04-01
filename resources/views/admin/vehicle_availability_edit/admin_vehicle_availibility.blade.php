@@ -138,14 +138,22 @@ class="hidden"
 <div class="space-y-3">
 <div>
 <label class="text-xs font-semibold uppercase tracking-wider text-primary/60" for="driver_name_{{ $vehicle->id }}">Driver Name</label>
-<input
+@php
+    $selectedDriver = old('driver_name', $vehicle->driver_name);
+@endphp
+<select
 id="driver_name_{{ $vehicle->id }}"
 name="driver_name"
-type="text"
-value="{{ old('driver_name', $vehicle->driver_name) }}"
 class="mt-1 block w-full rounded-lg border-outline-variant text-sm focus:border-primary focus:ring-primary"
-placeholder="Enter driver name"
-/>
+>
+<option value="">No assigned driver</option>
+@foreach (($drivers ?? collect()) as $driverName)
+<option value="{{ $driverName }}" @selected($selectedDriver === $driverName)>{{ $driverName }}</option>
+@endforeach
+@if (!empty($selectedDriver) && !collect($drivers ?? [])->contains($selectedDriver))
+<option value="{{ $selectedDriver }}" selected>{{ $selectedDriver }}</option>
+@endif
+</select>
 </div>
 
 <div>

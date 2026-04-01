@@ -221,6 +221,18 @@ class UserPersonnelSeeder extends Seeder
                 'email' => 'user20@nia.local',
                 'role' => 'user',
             ],
+                        [
+                'personnel_id' => '100035',
+                'name' => 'Arturo Meldea',
+                'email' => 'dispatcher21@nia.local',
+                'role' => 'dispatcher',
+            ],
+            [
+                'personnel_id' => '100036',
+                'name' => 'Bayaksan Dela Cruz',
+                'email' => 'dispatcher22@nia.local',
+                'role' => 'dispatcher',
+            ],
         ];
 
         foreach ($users as $userData) {

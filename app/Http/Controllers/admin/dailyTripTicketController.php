@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminVehicleAvailability;
 use App\Models\TransportationRequestFormModel;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -68,9 +70,24 @@ class dailyTripTicketController extends Controller
             'status' => ['required', 'in:' . implode(',', self::DTT_STATUS_OPTIONS)],
         ]);
 
-        $transportationRequest->update([
-            'status' => $validated['status'],
-        ]);
+        $assignedVehicleCodes = $this->extractVehicleCodes((string) $transportationRequest->vehicle_id);
+        $vehicleStatus = $validated['status'] === 'Dispatched' ? 'On Business Trip' : 'Reserved';
+
+        DB::transaction(function () use ($transportationRequest, $validated, $assignedVehicleCodes, $vehicleStatus) {
+            $transportationRequest->update([
+                'status' => $validated['status'],
+            ]);
+
+            if (empty($assignedVehicleCodes)) {
+                return;
+            }
+
+            AdminVehicleAvailability::query()
+                ->whereIn('vehicle_code', $assignedVehicleCodes)
+                ->update([
+                    'status' => $vehicleStatus,
+                ]);
+        });
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -191,18 +208,29 @@ class dailyTripTicketController extends Controller
                 $query->whereDate('request_date', '<=', $toDate);
             });
 
-        $requests = (clone $filteredQuery)
-            ->where('status', 'Signed')
+        $signedRequestsQuery = (clone $filteredQuery)
+            ->where('status', 'Signed');
+        $this->applyAssignmentReadyFilter($signedRequestsQuery);
+
+        $requests = $signedRequestsQuery
             ->orderByDesc('request_date')
             ->orderByDesc('id')
             ->paginate(10)
             ->withQueryString();
 
-        $totalDtts = (clone $filteredQuery)->where('status', 'Signed')->count();
-        $pendingDtts = (clone $filteredQuery)->where('status', 'Signed')->count();
+        $totalDttsQuery = (clone $filteredQuery)->where('status', 'Signed');
+        $this->applyAssignmentReadyFilter($totalDttsQuery);
+        $totalDtts = $totalDttsQuery->count();
+
+        $pendingDttsQuery = (clone $filteredQuery)->where('status', 'Signed');
+        $this->applyAssignmentReadyFilter($pendingDttsQuery);
+        $pendingDtts = $pendingDttsQuery->count();
+
         $completedDtts = (clone $filteredQuery)->where('status', 'Dispatched')->count();
 
-        $vehicleRows = (clone $filteredQuery)->where('status', 'Signed')->pluck('vehicle_type');
+        $vehicleRowsQuery = (clone $filteredQuery)->where('status', 'Signed');
+        $this->applyAssignmentReadyFilter($vehicleRowsQuery);
+        $vehicleRows = $vehicleRowsQuery->pluck('vehicle_type');
         $vehicleTypeCounts = [
             'coaster' => 0,
             'van' => 0,
@@ -258,5 +286,43 @@ class dailyTripTicketController extends Controller
     {
         $days = $this->dttCount($request);
         return $days . ' Day' . ($days > 1 ? 's' : '') . ' Total';
+    }
+
+    private function applyAssignmentReadyFilter($query): void
+    {
+        $query->whereNotNull('vehicle_id')
+            ->where('vehicle_id', '!=', '')
+            ->whereNotNull('driver_name')
+            ->where('driver_name', '!=', '');
+    }
+
+    private function extractVehicleCodes(string $vehicleIds): array
+    {
+        $value = trim($vehicleIds);
+        if ($value === '') {
+            return [];
+        }
+
+        $decoded = json_decode($value, true);
+        if (is_array($decoded)) {
+            $tokens = $decoded;
+        } else {
+            $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        }
+
+        return collect($tokens)
+            ->map(function ($token) {
+                if (is_array($token)) {
+                    return trim((string) ($token['vehicle_code'] ?? $token['code'] ?? ''));
+                }
+
+                return trim((string) $token);
+            })
+            ->filter(function (string $code) {
+                return $code !== '';
+            })
+            ->unique()
+            ->values()
+            ->all();
     }
 }

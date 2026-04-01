@@ -88,7 +88,7 @@
 </head>
 <body class="bg-background text-on-background flex flex-col min-h-screen">
 <!-- TopNavBar -->
-@if(Auth::check() && Auth::user()->role === 'admin')
+@if(Auth::check() && Auth::user()->role === 'admin' || Auth::user()->role === 'chief_of_motorpool_section')
     @include('layouts.admin_header')
 @else
     @include('layouts.header')
@@ -146,7 +146,7 @@
 </div>
 </main>
 <!-- Footer -->
-@if(Auth::check() && Auth::user()->role === 'admin')
+@if(Auth::check() && Auth::user()->role === 'admin' || Auth::user()->role === 'chief_of_motorpool_section')
     @include('layouts.admin_footer')
 @else
     @include('layouts.footer')

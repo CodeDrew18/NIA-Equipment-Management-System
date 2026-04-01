@@ -74,6 +74,12 @@
 @include('layouts.admin_header')
 
 <main class="w-full p-8 max-w-[1600px] mx-auto pt-24">
+@if (session('admin_dtt_success'))
+<div class="mb-6 rounded-xl border border-secondary/30 bg-secondary-container p-4 text-on-secondary-container text-sm font-semibold">
+{{ session('admin_dtt_success') }}
+</div>
+@endif
+
 <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
 <div>
 <h1 class="text-3xl font-extrabold text-primary tracking-tight font-headline">Daily Trip Ticket Management</h1>

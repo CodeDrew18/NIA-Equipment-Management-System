@@ -412,6 +412,21 @@ Remove
 </section>
 </form>
 
+<div id="no-available-vehicles-modal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/50 px-4">
+  <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
+    <div class="mb-4 flex items-center gap-3 text-error">
+      <span class="material-symbols-outlined">warning</span>
+      <h3 class="text-lg font-bold">No Available Vehicles</h3>
+    </div>
+    <p class="text-sm text-on-surface-variant leading-relaxed">
+      All vehicles are currently on business trip or unavailable. Please submit your request again once a vehicle becomes available.
+    </p>
+    <div class="mt-6 flex justify-end">
+      <button id="no-available-vehicles-close" type="button" class="rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-primary/90">Understood</button>
+    </div>
+  </div>
+</div>
+
 <div id="confirm-download-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4">
   <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
     <div class="mb-4 flex items-center gap-3 text-primary">
@@ -453,9 +468,12 @@ Remove
     const confirmDownloadModal = document.getElementById('confirm-download-modal');
     const confirmDownloadYes = document.getElementById('confirm-download-yes');
     const confirmDownloadNo = document.getElementById('confirm-download-no');
+    const noAvailableVehiclesModal = document.getElementById('no-available-vehicles-modal');
+    const noAvailableVehiclesClose = document.getElementById('no-available-vehicles-close');
     const downloadLoadingModal = document.getElementById('download-loading-modal');
     const generatedDownloadUrl = @json(session('download_file') ? route('request-form.download', ['filename' => session('download_file')]) : null);
     const shouldAutoDownload = @json((bool) session('auto_download'));
+    const shouldShowNoAvailableVehiclesModal = @json((bool) ($showNoAvailableVehiclesModal ?? false));
 
     let pendingDownloadAction = null;
     let hasConfirmedSubmit = false;
@@ -506,6 +524,24 @@ Remove
 
       downloadLoadingModal.classList.add('hidden');
       downloadLoadingModal.classList.remove('flex');
+    }
+
+    function showUnavailableVehiclesModal() {
+      if (!noAvailableVehiclesModal) {
+        return;
+      }
+
+      noAvailableVehiclesModal.classList.remove('hidden');
+      noAvailableVehiclesModal.classList.add('flex');
+    }
+
+    function hideUnavailableVehiclesModal() {
+      if (!noAvailableVehiclesModal) {
+        return;
+      }
+
+      noAvailableVehiclesModal.classList.add('hidden');
+      noAvailableVehiclesModal.classList.remove('flex');
     }
 
     function setPrimaryButtonBusy(isBusy) {
@@ -1008,6 +1044,24 @@ Remove
           startBackgroundDownload(action.url);
         }
       });
+    }
+
+    if (noAvailableVehiclesClose) {
+      noAvailableVehiclesClose.addEventListener('click', function () {
+        hideUnavailableVehiclesModal();
+      });
+    }
+
+    if (noAvailableVehiclesModal) {
+      noAvailableVehiclesModal.addEventListener('click', function (event) {
+        if (event.target === noAvailableVehiclesModal) {
+          hideUnavailableVehiclesModal();
+        }
+      });
+    }
+
+    if (shouldShowNoAvailableVehiclesModal) {
+      showUnavailableVehiclesModal();
     }
 
     if (shouldAutoDownload && generatedDownloadUrl) {

@@ -26,12 +26,14 @@ class requestFormController extends Controller
             'pickup' => false,
         ];
 
-        $vehicleTypeLabels = AdminVehicleAvailability::query()
+        $availableVehicles = AdminVehicleAvailability::query()
             ->where('status', 'Available')
-            ->pluck('vehicle_type');
+            ->get(['vehicle_type']);
 
-        foreach ($vehicleTypeLabels as $vehicleTypeLabel) {
-            $label = strtolower((string) $vehicleTypeLabel);
+        $hasAnyAvailableVehicle = $availableVehicles->isNotEmpty();
+
+        foreach ($availableVehicles as $availableVehicle) {
+            $label = strtolower((string) $availableVehicle->vehicle_type);
 
             if (str_contains($label, 'coaster')) {
                 $availableVehicleTypes['coaster'] = true;
@@ -61,6 +63,7 @@ class requestFormController extends Controller
 
         return view('letter_of_request/requestform', [
             'availableVehicleTypes' => $availableVehicleTypes,
+            'showNoAvailableVehiclesModal' => !$hasAnyAvailableVehicle,
             'drivers' => $drivers,
             'requesterMessages' => $requesterMessages,
         ]);

@@ -12,6 +12,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo(fn() => route('login'));
+        $middleware->alias([
+            'role.page' => \App\Http\Middleware\RolePageAccess::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

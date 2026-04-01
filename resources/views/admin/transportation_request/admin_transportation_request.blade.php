@@ -189,7 +189,9 @@
 </td>
 <td class="px-6 py-5">
 @php
-    $attachments = is_array($item->attachments) ? $item->attachments : [];
+    $attachments = is_array($item->normalized_attachments ?? null)
+        ? $item->normalized_attachments
+        : [];
 @endphp
 @if (count($attachments) > 0)
 <div class="space-y-1">

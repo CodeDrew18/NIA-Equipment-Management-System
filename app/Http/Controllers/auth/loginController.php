@@ -50,10 +50,10 @@ class loginController extends Controller
     private function redirectByRole(string $role)
     {
         $roles = collect(explode(',', $role))
-            ->map(fn($value) => trim((string) $value))
+            ->map(fn($value) => strtolower(trim((string) $value)))
             ->filter();
 
-        if ($roles->contains('admin')) {
+        if ($roles->contains('admin') || $roles->contains('chief_of_motorpool_section')) {
             return redirect()->route('admin.dashboard');
         }
 

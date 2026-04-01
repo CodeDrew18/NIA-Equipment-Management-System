@@ -218,10 +218,11 @@
 	}
 </style>
 @php
-	$operationsActive = request()->routeIs('admin.transportation-request') || request()->routeIs('admin.vehicle-availability') || request()->routeIs('admin.daily-trip-ticket') || request()->routeIs('admin.fuel_issuance_slip');
+	$operationsActive = request()->routeIs('admin.transportation-request') || request()->routeIs('admin.vehicle-availability') || request()->routeIs('admin.daily-trip-ticket') || request()->routeIs('admin.fuel_issuance_slip') || request()->routeIs('admin.vehicle_assignment');
 	$reportsActive = request()->routeIs('reports') || request()->routeIs('daily-equipment-utilization-report');
 	$evaluationsActive = request()->routeIs('evaluations');
 	$transportationRequestActive = request()->routeIs('admin.transportation-request');
+	$vehicleAssignmentActive = request()->routeIs('admin.vehicle_assignment');
 	$fuelIssuanceActive = request()->routeIs('admin.fuel_issuance_slip');
 @endphp
 <div class="flex justify-between items-center w-full px-8 py-4 max-w-full h-20">
@@ -236,6 +237,7 @@
 	<div class="nav-dropdown-menu" role="menu" aria-label="Operations menu">
 		<a class="nav-dropdown-item" href="{{ route('admin.vehicle-availability') }}" role="menuitem">Vehicle Availability</a>
             <a class="nav-dropdown-item {{ $transportationRequestActive ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' : '' }}" href="{{ route('admin.transportation-request') }}" role="menuitem">Transportation Request</a>
+			 <a class="nav-dropdown-item {{ $vehicleAssignmentActive ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' : '' }}" href="{{ route('admin.vehicle_assignment') }}" role="menuitem">Vehicle Assignment</a>
 		<a class="nav-dropdown-item" href="{{ route('admin.daily-trip-ticket') }}" role="menuitem">Daily Driver's Trip Ticket</a>
             {{-- <a class="nav-dropdown-item" href="#" role="menuitem">Daily Equipment Utilization Report</a> --}}
             <a class="nav-dropdown-item {{ $fuelIssuanceActive ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' : '' }}	" href="{{ route('admin.fuel_issuance_slip') }}" role="menuitem">Fuel Issuance Slips</a>
@@ -285,7 +287,9 @@
 			<div class="pt-1 pb-1 space-y-1">
 				<a class="mobile-nav-subitem {{ request()->routeIs('admin.vehicle-availability') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.vehicle-availability') }}">Vehicle Availability</a>
 				<a class="mobile-nav-subitem {{ request()->routeIs('admin.transportation-request') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.transportation-request') }}">Transportation Request</a>	
+				<a class="mobile-nav-subitem {{ request()->routeIs('admin.vehicle_assignment') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.vehicle_assignment') }}">Vehicle Assignment</a>
 				<a class="mobile-nav-subitem {{ request()->routeIs('admin.daily-trip-ticket') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.daily-trip-ticket') }}">Daily Driver's Trip Ticket</a>
+				<a class="mobile-nav-subitem {{ request()->routeIs('admin.fuel_issuance_slip') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.fuel_issuance_slip') }}">Fuel Issuance Slips</a>
 			</div>
 		</details>
 
