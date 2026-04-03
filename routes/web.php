@@ -38,6 +38,9 @@ Route::middleware('auth')->group(function () {
         Route::get("/monthly-official-travel-report", [App\Http\Controllers\monthlyTravelReportController::class, 'index'])->name('monthly-official-travel-report');
     });
 
+
+    // Admin Routes ***************************************************************
+
     Route::middleware('role.page:admin-area')->group(function () {
         // Admin Dashboard
         Route::get("/admin/dashboard", [App\Http\Controllers\admin\dashboardController::class, 'index'])->name('admin.dashboard');
@@ -77,6 +80,9 @@ Route::middleware('auth')->group(function () {
         Route::get("/admin/fuel-issuance-slip", [App\Http\Controllers\admin\fuelIssuanceController::class, 'index'])->name('admin.fuel_issuance_slip');
         Route::get('/admin/fuel-issuance-slip/data', [App\Http\Controllers\admin\fuelIssuanceController::class, 'data'])->name('admin.fuel_issuance_slip.data');
         Route::post('/admin/fuel-issuance-slip/print', [App\Http\Controllers\admin\fuelIssuanceController::class, 'printOfficeCopy'])->name('admin.fuel_issuance_slip.print');
+        Route::post('/admin/fuel-issuance-slip/{transportationRequest}/dispatch', [App\Http\Controllers\admin\fuelIssuanceController::class, 'dispatchVehicle'])->name('admin.fuel_issuance_slip.dispatch');
+
+        Route::get("/admin/on-trip-vehicle", [App\Http\Controllers\admin\onTripVehicleController::class, 'index'])->name('admin.on_trip_vehicles');
     });
 });
 

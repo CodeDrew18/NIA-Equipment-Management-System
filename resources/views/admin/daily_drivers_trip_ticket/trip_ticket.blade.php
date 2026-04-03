@@ -266,6 +266,8 @@ const dttDataUrl = "{{ route('admin.daily-trip-ticket.data') }}";
 const dttCsrfToken = "{{ csrf_token() }}";
 let dttCurrentPage = {{ $requests->currentPage() }};
 let dttDownloadInProgress = false;
+const dttMetricAnimationFrames = new WeakMap();
+const dttPrefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function esc(value) {
     return String(value ?? '')
@@ -274,6 +276,87 @@ function esc(value) {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
+}
+
+function dttToNumber(value) {
+    const parsed = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function dttFormatNumber(value, decimals = 0) {
+    return Number(value).toLocaleString('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+    });
+}
+
+function animateDttMetric(element, targetValue, options = {}) {
+    if (!element) {
+        return;
+    }
+
+    const decimals = Number(options.decimals ?? 0);
+    const suffix = String(options.suffix ?? '');
+    const duration = Number(options.duration ?? 700);
+    const numericTarget = Number(targetValue);
+    const target = Number.isFinite(numericTarget) ? numericTarget : 0;
+
+    const existingFrameId = dttMetricAnimationFrames.get(element);
+    if (existingFrameId) {
+        cancelAnimationFrame(existingFrameId);
+    }
+
+    const storedValue = Number(element.dataset.countValue);
+    const start = Number.isFinite(storedValue) ? storedValue : dttToNumber(element.textContent);
+
+    if (dttPrefersReducedMotion || duration <= 0 || Math.abs(start - target) < 0.001) {
+        element.textContent = `${dttFormatNumber(target, decimals)}${suffix}`;
+        element.dataset.countValue = String(target);
+        return;
+    }
+
+    const startedAt = performance.now();
+
+    function tick(now) {
+        const progress = Math.min(1, (now - startedAt) / duration);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const current = start + ((target - start) * eased);
+
+        element.textContent = `${dttFormatNumber(current, decimals)}${suffix}`;
+
+        if (progress < 1) {
+            const frameId = requestAnimationFrame(tick);
+            dttMetricAnimationFrames.set(element, frameId);
+            return;
+        }
+
+        element.textContent = `${dttFormatNumber(target, decimals)}${suffix}`;
+        element.dataset.countValue = String(target);
+        dttMetricAnimationFrames.delete(element);
+    }
+
+    const frameId = requestAnimationFrame(tick);
+    dttMetricAnimationFrames.set(element, frameId);
+}
+
+function animateDttInitialMetrics() {
+    [
+        dttEls.total,
+        dttEls.pending,
+        dttEls.completed,
+        dttEls.coaster,
+        dttEls.van,
+        dttEls.pickup,
+    ].forEach(function (metricEl) {
+        if (!metricEl) {
+            return;
+        }
+
+        const target = dttToNumber(metricEl.textContent);
+        metricEl.dataset.countValue = '0';
+        metricEl.textContent = '0';
+        animateDttMetric(metricEl, target);
+    });
 }
 
 function dttStatusOptions(selectedStatus) {
@@ -482,12 +565,12 @@ async function refreshDtt(page = dttCurrentPage) {
         const payload = await response.json();
         dttCurrentPage = payload.pagination.currentPage;
 
-        dttEls.total.textContent = payload.metrics.totalDtts;
-        dttEls.pending.textContent = payload.metrics.pendingDtts;
-        dttEls.completed.textContent = payload.metrics.completedDtts;
-        dttEls.coaster.textContent = payload.metrics.vehicleTypeCounts.coaster;
-        dttEls.van.textContent = payload.metrics.vehicleTypeCounts.van;
-        dttEls.pickup.textContent = payload.metrics.vehicleTypeCounts.pickup;
+        animateDttMetric(dttEls.total, Number(payload.metrics.totalDtts) || 0);
+        animateDttMetric(dttEls.pending, Number(payload.metrics.pendingDtts) || 0);
+        animateDttMetric(dttEls.completed, Number(payload.metrics.completedDtts) || 0);
+        animateDttMetric(dttEls.coaster, Number(payload.metrics.vehicleTypeCounts.coaster) || 0);
+        animateDttMetric(dttEls.van, Number(payload.metrics.vehicleTypeCounts.van) || 0);
+        animateDttMetric(dttEls.pickup, Number(payload.metrics.vehicleTypeCounts.pickup) || 0);
 
         if (payload.requests.length > 0) {
             dttEls.tbody.innerHTML = payload.requests.map(dttRow).join('');
@@ -540,6 +623,7 @@ dttEls.tbody.addEventListener('click', function (event) {
 });
 
 syncStatusSelectOriginalValues();
+animateDttInitialMetrics();
 
 // setInterval(() => refreshDtt(dttCurrentPage), 1000);
 </script>

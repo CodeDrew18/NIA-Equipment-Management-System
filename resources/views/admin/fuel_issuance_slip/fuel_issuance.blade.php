@@ -110,23 +110,42 @@
     </button>
 </div>
 
+@if (session('admin_fuel_issuance_success'))
+<div class="mb-4 rounded-lg border border-secondary/30 bg-secondary/10 px-4 py-3 text-sm font-semibold text-secondary no-print">
+    {{ session('admin_fuel_issuance_success') }}
+</div>
+@endif
+
+@if ($errors->has('fuel_issuance'))
+<div class="mb-4 rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm font-semibold text-on-error-container no-print">
+    {{ $errors->first('fuel_issuance') }}
+</div>
+@endif
+
 <div id="fi-validation-message" class="mb-4 hidden rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm font-semibold text-on-error-container no-print"></div>
+<div id="fi-action-message" class="mb-4 hidden rounded-lg px-4 py-3 text-sm font-semibold no-print"></div>
 
 <div class="bg-surface-container-low rounded-xl p-4 mb-6 border border-outline-variant/10 no-print">
-    <form id="fi-filter-form" method="GET" action="{{ route('admin.fuel_issuance_slip') }}" class="flex flex-wrap items-end gap-4">
-        <div class="flex flex-col">
-            <label class="text-[10px] font-bold text-outline uppercase mb-1 px-1">Search Dispatched Requests</label>
-            <input id="fi-search" name="search" value="{{ $search }}" class="bg-surface-container-lowest border-none text-sm rounded-lg focus:ring-2 focus:ring-primary px-3 py-2 min-w-[300px]" placeholder="Request ID, requestor, destination, plate, driver"/>
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+        <form id="fi-filter-form" method="GET" action="{{ route('admin.fuel_issuance_slip') }}" class="flex flex-wrap items-end gap-4 w-full">
+            <div class="flex flex-col">
+                <label class="text-[10px] font-bold text-outline uppercase mb-1 px-1">Search Dispatched Requests</label>
+                <input id="fi-search" name="search" value="{{ $search }}" class="bg-surface-container-lowest border-none text-sm rounded-lg focus:ring-2 focus:ring-primary px-3 py-2 min-w-[300px]" placeholder="Request ID, requestor, destination, plate, driver"/>
+            </div>
+            <div class="flex items-center gap-2 self-end">
+                <button class="bg-primary hover:bg-primary-container text-on-primary px-6 py-2 rounded-lg text-sm font-semibold shadow-md transition-all flex items-center gap-2" type="submit">
+                    <span class="material-symbols-outlined text-sm">search</span> Search
+                </button>
+                <a href="{{ route('admin.fuel_issuance_slip') }}" class="bg-surface-container-highest hover:bg-surface-variant text-on-surface-variant px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2">
+                    <span class="material-symbols-outlined text-sm">filter_list</span> Reset
+                </a>
+            </div>
+        </form>
+        <div class="self-end rounded-lg border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 min-w-[190px]">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-outline text-right">Total Dispatched</p>
+            <p id="fi-total-dispatched-top" class="text-right text-3xl font-black text-primary">{{ $dispatchedRequests->total() }}</p>
         </div>
-        <div class="flex items-center gap-2 self-end">
-            <button class="bg-primary hover:bg-primary-container text-on-primary px-6 py-2 rounded-lg text-sm font-semibold shadow-md transition-all flex items-center gap-2" type="submit">
-                <span class="material-symbols-outlined text-sm">search</span> Search
-            </button>
-            <a href="{{ route('admin.fuel_issuance_slip') }}" class="bg-surface-container-highest hover:bg-surface-variant text-on-surface-variant px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2">
-                <span class="material-symbols-outlined text-sm">filter_list</span> Reset
-            </a>
-        </div>
-    </form>
+    </div>
 </div>
 
 <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/10 mb-8 no-print">
@@ -138,7 +157,7 @@
                 <th class="px-6 py-4">Date</th>
                 <th class="px-6 py-4">Vehicle</th>
                 <th class="px-6 py-4">Driver</th>
-                <th class="px-6 py-4 text-right">Action</th>
+                <th class="px-6 py-4 text-right">Actions</th>
             </tr>
         </thead>
         <tbody id="fi-tbody" class="text-sm divide-y divide-outline-variant/5">
@@ -153,10 +172,16 @@
                 <td class="px-6 py-4">{{ $item->vehicle_id ?: 'N/A' }}</td>
                 <td class="px-6 py-4">{{ $item->driver_name ?: 'N/A' }}</td>
                 <td class="px-6 py-4 text-right">
-                    <button type="button" data-request-id="{{ $item->id }}" class="fi-select-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-primary text-white text-[11px] font-bold uppercase tracking-wider hover:bg-primary-container transition-colors">
-                        <span class="material-symbols-outlined text-sm">visibility</span>
-                        View Copy
-                    </button>
+                    <div class="inline-flex items-center gap-2">
+                        <button type="button" data-request-id="{{ $item->id }}" class="fi-select-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-primary text-white text-[11px] font-bold uppercase tracking-wider hover:bg-primary-container transition-colors">
+                            <span class="material-symbols-outlined text-sm">visibility</span>
+                            View Copy
+                        </button>
+                        <button type="button" data-dispatch-url="{{ route('admin.fuel_issuance_slip.dispatch', $item) }}" data-request-id="{{ $item->id }}" class="fi-dispatch-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-secondary text-white text-[11px] font-bold uppercase tracking-wider hover:bg-secondary/90 transition-colors">
+                            <span class="material-symbols-outlined text-sm">local_shipping</span>
+                            Dispatch Vehicle
+                        </button>
+                    </div>
                 </td>
             </tr>
             @empty
@@ -168,7 +193,9 @@
     </table>
     <div class="bg-surface-container-high/30 px-6 py-4 flex items-center justify-between gap-4">
         <p id="fi-summary" class="text-xs font-semibold text-outline">Showing {{ $dispatchedRequests->firstItem() ?? 0 }}-{{ $dispatchedRequests->lastItem() ?? 0 }} of {{ $dispatchedRequests->total() }} dispatched requests</p>
-        <div id="fi-pagination" class="flex items-center gap-2">
+            <div class="flex items-center gap-4">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-outline">Total Dispatched: <span id="fi-total-dispatched" class="text-primary">{{ $dispatchedRequests->total() }}</span></p>
+                <div id="fi-pagination" class="flex items-center gap-2">
             @if ($dispatchedRequests->onFirstPage())
             <span class="w-8 h-8 rounded flex items-center justify-center bg-white border border-outline-variant text-outline opacity-60"><span class="material-symbols-outlined text-sm">chevron_left</span></span>
             @else
@@ -186,6 +213,7 @@
             @else
             <span class="w-8 h-8 rounded flex items-center justify-center bg-white border border-outline-variant text-outline opacity-60"><span class="material-symbols-outlined text-sm">chevron_right</span></span>
             @endif
+            </div>
         </div>
     </div>
 </div>
@@ -314,6 +342,8 @@ const fiEls = {
     tbody: document.getElementById('fi-tbody'),
     pagination: document.getElementById('fi-pagination'),
     summary: document.getElementById('fi-summary'),
+    totalDispatchedTop: document.getElementById('fi-total-dispatched-top'),
+    totalDispatched: document.getElementById('fi-total-dispatched'),
     ctrlNo: document.getElementById('fi-ctrl-no'),
     officeDate: document.getElementById('fi-office-date'),
     officeVehicle: document.getElementById('fi-office-vehicle'),
@@ -339,9 +369,12 @@ const fiEls = {
 
 const fiDataUrl = "{{ route('admin.fuel_issuance_slip.data') }}";
 const fiPrintUrl = "{{ route('admin.fuel_issuance_slip.print') }}";
+const fiDispatchUrlTemplate = "{{ route('admin.fuel_issuance_slip.dispatch', ['transportationRequest' => '__ID__']) }}";
 const fiCsrfToken = "{{ csrf_token() }}";
 let fiCurrentPage = {{ $dispatchedRequests->currentPage() }};
 let fiSelectedRequestId = {{ $selectedRequest?->id ?? 'null' }};
+const fiMetricAnimationFrames = new WeakMap();
+const fiPrefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function fiEsc(value) {
     return String(value ?? '')
@@ -352,9 +385,96 @@ function fiEsc(value) {
         .replaceAll("'", '&#039;');
 }
 
+function fiAnimateToNumber(value) {
+    const parsed = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function fiFormatAnimatedNumber(value, decimals = 0) {
+    return Number(value).toLocaleString('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+    });
+}
+
+function fiAnimateMetric(element, targetValue, options = {}) {
+    if (!element) {
+        return;
+    }
+
+    const decimals = Number(options.decimals ?? 0);
+    const suffix = String(options.suffix ?? '');
+    const duration = Number(options.duration ?? 700);
+    const numericTarget = Number(targetValue);
+    const target = Number.isFinite(numericTarget) ? numericTarget : 0;
+
+    const existingFrameId = fiMetricAnimationFrames.get(element);
+    if (existingFrameId) {
+        cancelAnimationFrame(existingFrameId);
+    }
+
+    const storedValue = Number(element.dataset.countValue);
+    const start = Number.isFinite(storedValue) ? storedValue : fiAnimateToNumber(element.textContent);
+
+    if (fiPrefersReducedMotion || duration <= 0 || Math.abs(start - target) < 0.001) {
+        element.textContent = `${fiFormatAnimatedNumber(target, decimals)}${suffix}`;
+        element.dataset.countValue = String(target);
+        return;
+    }
+
+    const startedAt = performance.now();
+
+    function tick(now) {
+        const progress = Math.min(1, (now - startedAt) / duration);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const current = start + ((target - start) * eased);
+
+        element.textContent = `${fiFormatAnimatedNumber(current, decimals)}${suffix}`;
+
+        if (progress < 1) {
+            const frameId = requestAnimationFrame(tick);
+            fiMetricAnimationFrames.set(element, frameId);
+            return;
+        }
+
+        element.textContent = `${fiFormatAnimatedNumber(target, decimals)}${suffix}`;
+        element.dataset.countValue = String(target);
+        fiMetricAnimationFrames.delete(element);
+    }
+
+    const frameId = requestAnimationFrame(tick);
+    fiMetricAnimationFrames.set(element, frameId);
+}
+
+function fiAnimateInitialMetrics() {
+    const sourceCounter = fiEls.totalDispatchedTop || fiEls.totalDispatched;
+    if (!sourceCounter) {
+        return;
+    }
+
+    const target = fiAnimateToNumber(sourceCounter.textContent);
+
+    [fiEls.totalDispatchedTop, fiEls.totalDispatched].forEach(function (counterEl) {
+        if (!counterEl) {
+            return;
+        }
+
+        counterEl.dataset.countValue = '0';
+        counterEl.textContent = '0';
+        fiAnimateMetric(counterEl, target);
+    });
+}
+
+function fiAnimateDispatchedTotals(value) {
+    [fiEls.totalDispatchedTop, fiEls.totalDispatched].forEach(function (counterEl) {
+        fiAnimateMetric(counterEl, value);
+    });
+}
+
 function fiRow(item) {
     const isSelected = Number(item.id) === Number(fiSelectedRequestId);
     const rowClass = isSelected ? 'bg-primary-fixed/40' : 'hover:bg-surface-container-low';
+    const dispatchUrl = item.dispatchUrl || fiDispatchUrlTemplate.replace('__ID__', item.id);
 
     return `<tr data-request-row="${fiEsc(item.id)}" class="transition-colors ${rowClass}">
         <td class="px-6 py-4 font-bold text-primary">${fiEsc(item.formId)}</td>
@@ -363,12 +483,88 @@ function fiRow(item) {
         <td class="px-6 py-4">${fiEsc(item.vehicleId)}</td>
         <td class="px-6 py-4">${fiEsc(item.driverName)}</td>
         <td class="px-6 py-4 text-right">
-            <button type="button" data-request-id="${fiEsc(item.id)}" class="fi-select-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-primary text-white text-[11px] font-bold uppercase tracking-wider hover:bg-primary-container transition-colors">
-                <span class="material-symbols-outlined text-sm">visibility</span>
-                View Copy
-            </button>
+            <div class="inline-flex items-center gap-2">
+                <button type="button" data-request-id="${fiEsc(item.id)}" class="fi-select-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-primary text-white text-[11px] font-bold uppercase tracking-wider hover:bg-primary-container transition-colors">
+                    <span class="material-symbols-outlined text-sm">visibility</span>
+                    View Copy
+                </button>
+                <button type="button" data-dispatch-url="${fiEsc(dispatchUrl)}" data-request-id="${fiEsc(item.id)}" class="fi-dispatch-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-secondary text-white text-[11px] font-bold uppercase tracking-wider hover:bg-secondary/90 transition-colors">
+                    <span class="material-symbols-outlined text-sm">local_shipping</span>
+                    Dispatch Vehicle
+                </button>
+            </div>
         </td>
     </tr>`;
+}
+
+function fiShowActionMessage(message, type = 'success') {
+    const messageEl = document.getElementById('fi-action-message');
+    if (!messageEl) {
+        return;
+    }
+
+    messageEl.textContent = message;
+    messageEl.classList.remove('hidden', 'border-secondary/30', 'bg-secondary/10', 'text-secondary', 'border-error/20', 'bg-error-container', 'text-on-error-container');
+
+    if (type === 'error') {
+        messageEl.classList.add('border', 'border-error/20', 'bg-error-container', 'text-on-error-container');
+    } else {
+        messageEl.classList.add('border', 'border-secondary/30', 'bg-secondary/10', 'text-secondary');
+    }
+
+    clearTimeout(fiShowActionMessage.timerId);
+    fiShowActionMessage.timerId = setTimeout(function () {
+        messageEl.classList.add('hidden');
+    }, 2500);
+}
+
+async function fiDispatchRequest(dispatchUrl, requestId, triggerButton) {
+    if (!dispatchUrl || !requestId) {
+        return;
+    }
+
+    const shouldDispatch = window.confirm('Dispatch this vehicle to On Trip Vehicles?');
+    if (!shouldDispatch) {
+        return;
+    }
+
+    if (triggerButton) {
+        triggerButton.disabled = true;
+    }
+
+    try {
+        const response = await fetch(dispatchUrl, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': fiCsrfToken,
+            },
+            body: JSON.stringify({}),
+        });
+
+        const payload = await response.json().catch(function () {
+            return {};
+        });
+
+        if (!response.ok) {
+            throw new Error(payload.message || 'Unable to dispatch vehicle.');
+        }
+
+        if (Number(fiSelectedRequestId) === Number(requestId)) {
+            fiSelectedRequestId = null;
+        }
+
+        fiShowActionMessage(payload.message || 'Vehicle dispatched successfully.');
+        await fiRefresh(fiCurrentPage);
+    } catch (error) {
+        fiShowActionMessage(error.message || 'Unable to dispatch vehicle.', 'error');
+    } finally {
+        if (triggerButton) {
+            triggerButton.disabled = false;
+        }
+    }
 }
 
 function fiApplySelectedState() {
@@ -599,6 +795,7 @@ async function fiRefresh(page = fiCurrentPage) {
         fiApplySelectedState();
 
         fiEls.summary.textContent = payload.summaryText;
+        fiAnimateDispatchedTotals(Number(payload.totalDispatchedRequests) || 0);
         fiRenderPagination(payload.pagination);
         fiUpdateOfficeCopy(payload.selected || {});
     } catch (error) {
@@ -624,15 +821,26 @@ fiEls.pagination.addEventListener('click', function (event) {
 });
 
 fiEls.tbody.addEventListener('click', function (event) {
-    const button = event.target.closest('.fi-select-request');
-    if (!button) {
+    const selectButton = event.target.closest('.fi-select-request');
+    if (selectButton) {
+        event.preventDefault();
+        fiSelectedRequestId = Number(selectButton.getAttribute('data-request-id'));
+        fiApplySelectedState();
+        fiRefresh(fiCurrentPage);
+        return;
+    }
+
+    const dispatchButton = event.target.closest('.fi-dispatch-request');
+    if (!dispatchButton) {
         return;
     }
 
     event.preventDefault();
-    fiSelectedRequestId = Number(button.getAttribute('data-request-id'));
-    fiApplySelectedState();
-    fiRefresh(fiCurrentPage);
+    fiDispatchRequest(
+        dispatchButton.getAttribute('data-dispatch-url'),
+        Number(dispatchButton.getAttribute('data-request-id')),
+        dispatchButton
+    );
 });
 
 fiEls.printButton.addEventListener('click', function () {
@@ -678,5 +886,6 @@ fiEls.confirmPrintModal.addEventListener('click', function (event) {
 });
 
 fiRecalculateTotal();
+fiAnimateInitialMetrics();
 </script>
 </body></html>

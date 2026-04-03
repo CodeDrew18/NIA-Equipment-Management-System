@@ -88,6 +88,14 @@
 
 @include('layouts.header');
 
+@php
+    $selectedFromDisplay = optional($selectedEvaluation?->date_time_from)->format('M d, Y h:i A');
+    $selectedToDisplay = optional($selectedEvaluation?->date_time_to)->format('M d, Y h:i A');
+    $selectedDurationDisplay = ($selectedFromDisplay && $selectedToDisplay)
+        ? $selectedFromDisplay . ' to ' . $selectedToDisplay
+        : '';
+@endphp
+
 <main class="max-w-5xl mx-auto px-6 pb-12 pt-28">
 <!-- Header Section -->
 <header class="mb-12 flex flex-col md:flex-row justify-between items-end gap-6">
@@ -101,9 +109,121 @@
 </div>
 <div class="bg-surface-container-highest p-6 rounded-xl border-l-4 border-primary">
 <div class="text-label-sm font-bold text-primary-container uppercase tracking-tighter mb-1">Evaluation ID</div>
-<div class="text-2xl font-mono font-bold text-on-surface tracking-widest">NIA-DPE-2024-082</div>
+<div class="text-2xl font-mono font-bold text-on-surface tracking-widest">
+{{ $selectedEvaluation ? ('NIA-DPE-' . optional($selectedEvaluation->date_time_to)->format('Y') . '-' . str_pad((string) $selectedEvaluation->id, 4, '0', STR_PAD_LEFT)) : 'NIA-DPE-0000-0000' }}
+</div>
 </div>
 </header>
+
+<!-- Pending Evaluation Trips -->
+<section class="mb-12 bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm border border-outline-variant/20">
+<div class="p-6 border-b border-outline-variant/20">
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+<div>
+<h2 class="text-2xl font-bold text-primary">Pending Trip Evaluations</h2>
+<p class="text-sm text-on-surface-variant mt-1">Finished trips (Date Time To reached) assigned to your account.</p>
+</div>
+<div class="bg-surface-container-high px-4 py-3 rounded-xl">
+<div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Total Pending</div>
+<div class="text-2xl font-black text-primary">{{ number_format($pendingEvaluationCount) }}</div>
+</div>
+</div>
+
+<form method="GET" action="{{ route('evaluation-performance') }}" class="grid grid-cols-1 md:grid-cols-12 gap-4">
+<div class="md:col-span-6">
+<label class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold block mb-2">Search</label>
+<input name="search" value="{{ $search }}" class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Control ID, Driver, Vehicle..." type="text"/>
+</div>
+<div class="md:col-span-2">
+<label class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold block mb-2">Date Time To (From)</label>
+<input name="from" value="{{ $fromDate }}" class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" type="date"/>
+</div>
+<div class="md:col-span-2">
+<label class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold block mb-2">Date Time To (To)</label>
+<input name="to" value="{{ $toDate }}" class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary" type="date"/>
+</div>
+<div class="md:col-span-2 flex items-end gap-2">
+<button type="submit" class="w-full px-4 py-2 bg-primary text-on-primary rounded-lg font-bold text-xs uppercase tracking-wider">Filter</button>
+@if ($search !== '' || $fromDate !== '' || $toDate !== '')
+<a href="{{ route('evaluation-performance') }}" class="w-full px-4 py-2 bg-surface-container-high rounded-lg text-xs font-bold uppercase tracking-wider text-center">Clear</a>
+@endif
+</div>
+</form>
+</div>
+
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low text-primary text-[10px] uppercase tracking-widest font-bold">
+<th class="px-5 py-3">Control / ID</th>
+<th class="px-5 py-3">Vehicle ID</th>
+<th class="px-5 py-3">Driver</th>
+<th class="px-5 py-3">Date Time From</th>
+<th class="px-5 py-3">Date Time To</th>
+<th class="px-5 py-3 text-right">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+@forelse ($pendingEvaluations as $item)
+@php
+    $isSelected = $selectedEvaluation && (int) $selectedEvaluation->id === (int) $item->id;
+@endphp
+<tr class="{{ $isSelected ? 'bg-primary-fixed/30' : 'hover:bg-surface-container-low/40' }} transition-colors">
+<td class="px-5 py-3 text-xs font-mono font-bold text-on-surface-variant">{{ $item->form_id ?: 'N/A' }}</td>
+<td class="px-5 py-3 text-sm">{{ $item->vehicle_id ?: 'N/A' }}</td>
+<td class="px-5 py-3 text-sm">{{ $item->driver_name ?: 'N/A' }}</td>
+<td class="px-5 py-3 text-xs text-on-surface-variant">{{ optional($item->date_time_from)->format('M d, Y h:i A') ?? 'N/A' }}</td>
+<td class="px-5 py-3 text-xs text-on-surface-variant">{{ optional($item->date_time_to)->format('M d, Y h:i A') ?? 'N/A' }}</td>
+<td class="px-5 py-3 text-right">
+<a href="{{ route('evaluation-performance', array_merge(request()->except('page'), ['request_id' => $item->id])) }}" class="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold {{ $isSelected ? 'bg-primary text-white' : 'text-primary hover:bg-primary-container hover:text-white' }} transition-colors">
+<span class="material-symbols-outlined text-sm">edit_note</span>
+Fill Evaluation
+</a>
+</td>
+</tr>
+@empty
+<tr>
+<td colspan="6" class="px-5 py-10 text-center text-sm text-on-surface-variant">No finished trips are waiting for your evaluation.</td>
+</tr>
+@endforelse
+</tbody>
+</table>
+</div>
+
+<div class="px-5 py-4 bg-surface-container-low/60 flex items-center justify-between">
+<span class="text-xs text-on-surface-variant">Showing {{ $pendingEvaluations->firstItem() ?? 0 }} to {{ $pendingEvaluations->lastItem() ?? 0 }} of {{ $pendingEvaluations->total() }}</span>
+<div class="flex gap-2">
+@if ($pendingEvaluations->onFirstPage())
+<span class="p-2 rounded text-slate-400">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</span>
+@else
+<a href="{{ $pendingEvaluations->previousPageUrl() }}" class="p-2 rounded hover:bg-white text-slate-500">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</a>
+@endif
+
+@foreach ($pendingEvaluations->getUrlRange(1, $pendingEvaluations->lastPage()) as $page => $url)
+@if ($page == $pendingEvaluations->currentPage())
+<span class="w-8 h-8 rounded bg-primary text-white text-xs font-bold inline-flex items-center justify-center">{{ $page }}</span>
+@else
+<a href="{{ $url }}" class="w-8 h-8 rounded hover:bg-white text-xs font-medium text-slate-600 inline-flex items-center justify-center">{{ $page }}</a>
+@endif
+@endforeach
+
+@if ($pendingEvaluations->hasMorePages())
+<a href="{{ $pendingEvaluations->nextPageUrl() }}" class="p-2 rounded hover:bg-white text-slate-500">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</a>
+@else
+<span class="p-2 rounded text-slate-400">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</span>
+@endif
+</div>
+</div>
+</section>
+
 <!-- Personnel & Vehicle Details Bento -->
 <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
 <!-- Driver Primary Info -->
@@ -111,21 +231,21 @@
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div class="space-y-1">
 <label class="text-label-md font-bold text-on-surface-variant uppercase tracking-wider block">Name of Driver</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-xl font-medium" placeholder="Enter full name" type="text"/>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-xl font-medium" placeholder="Enter full name" type="text" value="{{ $selectedEvaluation?->driver_name ?? '' }}"/>
 </div>
 <div class="space-y-1">
 <label class="text-label-md font-bold text-on-surface-variant uppercase tracking-wider block">Date of Evaluation</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-xl font-medium" type="date"/>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-xl font-medium" type="date" value="{{ old('evaluation_date', now()->toDateString()) }}"/>
 </div>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
 <div class="space-y-1">
 <label class="text-label-md font-bold text-on-surface-variant uppercase tracking-wider block">Type / Make of Vehicle</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-lg" placeholder="e.g. Toyota Hilux" type="text"/>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-lg" placeholder="e.g. Toyota Hilux" type="text" value="{{ $selectedEvaluation?->vehicle_type ?? '' }}"/>
 </div>
 <div class="space-y-1">
 <label class="text-label-md font-bold text-on-surface-variant uppercase tracking-wider block">Vehicle Plate No.</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-lg font-mono" placeholder="ABC-1234" type="text"/>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-lg font-mono" placeholder="ABC-1234" type="text" value="{{ $selectedEvaluation?->vehicle_id ?? '' }}"/>
 </div>
 </div>
 </div>
@@ -133,15 +253,15 @@
 <div class="md:col-span-1 bg-primary text-on-primary p-8 rounded-xl flex flex-col gap-6">
 <div class="space-y-1">
 <label class="text-label-md font-bold opacity-80 uppercase tracking-wider block">Official Destination</label>
-<input class="w-full bg-transparent border-0 border-b border-on-primary/30 py-2 focus:border-on-primary focus:ring-0 outline-none text-lg" type="text"/>
+<input class="w-full bg-transparent border-0 border-b border-on-primary/30 py-2 focus:border-on-primary focus:ring-0 outline-none text-lg" type="text" value="{{ $selectedEvaluation?->destination ?? '' }}"/>
 </div>
 <div class="space-y-1">
 <label class="text-label-md font-bold opacity-80 uppercase tracking-wider block">Purpose of Travel</label>
-<textarea class="w-full bg-transparent border-0 border-b border-on-primary/30 py-2 focus:border-on-primary focus:ring-0 outline-none text-sm resize-none" rows="2"></textarea>
+<textarea class="w-full bg-transparent border-0 border-b border-on-primary/30 py-2 focus:border-on-primary focus:ring-0 outline-none text-sm resize-none" rows="2">{{ $selectedEvaluation?->purpose ?? '' }}</textarea>
 </div>
 <div class="space-y-1">
 <label class="text-label-md font-bold opacity-80 uppercase tracking-wider block">Duration of Travel</label>
-<input class="w-full bg-transparent border-0 border-b border-on-primary/30 py-2 focus:border-on-primary focus:ring-0 outline-none text-lg" placeholder="e.g. 3 Days" type="text"/>
+<input class="w-full bg-transparent border-0 border-b border-on-primary/30 py-2 focus:border-on-primary focus:ring-0 outline-none text-lg" placeholder="e.g. 3 Days" type="text" value="{{ $selectedDurationDisplay }}"/>
 </div>
 </div>
 </section>

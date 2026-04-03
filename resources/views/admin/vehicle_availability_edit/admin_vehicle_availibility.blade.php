@@ -89,7 +89,7 @@ body { font-family: 'Public Sans', sans-serif; }
 </div>
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10 flex flex-col min-w-[170px]">
 <span class="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-1">Total Vehicles</span>
-<span class="text-3xl font-bold text-primary">{{ $totalVehicles }} Units</span>
+<span class="text-3xl font-bold text-primary"><span id="ava-total-vehicles">{{ $totalVehicles }}</span> Units</span>
 </div>
 </section>
 
@@ -210,6 +210,39 @@ function previewVehicleImage(event, vehicleId) {
         placeholder.classList.add('hidden');
     }
 }
+
+(function () {
+    const totalVehiclesEl = document.getElementById('ava-total-vehicles');
+    if (!totalVehiclesEl) {
+        return;
+    }
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const targetValue = Number(String(totalVehiclesEl.textContent || '').replace(/[^0-9.-]/g, '')) || 0;
+
+    if (prefersReducedMotion || targetValue <= 0) {
+        totalVehiclesEl.textContent = targetValue.toLocaleString('en-US');
+        return;
+    }
+
+    totalVehiclesEl.textContent = '0';
+    const startedAt = performance.now();
+    const duration = 700;
+
+    function tick(now) {
+        const progress = Math.min(1, (now - startedAt) / duration);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const current = Math.round(targetValue * eased);
+
+        totalVehiclesEl.textContent = current.toLocaleString('en-US');
+
+        if (progress < 1) {
+            requestAnimationFrame(tick);
+        }
+    }
+
+    requestAnimationFrame(tick);
+})();
 </script>
 </body>
 </html>

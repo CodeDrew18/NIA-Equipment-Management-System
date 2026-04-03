@@ -91,7 +91,7 @@
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0px_12px_32px_rgba(25,28,30,0.06)] border border-outline-variant/15">
 <span class="block text-xs font-bold text-on-surface-variant uppercase mb-1">Queue Status</span>
 <div class="flex items-baseline gap-2">
-<span class="text-3xl font-extrabold text-primary">{{ $requests->total() }}</span>
+<span id="tr-queue-total" class="text-3xl font-extrabold text-primary">{{ $requests->total() }}</span>
 <span class="text-sm font-medium text-secondary">Awaiting Approval</span>
 </div>
 </div>
@@ -271,6 +271,39 @@ Showing {{ $requests->firstItem() ?? 0 }} to {{ $requests->lastItem() ?? 0 }} of
 
 @include('layouts.admin_footer')
 <script>
+    (function () {
+        const queueTotalEl = document.getElementById('tr-queue-total');
+        if (!queueTotalEl) {
+            return;
+        }
+
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const targetValue = Number(String(queueTotalEl.textContent || '').replace(/[^0-9.-]/g, '')) || 0;
+
+        if (prefersReducedMotion || targetValue <= 0) {
+            queueTotalEl.textContent = targetValue.toLocaleString('en-US');
+            return;
+        }
+
+        queueTotalEl.textContent = '0';
+        const startedAt = performance.now();
+        const duration = 700;
+
+        function tick(now) {
+            const progress = Math.min(1, (now - startedAt) / duration);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const current = Math.round(targetValue * eased);
+
+            queueTotalEl.textContent = current.toLocaleString('en-US');
+
+            if (progress < 1) {
+                requestAnimationFrame(tick);
+            }
+        }
+
+        requestAnimationFrame(tick);
+    })();
+
     (function () {
         const modal = document.getElementById('tr-reject-modal');
         const rejectForm = document.getElementById('tr-reject-form');

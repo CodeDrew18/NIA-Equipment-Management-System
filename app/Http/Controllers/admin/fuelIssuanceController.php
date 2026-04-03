@@ -38,6 +38,7 @@ class fuelIssuanceController extends Controller
             'filters' => [
                 'search' => $payload['search'],
             ],
+            'totalDispatchedRequests' => $requests->total(),
             'summaryText' => 'Showing ' . ($requests->firstItem() ?? 0) . '-' . ($requests->lastItem() ?? 0) . ' of ' . $requests->total() . ' dispatched requests',
             'pagination' => [
                 'currentPage' => $requests->currentPage(),
@@ -54,6 +55,7 @@ class fuelIssuanceController extends Controller
                     'requestDate' => optional($item->request_date)->format('M d, Y') ?: 'N/A',
                     'vehicleId' => (string) ($item->vehicle_id ?: 'N/A'),
                     'driverName' => (string) ($item->driver_name ?: 'N/A'),
+                    'dispatchUrl' => route('admin.fuel_issuance_slip.dispatch', $item),
                 ];
             })->values(),
             'selected' => [
@@ -66,6 +68,40 @@ class fuelIssuanceController extends Controller
                 'divisionManagerName' => self::DIVISION_MANAGER,
             ],
         ]);
+    }
+
+    public function dispatchVehicle(Request $request, TransportationRequestFormModel $transportationRequest)
+    {
+        if ($transportationRequest->status !== 'Dispatched') {
+            $message = 'This request is no longer available for dispatch from Fuel Issuance.';
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $message,
+                ], 422);
+            }
+
+            return redirect()
+                ->route('admin.fuel_issuance_slip')
+                ->withErrors(['fuel_issuance' => $message]);
+        }
+
+        $transportationRequest->update([
+            'status' => 'On Trip',
+        ]);
+
+        $message = 'Vehicle dispatched successfully. The request is now listed in On Trip Vehicles.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'requestId' => $transportationRequest->id,
+            ]);
+        }
+
+        return redirect()
+            ->route('admin.fuel_issuance_slip')
+            ->with('admin_fuel_issuance_success', $message);
     }
 
     public function printOfficeCopy(Request $request)
@@ -81,7 +117,7 @@ class fuelIssuanceController extends Controller
         ]);
 
         $selectedRequest = TransportationRequestFormModel::query()
-            ->where('status', 'Dispatched')
+            ->whereIn('status', ['Dispatched', 'On Trip'])
             ->findOrFail($validated['request_id']);
 
         $templatePath = storage_path('app/public/forms/form_2_rev_08.xlsx');
@@ -94,8 +130,6 @@ class fuelIssuanceController extends Controller
 
         $ctrlNumber = 'FIS-' . optional($selectedRequest->request_date)->format('Y') . '-' . str_pad((string) $selectedRequest->id, 4, '0', STR_PAD_LEFT);
         $requestDate = optional($selectedRequest->request_date)->format('M d, Y') ?: '';
-
-        // Map Fuel Issuance form values to the template cells.
 
         // Office Copy
         $sheet->mergeCells('B10:C10');
@@ -166,22 +200,6 @@ class fuelIssuanceController extends Controller
         $sheet->mergeCells('K32:M32');
         $sheet->setCellValue('K32', self::DIVISION_MANAGER);
 
-
-
-
-        // $sheet->setCellValue('B9', $requestDate);
-        // $sheet->setCellValue('F9', (string) ($validated['dealer'] ?? ''));
-        // $sheet->setCellValue('B10', (string) ($selectedRequest->vehicle_id ?? ''));
-
-        // $sheet->setCellValue('H13', (float) ($validated['gasoline'] ?? 0));
-        // $sheet->setCellValue('H14', (float) ($validated['diesel'] ?? 0));
-        // $sheet->setCellValue('H15', (float) ($validated['fuel_save'] ?? 0));
-        // $sheet->setCellValue('H16', (float) ($validated['v_power'] ?? 0));
-        // $sheet->setCellValue('H18', (float) ($validated['total_amount'] ?? 0));
-
-        // $sheet->setCellValue('B22', (string) ($selectedRequest->driver_name ?? ''));
-        // $sheet->setCellValue('H22', self::DIVISION_MANAGER);
-
         $outputDirectory = storage_path('app/public/generated_forms');
         if (!is_dir($outputDirectory)) {
             mkdir($outputDirectory, 0755, true);
@@ -222,7 +240,7 @@ class fuelIssuanceController extends Controller
         $selectedRequest = null;
         if ($selectedRequestId) {
             $selectedRequest = TransportationRequestFormModel::query()
-                ->where('status', 'Dispatched')
+                ->whereIn('status', ['Dispatched', 'On Trip'])
                 ->whereKey($selectedRequestId)
                 ->first();
         }

@@ -357,6 +357,8 @@
   const dashboardFilterFrom = document.querySelector('input[name="from"]');
   const dashboardFilterTo = document.querySelector('input[name="to"]');
   let dashboardCurrentPage = {{ $pendingRequests->currentPage() }};
+  const dashboardCountAnimationFrames = new WeakMap();
+  const dashboardPrefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function escapeHtml(value) {
     return String(value ?? '')
@@ -365,6 +367,108 @@
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#039;');
+  }
+
+  function dashboardToNumber(value) {
+    const parsed = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function dashboardFormatNumber(value, decimals = 0) {
+    return Number(value).toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  }
+
+  function animateDashboardMetric(element, targetValue, options = {}) {
+    if (!element) {
+      return;
+    }
+
+    const decimals = Number(options.decimals ?? 0);
+    const suffix = String(options.suffix ?? '');
+    const duration = Number(options.duration ?? 700);
+    const numericTarget = Number(targetValue);
+    const target = Number.isFinite(numericTarget) ? numericTarget : 0;
+
+    const existingFrameId = dashboardCountAnimationFrames.get(element);
+    if (existingFrameId) {
+      cancelAnimationFrame(existingFrameId);
+    }
+
+    const storedValue = Number(element.dataset.countValue);
+    const start = Number.isFinite(storedValue) ? storedValue : dashboardToNumber(element.textContent);
+
+    if (dashboardPrefersReducedMotion || duration <= 0 || Math.abs(start - target) < 0.001) {
+      element.textContent = `${dashboardFormatNumber(target, decimals)}${suffix}`;
+      element.dataset.countValue = String(target);
+      return;
+    }
+
+    const startedAt = performance.now();
+
+    function tick(now) {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = start + ((target - start) * eased);
+
+      element.textContent = `${dashboardFormatNumber(current, decimals)}${suffix}`;
+
+      if (progress < 1) {
+        const frameId = requestAnimationFrame(tick);
+        dashboardCountAnimationFrames.set(element, frameId);
+        return;
+      }
+
+      element.textContent = `${dashboardFormatNumber(target, decimals)}${suffix}`;
+      element.dataset.countValue = String(target);
+      dashboardCountAnimationFrames.delete(element);
+    }
+
+    const frameId = requestAnimationFrame(tick);
+    dashboardCountAnimationFrames.set(element, frameId);
+  }
+
+  function animateDashboardInitialMetrics() {
+    const initialPending = dashboardToNumber(dashboardEls.totalPending?.textContent);
+    const initialActiveTrips = dashboardToNumber(dashboardEls.activeTripTickets?.textContent);
+    const initialTrend = dashboardToNumber(dashboardEls.trendValue?.textContent);
+    const initialCapacity = dashboardToNumber(dashboardEls.activeTripCapacityLabel?.textContent);
+
+    if (dashboardEls.totalPending) {
+      dashboardEls.totalPending.dataset.countValue = '0';
+      dashboardEls.totalPending.textContent = '0';
+      animateDashboardMetric(dashboardEls.totalPending, initialPending);
+    }
+
+    if (dashboardEls.activeTripTickets) {
+      dashboardEls.activeTripTickets.dataset.countValue = '0';
+      dashboardEls.activeTripTickets.textContent = '0';
+      animateDashboardMetric(dashboardEls.activeTripTickets, initialActiveTrips);
+    }
+
+    if (dashboardEls.trendValue) {
+      dashboardEls.trendValue.dataset.countValue = '0';
+      dashboardEls.trendValue.textContent = '0.0%';
+      animateDashboardMetric(dashboardEls.trendValue, initialTrend, { decimals: 1, suffix: '%' });
+    }
+
+    if (dashboardEls.activeTripCapacityLabel) {
+      dashboardEls.activeTripCapacityLabel.dataset.countValue = '0';
+      dashboardEls.activeTripCapacityLabel.textContent = '0% Capacity';
+      animateDashboardMetric(dashboardEls.activeTripCapacityLabel, initialCapacity, { suffix: '% Capacity' });
+    }
+
+    if (dashboardEls.activeTripCapacityBar) {
+      dashboardEls.activeTripCapacityBar.style.transition = 'width 700ms ease';
+      dashboardEls.activeTripCapacityBar.style.width = '0%';
+
+      requestAnimationFrame(function () {
+        const clampedCapacity = Math.max(0, Math.min(100, initialCapacity));
+        dashboardEls.activeTripCapacityBar.style.width = `${clampedCapacity}%`;
+      });
+    }
   }
 
   function requestStatusClass(status) {
@@ -485,13 +589,17 @@
       const payload = await response.json();
       dashboardCurrentPage = payload.pagination.currentPage;
 
-      dashboardEls.totalPending.textContent = payload.totalPendingRequests;
-      dashboardEls.activeTripTickets.textContent = payload.activeTripTickets;
-      dashboardEls.activeTripCapacityLabel.textContent = `${payload.activeTripTicketCapacity}% Capacity`;
-      dashboardEls.activeTripCapacityBar.style.width = `${Math.max(0, Math.min(100, Number(payload.activeTripTicketCapacity) || 0))}%`;
+      animateDashboardMetric(dashboardEls.totalPending, Number(payload.totalPendingRequests) || 0);
+      animateDashboardMetric(dashboardEls.activeTripTickets, Number(payload.activeTripTickets) || 0);
+      animateDashboardMetric(dashboardEls.activeTripCapacityLabel, Number(payload.activeTripTicketCapacity) || 0, { suffix: '% Capacity' });
+
+      const clampedCapacity = Math.max(0, Math.min(100, Number(payload.activeTripTicketCapacity) || 0));
+      dashboardEls.activeTripCapacityBar.style.transition = 'width 650ms ease';
+      dashboardEls.activeTripCapacityBar.style.width = `${clampedCapacity}%`;
+
       dashboardEls.trendIcon.textContent = payload.trendIcon;
       dashboardEls.trendIcon.setAttribute('data-icon', payload.trendIcon);
-      dashboardEls.trendValue.textContent = `${Math.abs(Number(payload.trendPercentage)).toFixed(1)}%`;
+      animateDashboardMetric(dashboardEls.trendValue, Math.abs(Number(payload.trendPercentage) || 0), { decimals: 1, suffix: '%' });
       dashboardEls.trendWrap.classList.remove('text-secondary', 'text-error');
       dashboardEls.trendWrap.classList.add(payload.trendIsPositive ? 'text-secondary' : 'text-error');
 
@@ -580,6 +688,8 @@
       closeDashboardRejectModal();
     }
   });
+
+  animateDashboardInitialMetrics();
 
   setInterval(() => refreshDashboard(dashboardCurrentPage), 1000);
 </script>

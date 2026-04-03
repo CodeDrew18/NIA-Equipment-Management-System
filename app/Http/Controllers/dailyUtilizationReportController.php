@@ -31,7 +31,7 @@ class dailyUtilizationReportController extends Controller
             ->when($status !== '', function ($query) use ($status) {
                 $query->where('status', $status);
             }, function ($query) {
-                $query->whereIn('status', ['Signed', 'Dispatched']);
+                $query->whereIn('status', ['Signed', 'Dispatched', 'On Trip', 'For Evaluation']);
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($nested) use ($search) {
@@ -83,7 +83,7 @@ class dailyUtilizationReportController extends Controller
             'totalTrips' => $totalTrips,
             'totalVehicles' => $totalVehicles,
             'totalHours' => round((float) $totalHours, 2),
-            'statusOptions' => ['Signed', 'Dispatched', 'Rejected', 'To be Signed'],
+            'statusOptions' => ['Signed', 'Dispatched', 'On Trip', 'For Evaluation', 'Rejected', 'To be Signed'],
         ]);
     }
 }

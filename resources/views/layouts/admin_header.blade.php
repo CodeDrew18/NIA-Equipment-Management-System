@@ -228,6 +228,7 @@
 	$fuelIssuanceActive = request()->routeIs('admin.fuel_issuance_slip');
 	$dailyTripTicketActive = request()->routeIs('admin.daily-trip-ticket');
 	$dailyEquipmentUtilizationReportActive = request()->routeIs('daily-equipment-utilization-report');
+	$onTripVehiclesActive = request()->routeIs('admin.on_trip_vehicles');
 @endphp
 <div class="flex justify-between items-center w-full px-8 py-4 max-w-full h-20">
 <div class="flex items-center gap-8">
@@ -247,6 +248,7 @@
 	            <a class="nav-dropdown-item {{ $fuelIssuanceActive ? $dropdownActiveClass : '' }}	" href="{{ route('admin.fuel_issuance_slip') }}" role="menuitem">Fuel Issuance Slips</a>
 	</div>
 </div>
+<a class="nav-link {{ $onTripVehiclesActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('admin.on_trip_vehicles') }}">On Trip Vehicles</a>
 <div class="nav-dropdown">
 	<button type="button" class="nav-link {{ $reportsActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" aria-haspopup="true" aria-expanded="false">
 		Reports <span class="nav-caret">&#9662;</span>
@@ -256,6 +258,7 @@
 		<a class="nav-dropdown-item" href="#" role="menuitem">Monhtly Fuel Consumption Report (Service Vehicle)</a>
 	</div>
 </div>
+
 {{-- <a class="nav-link {{ $evaluationsActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('landing-page') }}">Evaluations</a> --}}
 </nav>
 </div>
@@ -296,6 +299,8 @@
 				<a class="mobile-nav-subitem {{ request()->routeIs('admin.fuel_issuance_slip') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.fuel_issuance_slip') }}">Fuel Issuance Slips</a>
 			</div>
 		</details>
+
+		<a class="mobile-nav-link {{ request()->routeIs('admin.on_trip_vehicles') ? 'mobile-nav-link-active' : '' }}" href="{{ route('admin.on_trip_vehicles') }}">On Trip Vehicles</a>
 
 		<details class="mobile-nav-group" {{ $reportsActive ? 'open' : '' }}>
 			<summary class="mobile-nav-link {{ $reportsActive ? 'mobile-nav-link-active' : '' }} flex items-center justify-between cursor-pointer">

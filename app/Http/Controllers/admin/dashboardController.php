@@ -110,7 +110,7 @@ class dashboardController extends Controller
                 ->withQueryString();
 
             $totalPendingRequests = (clone $pendingRequestsQuery)->count();
-            $activeTripTickets = (clone $allRequestsQuery)->where('status', 'Dispatched')->count();
+            $activeTripTickets = (clone $allRequestsQuery)->whereIn('status', ['Dispatched', 'On Trip'])->count();
             $activeTripTicketCapacity = $totalRequestsForPeriod > 0
                 ? (int) round(($activeTripTickets / $totalRequestsForPeriod) * 100)
                 : 0;

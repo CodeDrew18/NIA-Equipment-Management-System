@@ -226,7 +226,7 @@ class dailyTripTicketController extends Controller
         $this->applyAssignmentReadyFilter($pendingDttsQuery);
         $pendingDtts = $pendingDttsQuery->count();
 
-        $completedDtts = (clone $filteredQuery)->where('status', 'Dispatched')->count();
+        $completedDtts = (clone $filteredQuery)->whereIn('status', ['Dispatched', 'On Trip'])->count();
 
         $vehicleRowsQuery = (clone $filteredQuery)->where('status', 'Signed');
         $this->applyAssignmentReadyFilter($vehicleRowsQuery);
