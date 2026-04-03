@@ -132,15 +132,15 @@ Clear Filters
 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
 <div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10">
 <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total On Trip</div>
-<div class="text-3xl font-black text-primary -tracking-tighter">{{ number_format($totalOnTrip) }}</div>
+<div id="otv-total-on-trip" class="text-3xl font-black text-primary -tracking-tighter">{{ number_format($totalOnTrip) }}</div>
 </div>
 <div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10">
 <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Vehicles Deployed</div>
-<div class="text-3xl font-black text-secondary -tracking-tighter">{{ number_format($vehiclesDeployed) }}</div>
+<div id="otv-vehicles-deployed" class="text-3xl font-black text-secondary -tracking-tighter">{{ number_format($vehiclesDeployed) }}</div>
 </div>
 <div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10">
 <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Drivers Assigned</div>
-<div class="text-3xl font-black text-tertiary -tracking-tighter">{{ number_format($driversAssigned) }}</div>
+<div id="otv-drivers-assigned" class="text-3xl font-black text-tertiary -tracking-tighter">{{ number_format($driversAssigned) }}</div>
 </div>
 <div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10">
 <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Deployment Status</div>
@@ -164,7 +164,7 @@ Clear Filters
 <th class="px-6 py-4 text-right"></th>
 </tr>
 </thead>
-<tbody class="divide-y divide-slate-50">
+<tbody id="otv-tbody" class="divide-y divide-slate-50">
 @forelse ($onTripRequests as $item)
 <tr class="{{ $loop->even ? 'bg-surface-container-low/30' : '' }} hover:bg-slate-50/50 transition-colors">
 <td class="px-6 py-4">
@@ -212,8 +212,8 @@ View Copy
 </div>
 <!-- Pagination -->
 <div class="px-6 py-4 bg-surface-container-low/50 flex items-center justify-between">
-<span class="text-xs text-slate-500 font-medium">Showing {{ $onTripRequests->firstItem() ?? 0 }} to {{ $onTripRequests->lastItem() ?? 0 }} of {{ $onTripRequests->total() }} entries</span>
-<div class="flex gap-2">
+<span id="otv-summary" class="text-xs text-slate-500 font-medium">Showing {{ $onTripRequests->firstItem() ?? 0 }} to {{ $onTripRequests->lastItem() ?? 0 }} of {{ $onTripRequests->total() }} entries</span>
+<div id="otv-pagination" class="flex gap-2">
 @if ($onTripRequests->onFirstPage())
 <span class="p-2 rounded text-slate-400">
 <span class="material-symbols-outlined text-sm" data-icon="chevron_left">chevron_left</span>
@@ -275,4 +275,280 @@ Live Trip Monitoring
 </main>
 </div>
 @include('layouts.admin_footer')
+<script>
+const otvEls = {
+  form: document.querySelector('form[action="{{ route('admin.on_trip_vehicles') }}"]'),
+  search: document.querySelector('input[name="search"]'),
+  from: document.querySelector('input[name="from"]'),
+  to: document.querySelector('input[name="to"]'),
+  totalOnTrip: document.getElementById('otv-total-on-trip'),
+  vehiclesDeployed: document.getElementById('otv-vehicles-deployed'),
+  driversAssigned: document.getElementById('otv-drivers-assigned'),
+  tbody: document.getElementById('otv-tbody'),
+  summary: document.getElementById('otv-summary'),
+  pagination: document.getElementById('otv-pagination'),
+};
+
+const otvDataUrl = "{{ route('admin.on_trip_vehicles.data') }}";
+let otvCurrentPage = {{ $onTripRequests->currentPage() }};
+const otvFilters = {
+  search: @json($search),
+  from: @json($fromDate),
+  to: @json($toDate),
+};
+const otvAnimationFrames = new WeakMap();
+const otvPrefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function otvEsc(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function otvToNumber(value) {
+  const parsed = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function otvFormatNumber(value, decimals = 0) {
+  return Number(value).toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+function otvDriverInitials(name) {
+  const safeName = String(name ?? '').trim();
+  if (safeName === '') {
+    return '--';
+  }
+
+  const parts = safeName.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return '--';
+  }
+
+  const first = String(parts[0] ?? '').charAt(0);
+  const last = String(parts[parts.length - 1] ?? '').charAt(0);
+  return `${first}${last}`.toUpperCase() || '--';
+}
+
+function otvAnimateMetric(element, targetValue, options = {}) {
+  if (!element) {
+    return;
+  }
+
+  const decimals = Number(options.decimals ?? 0);
+  const suffix = String(options.suffix ?? '');
+  const duration = Number(options.duration ?? 700);
+  const numericTarget = Number(targetValue);
+  const target = Number.isFinite(numericTarget) ? numericTarget : 0;
+
+  const existingFrameId = otvAnimationFrames.get(element);
+  if (existingFrameId) {
+    cancelAnimationFrame(existingFrameId);
+  }
+
+  const storedValue = Number(element.dataset.countValue);
+  const start = Number.isFinite(storedValue) ? storedValue : otvToNumber(element.textContent);
+
+  if (otvPrefersReducedMotion || duration <= 0 || Math.abs(start - target) < 0.001) {
+    element.textContent = `${otvFormatNumber(target, decimals)}${suffix}`;
+    element.dataset.countValue = String(target);
+    return;
+  }
+
+  const startedAt = performance.now();
+
+  function tick(now) {
+    const progress = Math.min(1, (now - startedAt) / duration);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = start + ((target - start) * eased);
+
+    element.textContent = `${otvFormatNumber(current, decimals)}${suffix}`;
+
+    if (progress < 1) {
+      const frameId = requestAnimationFrame(tick);
+      otvAnimationFrames.set(element, frameId);
+      return;
+    }
+
+    element.textContent = `${otvFormatNumber(target, decimals)}${suffix}`;
+    element.dataset.countValue = String(target);
+    otvAnimationFrames.delete(element);
+  }
+
+  const frameId = requestAnimationFrame(tick);
+  otvAnimationFrames.set(element, frameId);
+}
+
+function otvAnimateInitialMetrics() {
+  [otvEls.totalOnTrip, otvEls.vehiclesDeployed, otvEls.driversAssigned].forEach(function (metricEl) {
+    if (!metricEl) {
+      return;
+    }
+
+    const target = otvToNumber(metricEl.textContent);
+    metricEl.dataset.countValue = '0';
+    metricEl.textContent = '0';
+    otvAnimateMetric(metricEl, target);
+  });
+}
+
+function otvRow(item, index) {
+  const rowClass = index % 2 === 1 ? 'bg-surface-container-low/30' : '';
+  const initials = otvDriverInitials(item.driverName);
+
+  return `<tr class="${rowClass} hover:bg-slate-50/50 transition-colors">
+    <td class="px-6 py-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2 bg-primary-container/10 text-primary rounded">
+          <span class="material-symbols-outlined text-lg" data-icon="local_shipping">local_shipping</span>
+        </div>
+        <span class="text-sm font-semibold">On Trip Dispatch</span>
+      </div>
+    </td>
+    <td class="px-6 py-4 font-mono text-xs font-bold text-slate-600">${otvEsc(item.formId)}</td>
+    <td class="px-6 py-4 text-sm">${otvEsc(item.vehicleId)}</td>
+    <td class="px-6 py-4">
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 rounded-full bg-primary-fixed-dim text-on-primary-fixed text-[10px] font-bold flex items-center justify-center">${otvEsc(initials)}</div>
+        <span class="text-sm">${otvEsc(item.driverName)}</span>
+      </div>
+    </td>
+    <td class="px-6 py-4 text-sm text-slate-500">${otvEsc(item.requestDate)}</td>
+    <td class="px-6 py-4 text-sm text-slate-500">${otvEsc(item.dateTimeTo)}</td>
+    <td class="px-6 py-4">
+      <span class="bg-primary-fixed text-on-primary-fixed-variant px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">On Trip</span>
+    </td>
+    <td class="px-6 py-4 text-right">
+      <a href="${otvEsc(item.viewCopyUrl)}" class="text-primary hover:bg-primary-container hover:text-white px-4 py-2 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-2">
+        <span class="material-symbols-outlined text-sm" data-icon="visibility">visibility</span>
+        View Copy
+      </a>
+    </td>
+  </tr>`;
+}
+
+function otvNoDataRow() {
+  return '<tr><td colspan="8" class="px-6 py-8 text-center text-sm font-semibold text-outline">No on-trip vehicle records found.</td></tr>';
+}
+
+function otvRenderPagination(pagination) {
+  if (!otvEls.pagination) {
+    return;
+  }
+
+  const currentPage = Number(pagination.currentPage || 1);
+  const onFirstPage = Boolean(pagination.onFirstPage);
+  const hasMorePages = Boolean(pagination.hasMorePages);
+  const pageUrls = pagination.pageUrls || {};
+
+  const prevButton = onFirstPage
+    ? '<span class="p-2 rounded text-slate-400"><span class="material-symbols-outlined text-sm" data-icon="chevron_left">chevron_left</span></span>'
+    : `<button type="button" data-otv-page="${currentPage - 1}" class="p-2 rounded hover:bg-white text-slate-400"><span class="material-symbols-outlined text-sm" data-icon="chevron_left">chevron_left</span></button>`;
+
+  const pageButtons = Object.keys(pageUrls).map(function (pageKey) {
+    const page = Number(pageKey);
+    if (page === currentPage) {
+      return `<span class="w-8 h-8 rounded bg-primary text-white text-xs font-bold inline-flex items-center justify-center">${page}</span>`;
+    }
+
+    return `<button type="button" data-otv-page="${page}" class="w-8 h-8 rounded hover:bg-white text-xs font-medium text-slate-600 inline-flex items-center justify-center">${page}</button>`;
+  }).join('');
+
+  const nextButton = hasMorePages
+    ? `<button type="button" data-otv-page="${currentPage + 1}" class="p-2 rounded hover:bg-white text-slate-400"><span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span></button>`
+    : '<span class="p-2 rounded text-slate-400"><span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span></span>';
+
+  otvEls.pagination.innerHTML = `${prevButton}${pageButtons}${nextButton}`;
+}
+
+async function otvRefresh(page = otvCurrentPage) {
+  try {
+    const params = new URLSearchParams();
+    if (otvFilters.search) params.set('search', otvFilters.search);
+    if (otvFilters.from) params.set('from', otvFilters.from);
+    if (otvFilters.to) params.set('to', otvFilters.to);
+    params.set('page', String(page || 1));
+
+    const response = await fetch(`${otvDataUrl}?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const payload = await response.json();
+    const metrics = payload.metrics || {};
+    const requests = Array.isArray(payload.requests) ? payload.requests : [];
+    const pagination = payload.pagination || {};
+
+    otvCurrentPage = Number(pagination.currentPage || 1);
+
+    otvAnimateMetric(otvEls.totalOnTrip, Number(metrics.totalOnTrip) || 0);
+    otvAnimateMetric(otvEls.vehiclesDeployed, Number(metrics.vehiclesDeployed) || 0);
+    otvAnimateMetric(otvEls.driversAssigned, Number(metrics.driversAssigned) || 0);
+
+    if (otvEls.summary) {
+      otvEls.summary.textContent = payload.summaryText || 'Showing 0 to 0 of 0 entries';
+    }
+
+    if (otvEls.tbody) {
+      otvEls.tbody.innerHTML = requests.length > 0
+        ? requests.map(otvRow).join('')
+        : otvNoDataRow();
+    }
+
+    otvRenderPagination(pagination);
+  } catch (error) {
+    console.error('On Trip AJAX refresh failed', error);
+  }
+}
+
+if (otvEls.form) {
+  otvEls.form.addEventListener('submit', function (event) {
+    event.preventDefault();
+
+    otvFilters.search = String(otvEls.search?.value ?? '').trim();
+    otvFilters.from = String(otvEls.from?.value ?? '').trim();
+    otvFilters.to = String(otvEls.to?.value ?? '').trim();
+    otvCurrentPage = 1;
+
+    otvRefresh(1);
+  });
+}
+
+if (otvEls.pagination) {
+  otvEls.pagination.addEventListener('click', function (event) {
+    const button = event.target.closest('[data-otv-page]');
+    if (!button) {
+      return;
+    }
+
+    event.preventDefault();
+    const page = Number(button.getAttribute('data-otv-page'));
+    if (!Number.isFinite(page) || page < 1) {
+      return;
+    }
+
+    otvRefresh(page);
+  });
+}
+
+otvAnimateInitialMetrics();
+otvRefresh(otvCurrentPage);
+setInterval(function () {
+  otvRefresh(otvCurrentPage);
+}, 3000);
+</script>
 </body></html>

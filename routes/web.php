@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Route;
 
 // Route::get('/', function () {
 //     return view('welcome');
-// });
+// });q
 
 
 // Landing Page for the viewing of the website
@@ -36,6 +36,8 @@ Route::middleware('auth')->group(function () {
         Route::get("/daily-equipment-utilization-report", [App\Http\Controllers\dailyUtilizationReportController::class, 'index'])->name('daily-equipment-utilization-report');
 
         Route::get("/monthly-official-travel-report", [App\Http\Controllers\monthlyTravelReportController::class, 'index'])->name('monthly-official-travel-report');
+
+       
     });
 
 
@@ -83,6 +85,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/admin/fuel-issuance-slip/{transportationRequest}/dispatch', [App\Http\Controllers\admin\fuelIssuanceController::class, 'dispatchVehicle'])->name('admin.fuel_issuance_slip.dispatch');
 
         Route::get("/admin/on-trip-vehicle", [App\Http\Controllers\admin\onTripVehicleController::class, 'index'])->name('admin.on_trip_vehicles');
+        Route::get('/admin/on-trip-vehicle/data', [App\Http\Controllers\admin\onTripVehicleController::class, 'data'])->name('admin.on_trip_vehicles.data');
+
+
+        Route::get("/admin/audit-log", [App\Http\Controllers\admin\auditLogController::class, 'index'])->name('audit-log');
+
+        //  Route::get("/audit-log", [App\Http\Controllers\admin\auditLogController::class, 'index'])->name('audit-log');
     });
 });
 

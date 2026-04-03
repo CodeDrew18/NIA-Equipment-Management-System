@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Support\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -27,6 +29,16 @@ class loginController extends Controller
         $remember = $request->boolean('remember');
 
         if (!Auth::attempt($credentials, $remember)) {
+            $user = User::query()->where('personnel_id', $credentials['personnel_id'])->first();
+
+            AuditLogger::record(
+                $user,
+                $request,
+                'LOGIN',
+                'Login attempt failed for personnel ID ' . $credentials['personnel_id'] . '.',
+                'FAILED'
+            );
+
             return back()
                 ->withErrors(['personnel_id' => 'Invalid credentials.'])
                 ->onlyInput('personnel_id');
@@ -34,11 +46,27 @@ class loginController extends Controller
 
         $request->session()->regenerate();
 
+        AuditLogger::record(
+            Auth::user(),
+            $request,
+            'LOGIN',
+            'User login successful.'
+        );
+
         return $this->redirectByRole((string) Auth::user()->role);
     }
 
     public function logout(Request $request)
     {
+        $user = Auth::user();
+
+        AuditLogger::record(
+            $user,
+            $request,
+            'LOGOUT',
+            'User logged out from the system.'
+        );
+
         Auth::logout();
 
         $request->session()->invalidate();

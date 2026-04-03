@@ -94,6 +94,7 @@
     $selectedDurationDisplay = ($selectedFromDisplay && $selectedToDisplay)
         ? $selectedFromDisplay . ' to ' . $selectedToDisplay
         : '';
+    $selectedDivisionPersonnelName = trim((string) ($selectedEvaluation?->requestor_name ?? ''));
 @endphp
 
 <main class="max-w-5xl mx-auto px-6 pb-12 pt-28">
@@ -459,13 +460,15 @@ Fill Evaluation
 <!-- Final Rate Card -->
 <div class="bg-primary-container text-white p-8 rounded-xl flex flex-col items-center justify-center text-center shadow-lg">
 <span class="text-label-sm font-bold opacity-70 uppercase tracking-widest mb-2">Final Evaluation Rate</span>
-<div class="text-6xl font-black mb-4">4.8</div>
-<span class="px-4 py-1 bg-tertiary-fixed text-on-tertiary-fixed font-bold rounded-full text-xs uppercase">Very Good</span>
+<div id="evaluation-final-rate" class="text-6xl font-black mb-4">0.0</div>
+<span id="evaluation-final-rate-label" class="px-4 py-1 bg-tertiary-fixed text-on-tertiary-fixed font-bold rounded-full text-xs uppercase">Not Rated</span>
 </div>
 <!-- Signature Block -->
 <div class="bg-surface-container-high p-8 rounded-xl flex flex-col items-center justify-end h-full">
+
+<span class="text-lg font-bold text-on-surface text-center">{{ $selectedDivisionPersonnelName !== '' ? $selectedDivisionPersonnelName : '____________________________' }}</span>
 <div class="w-full border-b-2 border-primary mb-2"></div>
-<span class="text-label-md font-bold text-primary uppercase text-center">Official Passenger / Team Leader</span>
+<span class="text-label-md font-bold text-primary uppercase text-center mt-1">Official Passenger / Team Leader</span>
 <span class="text-xs text-on-surface-variant mt-1">Signature over Printed Name</span>
 </div>
 </div>
@@ -484,4 +487,68 @@ Fill Evaluation
 </main>
 <!-- Footer -->
 @include('layouts.footer')
+<script>
+    (function () {
+        const finalRateEl = document.getElementById('evaluation-final-rate');
+        const finalRateLabelEl = document.getElementById('evaluation-final-rate-label');
+
+        if (!finalRateEl || !finalRateLabelEl) {
+            return;
+        }
+
+        const ratingNames = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8'];
+        const ratingInputs = Array.from(document.querySelectorAll('input[type="radio"][name^="r"]'));
+
+        // Ensure each row maps left-to-right as 1..5 even if value attributes are missing.
+        ratingNames.forEach(function (name) {
+            const rowInputs = Array.from(document.querySelectorAll(`input[type="radio"][name="${name}"]`));
+
+            rowInputs.forEach(function (input, index) {
+                const currentValue = Number(input.value);
+                if (!Number.isFinite(currentValue) || currentValue < 1 || currentValue > 5) {
+                    input.value = String(index + 1);
+                }
+            });
+        });
+
+        function resolveLabel(score) {
+            if (score <= 0) return 'Not Rated';
+            if (score < 1.5) return 'Poor';
+            if (score < 2.5) return 'Fair';
+            if (score < 3.5) return 'Good';
+            if (score < 4.5) return 'Very Good';
+            return 'Excellent';
+        }
+
+        function refreshFinalRate() {
+            let total = 0;
+            let selectedCount = 0;
+
+            ratingNames.forEach(function (name) {
+                const checked = document.querySelector(`input[type="radio"][name="${name}"]:checked`);
+                if (!checked) {
+                    return;
+                }
+
+                const value = Number(checked.value);
+                if (!Number.isFinite(value)) {
+                    return;
+                }
+
+                total += value;
+                selectedCount += 1;
+            });
+
+            const average = selectedCount > 0 ? (total / selectedCount) : 0;
+            finalRateEl.textContent = average.toFixed(1);
+            finalRateLabelEl.textContent = resolveLabel(average);
+        }
+
+        ratingInputs.forEach(function (input) {
+            input.addEventListener('change', refreshFinalRate);
+        });
+
+        refreshFinalRate();
+    })();
+</script>
 </body></html>

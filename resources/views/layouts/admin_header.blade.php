@@ -229,6 +229,7 @@
 	$dailyTripTicketActive = request()->routeIs('admin.daily-trip-ticket');
 	$dailyEquipmentUtilizationReportActive = request()->routeIs('daily-equipment-utilization-report');
 	$onTripVehiclesActive = request()->routeIs('admin.on_trip_vehicles');
+	$auditLogActive = request()->routeIs('audit-log');
 @endphp
 <div class="flex justify-between items-center w-full px-8 py-4 max-w-full h-20">
 <div class="flex items-center gap-8">
@@ -258,7 +259,7 @@
 		<a class="nav-dropdown-item" href="#" role="menuitem">Monhtly Fuel Consumption Report (Service Vehicle)</a>
 	</div>
 </div>
-
+<a class="nav-link {{ $auditLogActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('audit-log') }}">Audit Logs</a>
 {{-- <a class="nav-link {{ $evaluationsActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('landing-page') }}">Evaluations</a> --}}
 </nav>
 </div>

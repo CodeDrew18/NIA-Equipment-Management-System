@@ -8,12 +8,16 @@ use Illuminate\Support\Facades\DB;
 
 class TripLifecycleManager
 {
+    private const TRIP_TIMEZONE = 'Asia/Manila';
+
     public function moveFinishedTripsToEvaluationQueue(): int
     {
+        $nowInTripTimezone = now(self::TRIP_TIMEZONE)->toDateTimeString();
+
         $finishedTrips = TransportationRequestFormModel::query()
             ->where('status', 'On Trip')
             ->whereNotNull('date_time_to')
-            ->where('date_time_to', '<=', now())
+            ->where('date_time_to', '<=', $nowInTripTimezone)
             ->get(['id', 'vehicle_id']);
 
         if ($finishedTrips->isEmpty()) {

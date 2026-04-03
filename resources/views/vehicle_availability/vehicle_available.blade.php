@@ -84,7 +84,7 @@ body { font-family: 'Public Sans', sans-serif; }
 <div class="flex gap-4">
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10 flex flex-col min-w-[170px]">
 <span class="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-1">Total Vehicles</span>
-<span id="total-vehicles-count" class="text-3xl font-bold text-primary">{{ $totalVehicles }} Units</span>
+<span class="text-3xl font-bold text-primary"><span id="total-vehicles-count">{{ $totalVehicles }}</span> Units</span>
 </div>
 </div>
 </section>
@@ -141,6 +141,8 @@ No vehicle records found.
     const vehiclesGrid = document.getElementById('vehicles-grid');
     const totalVehiclesCount = document.getElementById('total-vehicles-count');
     const vehiclesDataUrl = "{{ route('vehicle-available.data') }}";
+    const vehicleCounterAnimationFrames = new WeakMap();
+    const vehicleCounterReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -156,6 +158,77 @@ No vehicle records found.
         if (status === 'Reserved') return 'bg-secondary-container text-on-secondary-container';
         if (status === 'On Business Trip') return 'bg-primary-fixed text-on-primary-fixed-variant';
         return 'bg-error-container text-on-error-container';
+    }
+
+    function toVehicleCounterNumber(value) {
+        const parsed = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function formatVehicleCounterNumber(value, decimals = 0) {
+        return Number(value).toLocaleString('en-US', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
+        });
+    }
+
+    function animateVehicleCounter(element, targetValue, options = {}) {
+        if (!element) {
+            return;
+        }
+
+        const decimals = Number(options.decimals ?? 0);
+        const duration = Number(options.duration ?? 700);
+        const numericTarget = Number(targetValue);
+        const target = Number.isFinite(numericTarget) ? numericTarget : 0;
+
+        const existingFrameId = vehicleCounterAnimationFrames.get(element);
+        if (existingFrameId) {
+            cancelAnimationFrame(existingFrameId);
+        }
+
+        const storedValue = Number(element.dataset.countValue);
+        const start = Number.isFinite(storedValue) ? storedValue : toVehicleCounterNumber(element.textContent);
+
+        if (vehicleCounterReducedMotion || duration <= 0 || Math.abs(start - target) < 0.001) {
+            element.textContent = formatVehicleCounterNumber(target, decimals);
+            element.dataset.countValue = String(target);
+            return;
+        }
+
+        const startedAt = performance.now();
+
+        function tick(now) {
+            const progress = Math.min(1, (now - startedAt) / duration);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const current = start + ((target - start) * eased);
+
+            element.textContent = formatVehicleCounterNumber(current, decimals);
+
+            if (progress < 1) {
+                const frameId = requestAnimationFrame(tick);
+                vehicleCounterAnimationFrames.set(element, frameId);
+                return;
+            }
+
+            element.textContent = formatVehicleCounterNumber(target, decimals);
+            element.dataset.countValue = String(target);
+            vehicleCounterAnimationFrames.delete(element);
+        }
+
+        const frameId = requestAnimationFrame(tick);
+        vehicleCounterAnimationFrames.set(element, frameId);
+    }
+
+    function animateVehicleInitialCount() {
+        if (!totalVehiclesCount) {
+            return;
+        }
+
+        const target = toVehicleCounterNumber(totalVehiclesCount.textContent);
+        totalVehiclesCount.dataset.countValue = '0';
+        totalVehiclesCount.textContent = '0';
+        animateVehicleCounter(totalVehiclesCount, target);
     }
 
     function vehicleCardMarkup(vehicle) {
@@ -213,7 +286,7 @@ No vehicle records found.
             const payload = await response.json();
             const vehicles = Array.isArray(payload.vehicles) ? payload.vehicles : [];
 
-            totalVehiclesCount.textContent = `${payload.totalVehicles ?? 0} Units`;
+            animateVehicleCounter(totalVehiclesCount, Number(payload.totalVehicles) || 0);
 
             if (vehicles.length === 0) {
                 vehiclesGrid.innerHTML = noDataMarkup();
@@ -226,6 +299,7 @@ No vehicle records found.
         }
     }
 
+    animateVehicleInitialCount();
     setInterval(refreshVehiclesAjax, 1000);
 </script>
 </body>
