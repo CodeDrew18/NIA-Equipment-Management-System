@@ -42,12 +42,12 @@ class auditLogController extends Controller
         $query = AuditLog::query()
             ->when($search !== '', function ($builder) use ($search) {
                 $builder->where(function ($nested) use ($search) {
-                    $nested->where('personnel_id', 'like', '%' . $search . '%')
-                        ->orWhere('user_name', 'like', '%' . $search . '%')
+                    $nested->where('user_name', 'like', '%' . $search . '%')
                         ->orWhere('action_category', 'like', '%' . $search . '%')
                         ->orWhere('activity_description', 'like', '%' . $search . '%')
                         ->orWhere('route_name', 'like', '%' . $search . '%')
-                        ->orWhere('ip_address', 'like', '%' . $search . '%');
+                        ->orWhere('request_path', 'like', '%' . $search . '%')
+                        ->orWhere('method', 'like', '%' . $search . '%');
                 });
             })
             ->when($fromDate !== '', function ($builder) use ($fromDate) {

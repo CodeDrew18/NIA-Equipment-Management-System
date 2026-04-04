@@ -106,19 +106,19 @@
 <section class="max-w-7xl mx-auto mb-8 grid grid-cols-1 md:grid-cols-4 gap-6">
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
 <label class="block font-label text-[10px] font-bold text-outline uppercase tracking-widest mb-1">Month of Report</label>
-<input class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold" type="month" value="{{ old('month', date('Y-m')) }}"/>
+<input id="monthly-report-month" class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold" type="month" value="{{ $selectedMonth }}"/>
 </div>
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
 <label class="block font-label text-[10px] font-bold text-outline uppercase tracking-widest mb-1">Vehicle Plate No.</label>
-<input class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold" type="text" value="SAB-1234"/>
+<input class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold" type="text" value="{{ $vehiclePlate }}"/>
 </div>
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
 <label class="block font-label text-[10px] font-bold text-outline uppercase tracking-widest mb-1">Assigned Driver</label>
-<input class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold" type="text" value="Juan Dela Cruz"/>
+<input class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold" type="text" value="{{ $assignedDriver }}"/>
 </div>
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
 <label class="block font-label text-[10px] font-bold text-outline uppercase tracking-widest mb-1">Property Number</label>
-<input class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold" type="text" value="NIA-EQ-2024-089"/>
+<input class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold" type="text" value="{{ $propertyNumber }}"/>
 </div>
 </section>
 <!-- Main Report Table -->
@@ -140,7 +140,41 @@
 <th class="px-4 py-4">Destination/Place</th>
 </tr>
 </thead>
-<tbody class="text-[13px] font-medium text-on-surface"><tr class="hover:bg-primary/5 transition-colors border-b border-outline-variant/10">
+<tbody class="text-[13px] font-medium text-on-surface">
+@if (count($reportRows) > 0)
+@foreach ($reportRows as $row)
+<tr class="hover:bg-primary/5 transition-colors border-b border-outline-variant/10 {{ $loop->even ? 'bg-surface-container-low/30' : '' }}">
+<td class="px-4 py-3 border-r border-outline-variant/20 font-bold text-primary">{{ $row['day'] }}</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['distance']) ? number_format((float) $row['distance'], 1) : '—' }}</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['diesel']) ? number_format((float) $row['diesel'], 1) : '—' }}</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['gasoline']) ? number_format((float) $row['gasoline'], 1) : '—' }}</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['engineOil']) ? number_format((float) $row['engineOil'], 1) : '—' }}</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['gearOil']) ? number_format((float) $row['gearOil'], 1) : '—' }}</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['brakeFluid']) ? number_format((float) $row['brakeFluid'], 1) : '—' }}</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['grease']) ? number_format((float) $row['grease'], 1) : '—' }}</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">{{ $row['purchasedIssued'] }}</td>
+<td class="px-4 py-3 border-r border-outline-variant/20 text-xs">{{ $row['passenger'] }}</td>
+<td class="px-4 py-3 text-xs italic">{{ $row['destination'] }}</td>
+</tr>
+@endforeach
+@else
+<tr class="hover:bg-primary/5 transition-colors border-b border-outline-variant/10">
+<td class="px-4 py-3 border-r border-outline-variant/20 font-bold text-primary">—</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">—</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">—</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">—</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">—</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">—</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">—</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">—</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">—</td>
+<td class="px-4 py-3 border-r border-outline-variant/20 text-xs">—</td>
+<td class="px-4 py-3 text-xs italic">No trips found for your name in driver assignments this month.</td>
+</tr>
+@endif
+{{-- Legacy sample rows retained below to preserve template structure. --}}
+@if (false)
+<tr class="hover:bg-primary/5 transition-colors border-b border-outline-variant/10">
 <td class="px-4 py-3 border-r border-outline-variant/20 font-bold text-primary">01</td>
 <td class="px-4 py-3 border-r border-outline-variant/20">124.5</td>
 <td class="px-4 py-3 border-r border-outline-variant/20">15.0</td>
@@ -272,17 +306,19 @@
 <td class="px-4 py-3 border-r border-outline-variant/20">—</td>
 <td class="px-4 py-3 border-r border-outline-variant/20 text-xs">Site Foreman</td>
 <td class="px-4 py-3 text-xs italic">Equipment Depot Maintenance</td>
-</tr></tbody>
+</tr>
+@endif
+</tbody>
 <tfoot class="bg-primary-container text-white font-bold">
 <tr>
 <td class="px-4 py-4 uppercase text-[10px] tracking-widest border-r border-white/10">Total</td>
-<td class="px-4 py-4 border-r border-white/10">394.7</td>
-<td class="px-4 py-4 border-r border-white/10">40.5</td>
-<td class="px-4 py-4 border-r border-white/10">0.0</td>
-<td class="px-4 py-4 border-r border-white/10">1.0</td>
+<td class="px-4 py-4 border-r border-white/10">{{ number_format($totalDistance, 1) }}</td>
 <td class="px-4 py-4 border-r border-white/10">0.0</td>
 <td class="px-4 py-4 border-r border-white/10">0.0</td>
-<td class="px-4 py-4 border-r border-white/10">0.5</td>
+<td class="px-4 py-4 border-r border-white/10">0.0</td>
+<td class="px-4 py-4 border-r border-white/10">0.0</td>
+<td class="px-4 py-4 border-r border-white/10">0.0</td>
+<td class="px-4 py-4 border-r border-white/10">0.0</td>
 <td class="px-4 py-4" colspan="3">Consolidated Equipment Metrics</td>
 </tr>
 </tfoot>
@@ -299,14 +335,14 @@
 <!-- Approved By -->
 <div class="flex flex-col items-center">
 <div class="w-full border-b border-on-surface mb-2 h-12 flex items-end justify-center">
-<span class="text-xs uppercase font-bold tracking-widest text-primary/40">Division Manager A</span>
+<span class=" text-primary w-full mb-2 h-12 flex items-end justify-center font-bold uppercase">{{ $divisionManagerName }}</span>
 </div>
-<span class="text-[10px] font-bold uppercase tracking-tighter text-outline">Approved By (Division Manager A, EOD)</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter text-outline">Approved By (Division Manager, EOD)</span>
 </div>
 <!-- Driver Name -->
 <div class="flex flex-col items-center">
 <div class="w-full border-b border-on-surface mb-2 h-12 flex items-end justify-center font-bold uppercase">
-                            Juan Dela Cruz
+                            {{ $primaryDriver }}
                         </div>
 <span class="text-[10px] font-bold uppercase tracking-tighter text-outline">Name of the Driver</span>
 </div>
@@ -337,4 +373,26 @@
 <!-- Institutional Footer -->
 @include('layouts.footer')
 <!-- FAB (Suppressed as per rules for detailed report page, but adding subtle scroll indicator if needed) -->
+<script>
+    (function () {
+        const monthInput = document.getElementById('monthly-report-month');
+
+        if (!monthInput) {
+            return;
+        }
+
+        monthInput.addEventListener('change', function () {
+            const monthValue = String(monthInput.value || '').trim();
+            const nextUrl = new URL(window.location.href);
+
+            if (monthValue !== '') {
+                nextUrl.searchParams.set('month', monthValue);
+            } else {
+                nextUrl.searchParams.delete('month');
+            }
+
+            window.location.assign(nextUrl.toString());
+        });
+    })();
+</script>
 </body></html>

@@ -96,7 +96,7 @@
 <section class="mb-10">
 <h1 class="font-headline text-3xl font-extrabold text-primary tracking-tight mb-2">Audit Logs</h1>
 <p class="text-on-surface-variant max-w-2xl leading-relaxed">
-        Maintain full accountability across EMS with a tamper-aware record of authenticated user actions, process changes, route access, and source IP activity.
+  Maintain full accountability across EMS with a tamper-aware record of authenticated user actions, process changes, and route activity details.
             </p>
 </section>
 <!-- Filters Section - Bento Style -->
@@ -105,7 +105,7 @@
 <label class="font-label text-xs font-semibold uppercase tracking-wider text-outline block mb-3">Search Activity</label>
 <div class="relative">
 <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">search</span>
-<input name="search" value="{{ $search }}" class="w-full bg-surface-container-lowest border-none architectural-underline py-3 pl-12 pr-4 rounded-lg shadow-sm text-sm" placeholder="User ID, name, action, route, or IP" type="text"/>
+<input name="search" value="{{ $search }}" class="w-full bg-surface-container-lowest border-none architectural-underline py-3 pl-12 pr-4 rounded-lg shadow-sm text-sm" placeholder="Name, action, route, or details" type="text"/>
 </div>
 </div>
 <div class="bg-surface-container-low p-6 rounded-xl">
@@ -130,10 +130,10 @@
 <thead class="bg-surface-container-low border-b border-outline-variant/15">
 <tr>
 <th class="px-6 py-4 font-label text-xs font-semibold uppercase tracking-wider text-outline">Timestamp</th>
-<th class="px-6 py-4 font-label text-xs font-semibold uppercase tracking-wider text-outline">User ID &amp; Name</th>
+<th class="px-6 py-4 font-label text-xs font-semibold uppercase tracking-wider text-outline">Name</th>
 <th class="px-6 py-4 font-label text-xs font-semibold uppercase tracking-wider text-outline">Action Category</th>
 <th class="px-6 py-4 font-label text-xs font-semibold uppercase tracking-wider text-outline">Activity Description</th>
-<th class="px-6 py-4 font-label text-xs font-semibold uppercase tracking-wider text-outline">IP Address</th>
+<th class="px-6 py-4 font-label text-xs font-semibold uppercase tracking-wider text-outline">Other</th>
 <th class="px-6 py-4 font-label text-xs font-semibold uppercase tracking-wider text-outline">Status</th>
 </tr>
 </thead>
@@ -143,6 +143,18 @@
   $rowClass = $loop->even ? 'bg-surface-container-low/30 hover:bg-surface-container-low transition-colors' : 'hover:bg-surface-container-low transition-colors';
   $category = strtoupper((string) $log->action_category);
   $status = strtoupper((string) $log->status);
+  $name = trim((string) ($log->user_name ?? ''));
+  $method = strtoupper(trim((string) ($log->method ?? '')));
+  $routeLabel = trim((string) ($log->route_name ?? ''));
+  $requestPath = trim((string) ($log->request_path ?? ''));
+
+  if ($routeLabel !== '') {
+    $otherDetails = str_replace(['.', '_'], [' ', ' '], $routeLabel);
+  } elseif ($requestPath !== '') {
+    $otherDetails = $requestPath;
+  } else {
+    $otherDetails = 'N/A';
+  }
 
   $categoryClass = 'bg-outline-variant/30 text-on-surface-variant';
   if (str_contains($category, 'LOGIN') || str_contains($category, 'LOGOUT')) {
@@ -165,17 +177,17 @@
 @endphp
 <tr class="{{ $rowClass }}">
 <td class="px-6 py-5 text-sm font-medium text-on-surface">{{ optional($log->created_at)->format('M d, Y h:i A') ?? 'N/A' }}</td>
-<td class="px-6 py-5">
-<div class="flex flex-col">
-<span class="text-sm font-bold text-primary">{{ $log->personnel_id ?: ('USR-' . $log->user_id) }}</span>
-<span class="text-xs text-on-surface-variant">{{ $log->user_name ?: 'Unknown User' }}</span>
-</div>
-</td>
+<td class="px-6 py-5 text-sm font-semibold text-primary">{{ $name !== '' ? $name : 'Unknown User' }}</td>
 <td class="px-6 py-5">
 <span class="{{ $categoryClass }} px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">{{ str_replace('_', ' ', $category) }}</span>
 </td>
 <td class="px-6 py-5 text-sm text-on-surface-variant max-w-xs truncate">{{ $log->activity_description }}</td>
-<td class="px-6 py-5 text-xs font-mono text-outline">{{ $log->ip_address ?: 'N/A' }}</td>
+<td class="px-6 py-5 text-xs text-outline">
+@if ($method !== '')
+<span class="inline-flex items-center px-2 py-0.5 mr-1 rounded bg-surface-container-high text-[10px] font-bold tracking-wide">{{ $method }}</span>
+@endif
+<span>{{ $otherDetails }}</span>
+</td>
 <td class="px-6 py-5">
 <span class="inline-flex items-center gap-1.5 {{ $statusClass }} px-3 py-1 rounded-full text-xs font-bold">
 <span class="w-1.5 h-1.5 rounded-full {{ $dotClass }}"></span> {{ $status }}
@@ -255,7 +267,7 @@
 <div class="text-3xl font-extrabold mt-1 tracking-tight text-primary relative z-10">{{ $latestEventLabel }}</div>
 <div class="mt-4 flex items-center gap-1 text-secondary text-xs font-bold relative z-10">
 <span class="material-symbols-outlined text-xs">check_circle</span>
-          User, action, and IP captured
+      User, action, and request details captured
                 </div>
 <div class="absolute -right-4 -bottom-4 opacity-5">
 <span class="material-symbols-outlined !text-9xl" style="font-variation-settings: 'FILL' 1;">history_edu</span>
