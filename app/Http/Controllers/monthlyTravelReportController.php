@@ -44,24 +44,64 @@ class monthlyTravelReportController extends Controller
                 'vehicle_id',
                 'driver_name',
                 'status',
-                'division_personnel',
+                'business_passengers',
             ]);
 
-        $reportRows = $reportItems->map(function (TransportationRequestFormModel $item): array {
+        $groupedByDay = $reportItems->groupBy(function (TransportationRequestFormModel $item): string {
+            return optional($item->request_date)->format('d') ?? '--';
+        });
+
+        $reportRows = collect(range(1, (int) $monthEnd->day))->map(function (int $day) use ($groupedByDay): array {
+            $dayLabel = str_pad((string) $day, 2, '0', STR_PAD_LEFT);
+            $dayItems = collect($groupedByDay->get($dayLabel, []));
+            $hasTrips = $dayItems->isNotEmpty();
+
+            $distanceTotal = $dayItems->sum(function (TransportationRequestFormModel $item): float {
+                return (float) ($this->resolveDurationHours($item) ?? 0.0);
+            });
+
+            $passengers = $dayItems
+                ->flatMap(function (TransportationRequestFormModel $item): array {
+                    $businessPassengers = is_array($item->business_passengers) ? $item->business_passengers : [];
+
+                    return collect($businessPassengers)
+                        ->map(function ($passenger): string {
+                            if (is_array($passenger)) {
+                                return trim((string) ($passenger['name'] ?? ''));
+                            }
+
+                            return trim((string) $passenger);
+                        })
+                        ->filter()
+                        ->values()
+                        ->all();
+                })
+                ->filter()
+                ->unique()
+                ->values();
+
+            $destinations = $dayItems
+                ->map(fn(TransportationRequestFormModel $item): string => trim((string) ($item->destination ?? '')))
+                ->filter()
+                ->unique()
+                ->values();
+
+            $isIssued = $dayItems->contains(function (TransportationRequestFormModel $item): bool {
+                return in_array((string) $item->status, ['Dispatched', 'On Trip', 'For Evaluation'], true);
+            });
+
             return [
-                'day' => optional($item->request_date)->format('d') ?? '--',
-                'distance' => $this->resolveDurationHours($item),
+                'day' => $dayLabel,
+                'distance' => $hasTrips && $distanceTotal > 0 ? round($distanceTotal, 1) : null,
                 'diesel' => null,
                 'gasoline' => null,
                 'engineOil' => null,
                 'gearOil' => null,
                 'brakeFluid' => null,
                 'grease' => null,
-                'purchasedIssued' => in_array((string) $item->status, ['Dispatched', 'On Trip', 'For Evaluation'], true) ? 'Issued' : '—',
-                'passenger' => trim((string) ($item->requestor_name ?: $item->requested_by)) !== ''
-                    ? (string) ($item->requestor_name ?: $item->requested_by)
-                    : '—',
-                'destination' => trim((string) $item->destination) !== '' ? (string) $item->destination : '—',
+                'purchasedIssued' => $hasTrips ? ($isIssued ? 'Issued' : '—') : '—',
+                'passenger' => $passengers->isNotEmpty() ? $passengers->implode(', ') : '—',
+                'destination' => $destinations->isNotEmpty() ? $destinations->implode('; ') : '—',
             ];
         })->values();
 

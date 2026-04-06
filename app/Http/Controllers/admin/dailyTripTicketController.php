@@ -4,6 +4,7 @@ namespace App\Http\Controllers\admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminVehicleAvailability;
+use App\Models\DailyDriversTripTicket;
 use App\Models\TransportationRequestFormModel;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -77,6 +78,13 @@ class dailyTripTicketController extends Controller
             $transportationRequest->update([
                 'status' => $validated['status'],
             ]);
+
+            if ($validated['status'] === 'Dispatched') {
+                DailyDriversTripTicket::query()->updateOrCreate(
+                    ['transportation_request_form_id' => $transportationRequest->id],
+                    ['request_form_data' => $this->buildRequestFormDataSnapshot($transportationRequest)]
+                );
+            }
 
             if (empty($assignedVehicleCodes)) {
                 return;
@@ -324,5 +332,25 @@ class dailyTripTicketController extends Controller
             ->unique()
             ->values()
             ->all();
+    }
+
+    private function buildRequestFormDataSnapshot(TransportationRequestFormModel $transportationRequest): array
+    {
+        return [
+            'transportation_request_form_id' => $transportationRequest->id,
+            'form_id' => (string) $transportationRequest->form_id,
+            'form_creator_id' => (string) ($transportationRequest->form_creator_id ?? ''),
+            'request_date' => optional($transportationRequest->request_date)->toDateString(),
+            'requested_by' => (string) ($transportationRequest->requested_by ?? ''),
+            'requestor_name' => (string) ($transportationRequest->requestor_name ?? ''),
+            'destination' => (string) ($transportationRequest->destination ?? ''),
+            'date_time_from' => optional($transportationRequest->date_time_from)->toDateTimeString(),
+            'date_time_to' => optional($transportationRequest->date_time_to)->toDateTimeString(),
+            'vehicle_type' => (string) ($transportationRequest->vehicle_type ?? ''),
+            'vehicle_quantity' => $transportationRequest->vehicle_quantity,
+            'vehicle_id' => (string) ($transportationRequest->vehicle_id ?? ''),
+            'driver_name' => (string) ($transportationRequest->driver_name ?? ''),
+            'status' => (string) ($transportationRequest->status ?? ''),
+        ];
     }
 }

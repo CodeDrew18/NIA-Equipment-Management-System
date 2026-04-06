@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TransportationRequestFormModel extends Model
 {
@@ -61,5 +62,10 @@ class TransportationRequestFormModel extends Model
         }
 
         return 'N/A';
+    }
+
+    public function dailyDriversTripTicket(): HasOne
+    {
+        return $this->hasOne(DailyDriversTripTicket::class, 'transportation_request_form_id');
     }
 }
