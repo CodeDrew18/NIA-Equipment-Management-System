@@ -14,7 +14,6 @@ class AuthController extends Controller
     public function login(Request $request): JsonResponse
     {
         $payload = [
-            // Support both personnel_id (API standard) and userId (Flutter client payload).
             'personnel_id' => $request->input('personnel_id', $request->input('userId')),
             'password' => $request->input('password'),
             'device_name' => $request->input('device_name'),
