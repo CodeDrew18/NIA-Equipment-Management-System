@@ -97,6 +97,16 @@
         : 'FIS-0000-0000';
     $dealerName = '____________________________';
     $divisionManagerName = 'ENGR. EMILIO M. DOMAGAS JR';
+
+    $selectedPayload = [
+        'id' => $selectedRequest?->id,
+        'ctrlNumber' => $selectedCtrlNumber ?? 'FIS-0000-0000',
+        'requestDate' => optional($selectedRequest?->request_date)->format('M d, Y') ?: '________________',
+        'vehicleId' => (string) ($selectedRequest?->vehicle_id ?: '____________________________'),
+        'driverName' => (string) ($selectedRequest?->driver_name ?: 'N/A'),
+        'divisionManagerName' => $divisionManagerName,
+        'copies' => $selectedCopies ?? [],
+    ];
 @endphp
 
 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4 no-print">
@@ -104,10 +114,6 @@
         <h1 class="text-3xl font-extrabold text-primary tracking-tight font-headline">Fuel Issuance Slip</h1>
         <p class="text-on-surface-variant mt-1">Copy generated from dispatched transportation requests.</p>
     </div>
-    <button id="fi-print-office-copy" type="button" class="flex items-center gap-2 bg-white border border-outline-variant px-5 py-2.5 rounded-lg text-primary font-semibold hover:bg-surface-container-low transition-all active:scale-95 shadow-sm">
-        <span class="material-symbols-outlined text-[20px]">print</span>
-        Print Copy
-    </button>
 </div>
 
 @if (session('admin_fuel_issuance_success'))
@@ -121,9 +127,6 @@
     {{ $errors->first('fuel_issuance') }}
 </div>
 @endif
-
-<div id="fi-validation-message" class="mb-4 hidden rounded-lg border border-error/20 bg-error-container px-4 py-3 text-sm font-semibold text-on-error-container no-print"></div>
-<div id="fi-action-message" class="mb-4 hidden rounded-lg px-4 py-3 text-sm font-semibold no-print"></div>
 
 <div class="bg-surface-container-low rounded-xl p-4 mb-6 border border-outline-variant/10 no-print">
     <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
@@ -218,103 +221,37 @@
     </div>
 </div>
 
-<div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col">
-    <div class="bg-primary px-8 py-4 flex justify-between items-center">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
-                <span class="material-symbols-outlined text-white">receipt_long</span>
-            </div>
-            <div>
-                <p class="text-[10px] uppercase tracking-widest text-primary-fixed/70 font-bold">Document Type</p>
-                <p class="text-white font-bold text-lg">TRANSPORTATION COPY</p>
-            </div>
-        </div>
-        <div class="text-right">
-            <p class="text-[10px] uppercase tracking-widest text-primary-fixed/70 font-bold">Ctrl No.</p>
-            <p id="fi-ctrl-no" class="text-white font-mono text-xl font-black">{{ $ctrlNumber }}</p>
-        </div>
-    </div>
-    <div class="p-8 space-y-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm font-semibold text-on-surface">
-            <div class="flex items-end gap-2 border-b border-outline-variant/40 pb-1">
-                <span class="whitespace-nowrap">Date:</span>
-                <span id="fi-office-date">{{ optional($selectedRequest?->request_date)->format('M d, Y') ?? '________________' }}</span>
-            </div>
-            <div class="flex items-end gap-2 border-b border-outline-variant/40 pb-1">
-                <span class="whitespace-nowrap">Dealer:</span>
-                <input id="fi-dealer" type="text" placeholder="Enter dealer" class="w-full bg-transparent border-none p-0 text-sm font-semibold text-on-surface focus:ring-0" value="" required/>
-            </div>
-            <div class="md:col-span-2 flex items-end gap-2 border-b border-outline-variant/40 pb-1">
-                <span class="whitespace-nowrap">Plate No/Property No.:</span>
-                <span id="fi-office-vehicle">{{ $selectedRequest->vehicle_id ?? '____________________________' }}</span>
-            </div>
-        </div>
+<div id="fi-copies-container" class="space-y-6"></div>
+</main>
 
-        <div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10">
-            <p class="text-xs font-bold text-primary uppercase tracking-widest mb-4">Please issue the following:</p>
-            <div class="space-y-4 text-sm font-semibold">
-                <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
-                    <span class="col-span-5 text-on-surface-variant">GASOLINE (Extra/Reg)</span>
-                    <input id="fi-gasoline" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" required/>
-                    <span class="col-span-1 text-center text-on-surface-variant">@</span>
-                    <input id="fi-gasoline-price" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" placeholder="0.00" required/>
-                    <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
-                    <span class="col-span-1 text-right text-on-surface">ltrs</span>
-                </div>
-                <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
-                    <span class="col-span-5 text-on-surface-variant">DIESEL FUEL</span>
-                    <input id="fi-diesel" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" required/>
-                    <span class="col-span-1 text-center text-on-surface-variant">@</span>
-                    <input id="fi-diesel-price" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" placeholder="0.00" required/>
-                    <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
-                    <span class="col-span-1 text-right text-on-surface">ltrs</span>
-                </div>
-                <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
-                    <span class="col-span-5 text-on-surface-variant">FUEL SAVE</span>
-                    <input id="fi-fuel-save" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" required/>
-                    <span class="col-span-1 text-center text-on-surface-variant">@</span>
-                    <input id="fi-fuel-save-price" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" placeholder="0.00" required/>
-                    <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
-                    <span class="col-span-1 text-right text-on-surface">ltrs</span>
-                </div>
-                <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
-                    <span class="col-span-5 text-on-surface-variant">V-POWER</span>
-                    <input id="fi-vpower" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" required/>
-                    <span class="col-span-1 text-center text-on-surface-variant">@</span>
-                    <input id="fi-vpower-price" type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0" value="" placeholder="0.00" required/>
-                    <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
-                    <span class="col-span-1 text-right text-on-surface">kg/ltrs</span>
-                </div>
-                <div class="flex items-end gap-2 border-b border-outline-variant/40 pb-1 pt-2">
-                    <span class="font-bold text-primary uppercase">TOTAL AMOUNT</span>
-                    <span class="flex-1 border-b border-dotted border-outline-variant/70"></span>
-                    <span class="text-on-surface">PHP</span>
-                    <span id="fi-total-amount" class="w-24 text-right text-on-surface font-bold">0.00</span>
-                </div>
-            </div>
+<div id="fi-warning-modal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/50 px-4">
+    <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
+        <div class="mb-4 flex items-center gap-3 text-error">
+            <span class="material-symbols-outlined">warning</span>
+            <h3 class="text-lg font-bold">Warning</h3>
         </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-12 pt-6">
-            <div class="text-center">
-                <div class="h-12 border-b border-on-surface-variant/30 flex items-end justify-center mb-1">
-                    <p id="fi-driver-name" class="text-sm font-bold">{{ $selectedRequest->driver_name ?? 'N/A' }}</p>
-                </div>
-                <p class="text-[11px] font-bold text-on-surface uppercase leading-tight">NAME AND SIGNITURE OF DRIVER</p>
-            </div>
-            <div class="text-center">
-
-                <div class="h-12 border-b border-on-surface-variant/30 flex items-end justify-center mb-1">
-                    <p id="fi-division-manager-name" class="text-sm font-bold">{{ $divisionManagerName }}</p>
-                </div>
-                <p class="text-[11px] font-bold text-on-surface uppercase">Division Manager</p>
-            </div>
+        <p id="fi-warning-modal-text" class="text-sm text-on-surface-variant leading-relaxed">
+            Please review the highlighted fields and try again.
+        </p>
+        <div class="mt-6 flex justify-end">
+            <button id="fi-warning-modal-close" type="button" class="rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-primary/90">Understood</button>
         </div>
-    </div>
-    <div class="bg-surface-container mt-auto px-8 py-2 text-[9px] text-on-surface-variant italic text-center uppercase tracking-widest opacity-60">
-        Internal Document - Verification Required
     </div>
 </div>
-</main>
+
+<div id="fi-confirm-dispatch-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4">
+    <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
+        <div class="mb-4 flex items-center gap-3 text-primary">
+            <span class="material-symbols-outlined">local_shipping</span>
+            <h3 class="text-lg font-bold">Confirm Dispatch</h3>
+        </div>
+        <p class="text-sm text-on-surface-variant">Are you sure you want to dispatch this vehicle to On Trip Vehicles?</p>
+        <div class="mt-6 flex justify-end gap-3">
+            <button id="fi-confirm-dispatch-no" type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50">No</button>
+            <button id="fi-confirm-dispatch-yes" type="button" class="rounded-lg bg-secondary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-secondary/90">Yes</button>
+        </div>
+    </div>
+</div>
 
 <div id="fi-confirm-print-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4">
     <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center space-y-4">
@@ -327,10 +264,10 @@
     </div>
 </div>
 
-<div id="fi-print-loading-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/45 px-4">
+<div id="fi-loading-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/45 px-4">
     <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center">
         <div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary"></div>
-        <p class="text-sm font-semibold text-on-surface">Preparing your download...</p>
+        <p id="fi-loading-modal-text" class="text-sm font-semibold text-on-surface">Preparing your download...</p>
     </div>
 </div>
 
@@ -344,37 +281,45 @@ const fiEls = {
     summary: document.getElementById('fi-summary'),
     totalDispatchedTop: document.getElementById('fi-total-dispatched-top'),
     totalDispatched: document.getElementById('fi-total-dispatched'),
-    ctrlNo: document.getElementById('fi-ctrl-no'),
-    officeDate: document.getElementById('fi-office-date'),
-    officeVehicle: document.getElementById('fi-office-vehicle'),
-    dealer: document.getElementById('fi-dealer'),
-    driverName: document.getElementById('fi-driver-name'),
-    divisionManagerName: document.getElementById('fi-division-manager-name'),
-    gasoline: document.getElementById('fi-gasoline'),
-    gasolinePrice: document.getElementById('fi-gasoline-price'),
-    diesel: document.getElementById('fi-diesel'),
-    dieselPrice: document.getElementById('fi-diesel-price'),
-    fuelSave: document.getElementById('fi-fuel-save'),
-    fuelSavePrice: document.getElementById('fi-fuel-save-price'),
-    vpower: document.getElementById('fi-vpower'),
-    vpowerPrice: document.getElementById('fi-vpower-price'),
-    totalAmount: document.getElementById('fi-total-amount'),
-    printButton: document.getElementById('fi-print-office-copy'),
-    validationMessage: document.getElementById('fi-validation-message'),
+    copiesContainer: document.getElementById('fi-copies-container'),
+    warningModal: document.getElementById('fi-warning-modal'),
+    warningModalText: document.getElementById('fi-warning-modal-text'),
+    warningModalClose: document.getElementById('fi-warning-modal-close'),
+    confirmDispatchModal: document.getElementById('fi-confirm-dispatch-modal'),
+    confirmDispatchNo: document.getElementById('fi-confirm-dispatch-no'),
+    confirmDispatchYes: document.getElementById('fi-confirm-dispatch-yes'),
     confirmPrintModal: document.getElementById('fi-confirm-print-modal'),
     confirmPrintNo: document.getElementById('fi-confirm-print-no'),
     confirmPrintYes: document.getElementById('fi-confirm-print-yes'),
-    printLoadingModal: document.getElementById('fi-print-loading-modal'),
+    loadingModal: document.getElementById('fi-loading-modal'),
+    loadingModalText: document.getElementById('fi-loading-modal-text'),
 };
 
 const fiDataUrl = "{{ route('admin.fuel_issuance_slip.data') }}";
 const fiPrintUrl = "{{ route('admin.fuel_issuance_slip.print') }}";
 const fiDispatchUrlTemplate = "{{ route('admin.fuel_issuance_slip.dispatch', ['transportationRequest' => '__ID__']) }}";
 const fiCsrfToken = "{{ csrf_token() }}";
+const fiDefaultDivisionManager = "{{ $divisionManagerName }}";
 let fiCurrentPage = {{ $dispatchedRequests->currentPage() }};
 let fiSelectedRequestId = {{ $selectedRequest?->id ?? 'null' }};
+let fiPendingDispatch = null;
+let fiPendingPrintCopyKey = null;
+let fiCurrentCopies = [];
+let fiCopyStateByKey = {};
+let fiSelectedPayload = @json($selectedPayload);
 const fiMetricAnimationFrames = new WeakMap();
 const fiPrefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const fiRequiredCopyFields = [
+    'dealer',
+    'gasoline',
+    'gasolinePrice',
+    'diesel',
+    'dieselPrice',
+    'fuelSave',
+    'fuelSavePrice',
+    'vpower',
+    'vpowerPrice',
+];
 
 function fiEsc(value) {
     return String(value ?? '')
@@ -471,6 +416,204 @@ function fiAnimateDispatchedTotals(value) {
     });
 }
 
+function fiDefaultCopyState() {
+    return {
+        dealer: '',
+        gasoline: '',
+        gasolinePrice: '',
+        diesel: '',
+        dieselPrice: '',
+        fuelSave: '',
+        fuelSavePrice: '',
+        vpower: '',
+        vpowerPrice: '',
+    };
+}
+
+function fiResetCopyStates() {
+    fiCopyStateByKey = {};
+}
+
+function fiGetCopyState(copyKey) {
+    if (!fiCopyStateByKey[copyKey]) {
+        fiCopyStateByKey[copyKey] = fiDefaultCopyState();
+    }
+
+    return fiCopyStateByKey[copyKey];
+}
+
+function fiNormalizeCopies(selected) {
+    const source = selected || {};
+    const copies = Array.isArray(source.copies) ? source.copies : [];
+
+    if (copies.length > 0) {
+        return copies.map(function (copy, index) {
+            const fallbackKey = `copy_${index + 1}`;
+            return {
+                copyKey: String(copy.copyKey || fallbackKey),
+                copyNumber: Number(copy.copyNumber || (index + 1)),
+                ctrlNumber: String(copy.ctrlNumber || source.ctrlNumber || 'FIS-0000-0000'),
+                vehicleId: String(copy.vehicleId || source.vehicleId || '____________________________'),
+                driverName: String(copy.driverName || source.driverName || 'N/A'),
+            };
+        });
+    }
+
+    return [{
+        copyKey: 'copy_1',
+        copyNumber: 1,
+        ctrlNumber: String(source.ctrlNumber || 'FIS-0000-0000'),
+        vehicleId: String(source.vehicleId || '____________________________'),
+        driverName: String(source.driverName || 'N/A'),
+    }];
+}
+
+function fiCopyTotal(copyState) {
+    return (fiToNumber(copyState.gasoline) * fiToNumber(copyState.gasolinePrice))
+        + (fiToNumber(copyState.diesel) * fiToNumber(copyState.dieselPrice))
+        + (fiToNumber(copyState.fuelSave) * fiToNumber(copyState.fuelSavePrice))
+        + (fiToNumber(copyState.vpower) * fiToNumber(copyState.vpowerPrice));
+}
+
+function fiRenderCopyCard(copy, selectedMeta) {
+    const copyKey = String(copy.copyKey);
+    const copyState = fiGetCopyState(copyKey);
+    const totalAmount = fiFormatCurrency(fiCopyTotal(copyState));
+    const requestDate = String(selectedMeta.requestDate || '________________');
+    const divisionManagerName = String(selectedMeta.divisionManagerName || fiDefaultDivisionManager);
+
+    return `<div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col fi-copy-card" data-copy-key="${fiEsc(copyKey)}">
+        <div class="bg-primary px-8 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
+                    <span class="material-symbols-outlined text-white">receipt_long</span>
+                </div>
+                <div>
+                    <p class="text-[10px] uppercase tracking-widest text-primary-fixed/70 font-bold">Document Type</p>
+                    <p class="text-white font-bold text-lg">TRANSPORTATION COPY #${fiEsc(copy.copyNumber)}</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="text-[10px] uppercase tracking-widest text-primary-fixed/70 font-bold">Ctrl No.</p>
+                <p class="text-white font-mono text-xl font-black">${fiEsc(copy.ctrlNumber)}</p>
+            </div>
+        </div>
+        <div class="p-8 space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm font-semibold text-on-surface">
+                <div class="flex items-end gap-2 border-b border-outline-variant/40 pb-1">
+                    <span class="whitespace-nowrap">Date:</span>
+                    <span>${fiEsc(requestDate)}</span>
+                </div>
+                <div class="flex items-end gap-2 border-b border-outline-variant/40 pb-1">
+                    <span class="whitespace-nowrap">Dealer:</span>
+                    <input type="text" placeholder="Enter dealer" class="w-full bg-transparent border-none p-0 text-sm font-semibold text-on-surface focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="dealer" value="${fiEsc(copyState.dealer)}" required/>
+                </div>
+                <div class="md:col-span-2 flex items-end gap-2 border-b border-outline-variant/40 pb-1">
+                    <span class="whitespace-nowrap">Plate No/Property No.:</span>
+                    <span>${fiEsc(copy.vehicleId)}</span>
+                </div>
+            </div>
+
+            <div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10">
+                <p class="text-xs font-bold text-primary uppercase tracking-widest mb-4">Please issue the following:</p>
+                <div class="space-y-4 text-sm font-semibold">
+                    <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
+                        <span class="col-span-5 text-on-surface-variant">GASOLINE (Extra/Reg)</span>
+                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="gasoline" value="${fiEsc(copyState.gasoline)}" required/>
+                        <span class="col-span-1 text-center text-on-surface-variant">@</span>
+                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="gasolinePrice" value="${fiEsc(copyState.gasolinePrice)}" placeholder="0.00" required/>
+                        <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
+                        <span class="col-span-1 text-right text-on-surface">ltrs</span>
+                    </div>
+                    <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
+                        <span class="col-span-5 text-on-surface-variant">DIESEL FUEL</span>
+                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="diesel" value="${fiEsc(copyState.diesel)}" required/>
+                        <span class="col-span-1 text-center text-on-surface-variant">@</span>
+                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="dieselPrice" value="${fiEsc(copyState.dieselPrice)}" placeholder="0.00" required/>
+                        <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
+                        <span class="col-span-1 text-right text-on-surface">ltrs</span>
+                    </div>
+                    <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
+                        <span class="col-span-5 text-on-surface-variant">FUEL SAVE</span>
+                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="fuelSave" value="${fiEsc(copyState.fuelSave)}" required/>
+                        <span class="col-span-1 text-center text-on-surface-variant">@</span>
+                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="fuelSavePrice" value="${fiEsc(copyState.fuelSavePrice)}" placeholder="0.00" required/>
+                        <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
+                        <span class="col-span-1 text-right text-on-surface">ltrs</span>
+                    </div>
+                    <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
+                        <span class="col-span-5 text-on-surface-variant">V-POWER</span>
+                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="vpower" value="${fiEsc(copyState.vpower)}" required/>
+                        <span class="col-span-1 text-center text-on-surface-variant">@</span>
+                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="vpowerPrice" value="${fiEsc(copyState.vpowerPrice)}" placeholder="0.00" required/>
+                        <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
+                        <span class="col-span-1 text-right text-on-surface">kg/ltrs</span>
+                    </div>
+                    <div class="flex items-end gap-2 border-b border-outline-variant/40 pb-1 pt-2">
+                        <span class="font-bold text-primary uppercase">TOTAL AMOUNT</span>
+                        <span class="flex-1 border-b border-dotted border-outline-variant/70"></span>
+                        <span class="text-on-surface">PHP</span>
+                        <span class="w-24 text-right text-on-surface font-bold fi-copy-total">${fiEsc(totalAmount)}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12 pt-2">
+                <div class="text-center">
+                    <div class="h-12 border-b border-on-surface-variant/30 flex items-end justify-center mb-1">
+                        <p class="text-sm font-bold">${fiEsc(copy.driverName)}</p>
+                    </div>
+                    <p class="text-[11px] font-bold text-on-surface uppercase leading-tight">NAME AND SIGNITURE OF DRIVER</p>
+                </div>
+                <div class="text-center">
+                    <div class="h-12 border-b border-on-surface-variant/30 flex items-end justify-center mb-1">
+                        <p class="text-sm font-bold">${fiEsc(divisionManagerName)}</p>
+                    </div>
+                    <p class="text-[11px] font-bold text-on-surface uppercase">Division Manager</p>
+                </div>
+            </div>
+
+            <div class="pt-2 no-print flex justify-end">
+                <button type="button" class="fi-print-copy inline-flex items-center gap-2 bg-white border border-outline-variant px-5 py-2.5 rounded-lg text-primary font-semibold hover:bg-surface-container-low transition-all active:scale-95 shadow-sm" data-copy-key="${fiEsc(copyKey)}">
+                    <span class="material-symbols-outlined text-[20px]">print</span>
+                    Print Copy #${fiEsc(copy.copyNumber)}
+                </button>
+            </div>
+        </div>
+        <div class="bg-surface-container mt-auto px-8 py-2 text-[9px] text-on-surface-variant italic text-center uppercase tracking-widest opacity-60">
+            Internal Document - Verification Required
+        </div>
+    </div>`;
+}
+
+function fiRenderCopyCards(selected) {
+    if (!fiEls.copiesContainer) {
+        return;
+    }
+
+    const normalizedCopies = fiNormalizeCopies(selected);
+    fiCurrentCopies = normalizedCopies;
+
+    if (normalizedCopies.length < 1) {
+        fiEls.copiesContainer.innerHTML = '<div class="rounded-xl border border-outline-variant/20 bg-surface-container-low px-6 py-10 text-sm font-semibold text-outline text-center">No transportation copies available for this request.</div>';
+        return;
+    }
+
+    fiEls.copiesContainer.innerHTML = normalizedCopies.map(function (copy) {
+        return fiRenderCopyCard(copy, selected || {});
+    }).join('');
+
+    normalizedCopies.forEach(function (copy) {
+        fiValidateCopyFields(copy.copyKey);
+    });
+}
+
+function fiFindCopy(copyKey) {
+    return fiCurrentCopies.find(function (copy) {
+        return String(copy.copyKey) === String(copyKey);
+    }) || null;
+}
+
 function fiRow(item) {
     const isSelected = Number(item.id) === Number(fiSelectedRequestId);
     const rowClass = isSelected ? 'bg-primary-fixed/40' : 'hover:bg-surface-container-low';
@@ -497,25 +640,155 @@ function fiRow(item) {
     </tr>`;
 }
 
-function fiShowActionMessage(message, type = 'success') {
-    const messageEl = document.getElementById('fi-action-message');
-    if (!messageEl) {
+function fiShowWarningModal(message) {
+    if (!fiEls.warningModal || !fiEls.warningModalText) {
         return;
     }
 
-    messageEl.textContent = message;
-    messageEl.classList.remove('hidden', 'border-secondary/30', 'bg-secondary/10', 'text-secondary', 'border-error/20', 'bg-error-container', 'text-on-error-container');
+    fiEls.warningModalText.textContent = message || 'Please review the highlighted fields and try again.';
+    fiEls.warningModal.classList.remove('hidden');
+    fiEls.warningModal.classList.add('flex');
+}
 
-    if (type === 'error') {
-        messageEl.classList.add('border', 'border-error/20', 'bg-error-container', 'text-on-error-container');
-    } else {
-        messageEl.classList.add('border', 'border-secondary/30', 'bg-secondary/10', 'text-secondary');
+function fiHideWarningModal() {
+    if (!fiEls.warningModal) {
+        return;
     }
 
-    clearTimeout(fiShowActionMessage.timerId);
-    fiShowActionMessage.timerId = setTimeout(function () {
-        messageEl.classList.add('hidden');
-    }, 2500);
+    fiEls.warningModal.classList.add('hidden');
+    fiEls.warningModal.classList.remove('flex');
+}
+
+function fiShowConfirmDispatchModal(dispatchUrl, requestId, triggerButton) {
+    if (!fiEls.confirmDispatchModal || !dispatchUrl || !requestId) {
+        return;
+    }
+
+    fiPendingDispatch = {
+        dispatchUrl,
+        requestId,
+        triggerButton,
+    };
+
+    fiEls.confirmDispatchModal.classList.remove('hidden');
+    fiEls.confirmDispatchModal.classList.add('flex');
+}
+
+function fiHideConfirmDispatchModal() {
+    fiPendingDispatch = null;
+    if (!fiEls.confirmDispatchModal) {
+        return;
+    }
+
+    fiEls.confirmDispatchModal.classList.add('hidden');
+    fiEls.confirmDispatchModal.classList.remove('flex');
+}
+
+function fiShowLoadingModal(message = 'Preparing your download...') {
+    if (!fiEls.loadingModal) {
+        return;
+    }
+
+    if (fiEls.loadingModalText) {
+        fiEls.loadingModalText.textContent = message;
+    }
+
+    fiEls.loadingModal.classList.remove('hidden');
+    fiEls.loadingModal.classList.add('flex');
+}
+
+function fiHideLoadingModal() {
+    if (!fiEls.loadingModal) {
+        return;
+    }
+
+    fiEls.loadingModal.classList.add('hidden');
+    fiEls.loadingModal.classList.remove('flex');
+}
+
+function fiValidateCopyFields(copyKey) {
+    const card = fiEls.copiesContainer
+        ? fiEls.copiesContainer.querySelector(`.fi-copy-card[data-copy-key="${copyKey}"]`)
+        : null;
+
+    if (!card) {
+        return false;
+    }
+
+    let hasError = false;
+
+    fiRequiredCopyFields.forEach(function (fieldName) {
+        const input = card.querySelector(`.fi-copy-input[data-copy-field="${fieldName}"]`);
+        if (!input) {
+            return;
+        }
+
+        const value = String(input.value || '').trim();
+        const isEmpty = value === '';
+
+        input.classList.toggle('ring-2', isEmpty);
+        input.classList.toggle('ring-error/40', isEmpty);
+
+        hasError = hasError || isEmpty;
+    });
+
+    return !hasError;
+}
+
+function fiValidateAllCopyFields(showWarning = false, warningMessage = 'Required to fill all fields before dispatch.') {
+    if (!fiCurrentCopies.length) {
+        if (showWarning) {
+            fiShowWarningModal('No transportation copies available for this request.');
+        }
+
+        return false;
+    }
+
+    const hasInvalid = fiCurrentCopies.some(function (copy) {
+        return !fiValidateCopyFields(copy.copyKey);
+    });
+
+    if (hasInvalid && showWarning) {
+        fiShowWarningModal(warningMessage);
+    }
+
+    return !hasInvalid;
+}
+
+function fiValidateSingleCopyFields(copyKey, showWarning = false, warningMessage = 'Dealer, all fuel quantities, and all fuel prices per liter are required.') {
+    const isValid = fiValidateCopyFields(copyKey);
+    if (!isValid && showWarning) {
+        fiShowWarningModal(warningMessage);
+    }
+
+    return isValid;
+}
+
+function fiHandleCopyInputChange(event) {
+    const input = event.target.closest('.fi-copy-input');
+    if (!input) {
+        return;
+    }
+
+    const copyKey = String(input.getAttribute('data-copy-key') || '');
+    const fieldName = String(input.getAttribute('data-copy-field') || '');
+
+    if (copyKey === '' || fieldName === '') {
+        return;
+    }
+
+    const copyState = fiGetCopyState(copyKey);
+    copyState[fieldName] = input.value;
+
+    const card = input.closest('.fi-copy-card');
+    if (card) {
+        const totalEl = card.querySelector('.fi-copy-total');
+        if (totalEl) {
+            totalEl.textContent = fiFormatCurrency(fiCopyTotal(copyState));
+        }
+    }
+
+    fiValidateCopyFields(copyKey);
 }
 
 async function fiDispatchRequest(dispatchUrl, requestId, triggerButton) {
@@ -523,14 +796,15 @@ async function fiDispatchRequest(dispatchUrl, requestId, triggerButton) {
         return;
     }
 
-    const shouldDispatch = window.confirm('Dispatch this vehicle to On Trip Vehicles?');
-    if (!shouldDispatch) {
+    if (!fiValidateAllCopyFields(true, 'Required to fill all fields before dispatch.')) {
         return;
     }
 
     if (triggerButton) {
         triggerButton.disabled = true;
     }
+
+    fiShowLoadingModal('Updating vehicle status...');
 
     try {
         const response = await fetch(dispatchUrl, {
@@ -556,11 +830,11 @@ async function fiDispatchRequest(dispatchUrl, requestId, triggerButton) {
             fiSelectedRequestId = null;
         }
 
-        fiShowActionMessage(payload.message || 'Vehicle dispatched successfully.');
         await fiRefresh(fiCurrentPage);
     } catch (error) {
-        fiShowActionMessage(error.message || 'Unable to dispatch vehicle.', 'error');
+        fiShowWarningModal(error.message || 'Unable to dispatch vehicle.');
     } finally {
+        fiHideLoadingModal();
         if (triggerButton) {
             triggerButton.disabled = false;
         }
@@ -606,14 +880,6 @@ function fiRenderPagination(pagination) {
     fiEls.pagination.innerHTML = html;
 }
 
-function fiUpdateOfficeCopy(selected) {
-    fiEls.ctrlNo.textContent = selected.ctrlNumber || 'FIS-0000-0000';
-    fiEls.officeDate.textContent = selected.requestDate || '________________';
-    fiEls.officeVehicle.textContent = selected.vehicleId || '____________________________';
-    fiEls.driverName.textContent = selected.driverName || 'N/A';
-    fiEls.divisionManagerName.textContent = selected.divisionManagerName || 'ENGR. EMILIO M. DOMAGAS JR';
-}
-
 function fiToNumber(value) {
     const sanitized = String(value ?? '').replaceAll(',', '').trim();
     const parsed = Number(sanitized);
@@ -627,53 +893,6 @@ function fiFormatCurrency(value) {
     });
 }
 
-function fiRecalculateTotal() {
-    const total = (fiToNumber(fiEls.gasoline.value) * fiToNumber(fiEls.gasolinePrice.value))
-        + (fiToNumber(fiEls.diesel.value) * fiToNumber(fiEls.dieselPrice.value))
-        + (fiToNumber(fiEls.fuelSave.value) * fiToNumber(fiEls.fuelSavePrice.value))
-        + (fiToNumber(fiEls.vpower.value) * fiToNumber(fiEls.vpowerPrice.value));
-
-    fiEls.totalAmount.textContent = fiFormatCurrency(total);
-}
-
-function fiValidateRequiredFields() {
-    const requiredFields = [
-        fiEls.dealer,
-        fiEls.gasoline,
-        fiEls.gasolinePrice,
-        fiEls.diesel,
-        fiEls.dieselPrice,
-        fiEls.fuelSave,
-        fiEls.fuelSavePrice,
-        fiEls.vpower,
-        fiEls.vpowerPrice,
-    ];
-    let hasError = false;
-
-    requiredFields.forEach(function (field) {
-        if (!field) {
-            return;
-        }
-
-        const value = String(field.value || '').trim();
-        const isEmpty = value === '';
-        field.classList.toggle('ring-2', isEmpty);
-        field.classList.toggle('ring-error/40', isEmpty);
-        hasError = hasError || isEmpty;
-    });
-
-    if (hasError) {
-        fiEls.validationMessage.textContent = 'Dealer, all fuel quantities, and all fuel prices per liter are required.';
-        fiEls.validationMessage.classList.remove('hidden');
-        return false;
-    }
-
-    fiEls.validationMessage.textContent = '';
-    fiEls.validationMessage.classList.add('hidden');
-
-    return true;
-}
-
 function fiShowConfirmPrintModal() {
     fiEls.confirmPrintModal.classList.remove('hidden');
     fiEls.confirmPrintModal.classList.add('flex');
@@ -684,31 +903,40 @@ function fiHideConfirmPrintModal() {
     fiEls.confirmPrintModal.classList.remove('flex');
 }
 
-function fiShowPrintLoadingModal() {
-    fiEls.printLoadingModal.classList.remove('hidden');
-    fiEls.printLoadingModal.classList.add('flex');
-}
-
-function fiHidePrintLoadingModal() {
-    fiEls.printLoadingModal.classList.add('hidden');
-    fiEls.printLoadingModal.classList.remove('flex');
-}
-
-async function fiPrintOfficeCopy() {
-    if (!fiSelectedRequestId) {
+async function fiPrintOfficeCopy(copyKey) {
+    if (!fiSelectedRequestId || !copyKey) {
         return;
     }
+
+    const copy = fiFindCopy(copyKey);
+    if (!copy) {
+        fiShowWarningModal('The selected transportation copy is no longer available.');
+        return;
+    }
+
+    if (!fiValidateSingleCopyFields(copyKey, true, 'Dealer, all fuel quantities, and all fuel prices per liter are required.')) {
+        return;
+    }
+
+    const copyState = fiGetCopyState(copyKey);
 
     const payload = {
         _token: fiCsrfToken,
         request_id: String(fiSelectedRequestId),
-        dealer: fiEls.dealer ? fiEls.dealer.value : '',
-        gasoline: String(fiToNumber(fiEls.gasoline.value)),
-        diesel: String(fiToNumber(fiEls.diesel.value)),
-        fuel_save: String(fiToNumber(fiEls.fuelSave.value)),
-        v_power: String(fiToNumber(fiEls.vpower.value)),
-        total_amount: String(fiToNumber(fiEls.totalAmount.textContent)),
+        copy_key: String(copy.copyKey),
+        vehicle_id: String(copy.vehicleId),
+        driver_name: String(copy.driverName),
+        dealer: String(copyState.dealer || ''),
+        gasoline: String(fiToNumber(copyState.gasoline)),
+        diesel: String(fiToNumber(copyState.diesel)),
+        fuel_save: String(fiToNumber(copyState.fuelSave)),
+        v_power: String(fiToNumber(copyState.vpower)),
+        total_amount: String(fiCopyTotal(copyState)),
     };
+
+    const printButton = fiEls.copiesContainer
+        ? fiEls.copiesContainer.querySelector(`.fi-print-copy[data-copy-key="${copyKey}"]`)
+        : null;
 
     const iframeId = 'fi-download-frame';
     let frame = document.getElementById(iframeId);
@@ -741,8 +969,10 @@ async function fiPrintOfficeCopy() {
         }
 
         isCompleted = true;
-        fiHidePrintLoadingModal();
-        fiEls.printButton.disabled = false;
+        fiHideLoadingModal();
+        if (printButton) {
+            printButton.disabled = false;
+        }
         window.removeEventListener('focus', handleWindowFocus);
     }
 
@@ -750,8 +980,10 @@ async function fiPrintOfficeCopy() {
         completeDownloadUI();
     }
 
-    fiEls.printButton.disabled = true;
-    fiShowPrintLoadingModal();
+    if (printButton) {
+        printButton.disabled = true;
+    }
+    fiShowLoadingModal('Preparing your download...');
     window.addEventListener('focus', handleWindowFocus);
 
     document.body.appendChild(form);
@@ -797,7 +1029,16 @@ async function fiRefresh(page = fiCurrentPage) {
         fiEls.summary.textContent = payload.summaryText;
         fiAnimateDispatchedTotals(Number(payload.totalDispatchedRequests) || 0);
         fiRenderPagination(payload.pagination);
-        fiUpdateOfficeCopy(payload.selected || {});
+
+        const selectedPayload = payload.selected || {};
+        const nextSelectedId = Number(selectedPayload.id || 0);
+        const currentSelectedId = Number(fiSelectedPayload?.id || 0);
+        if (nextSelectedId !== currentSelectedId) {
+            fiResetCopyStates();
+        }
+
+        fiSelectedPayload = selectedPayload;
+        fiRenderCopyCards(fiSelectedPayload);
     } catch (error) {
         console.error('Fuel issuance AJAX refresh failed', error);
     }
@@ -836,56 +1077,104 @@ fiEls.tbody.addEventListener('click', function (event) {
     }
 
     event.preventDefault();
-    fiDispatchRequest(
+    fiShowConfirmDispatchModal(
         dispatchButton.getAttribute('data-dispatch-url'),
         Number(dispatchButton.getAttribute('data-request-id')),
         dispatchButton
     );
 });
 
-fiEls.printButton.addEventListener('click', function () {
-    if (!fiValidateRequiredFields()) {
+fiEls.copiesContainer.addEventListener('input', fiHandleCopyInputChange);
+fiEls.copiesContainer.addEventListener('change', fiHandleCopyInputChange);
+
+fiEls.copiesContainer.addEventListener('click', function (event) {
+    const printButton = event.target.closest('.fi-print-copy');
+    if (!printButton) {
         return;
     }
+
+    event.preventDefault();
+    const copyKey = String(printButton.getAttribute('data-copy-key') || '');
+    if (copyKey === '') {
+        return;
+    }
+
+    if (!fiValidateSingleCopyFields(copyKey, true, 'Dealer, all fuel quantities, and all fuel prices per liter are required.')) {
+        return;
+    }
+
+    fiPendingPrintCopyKey = copyKey;
     fiShowConfirmPrintModal();
 });
+
+if (fiEls.warningModalClose) {
+    fiEls.warningModalClose.addEventListener('click', function () {
+        fiHideWarningModal();
+    });
+}
+
+if (fiEls.warningModal) {
+    fiEls.warningModal.addEventListener('click', function (event) {
+        if (event.target === fiEls.warningModal) {
+            fiHideWarningModal();
+        }
+    });
+}
+
+if (fiEls.confirmDispatchNo) {
+    fiEls.confirmDispatchNo.addEventListener('click', function () {
+        fiHideConfirmDispatchModal();
+    });
+}
+
+if (fiEls.confirmDispatchYes) {
+    fiEls.confirmDispatchYes.addEventListener('click', function () {
+        const pendingDispatch = fiPendingDispatch;
+        fiHideConfirmDispatchModal();
+
+        if (!pendingDispatch) {
+            return;
+        }
+
+        fiDispatchRequest(
+            pendingDispatch.dispatchUrl,
+            pendingDispatch.requestId,
+            pendingDispatch.triggerButton
+        );
+    });
+}
+
+if (fiEls.confirmDispatchModal) {
+    fiEls.confirmDispatchModal.addEventListener('click', function (event) {
+        if (event.target === fiEls.confirmDispatchModal) {
+            fiHideConfirmDispatchModal();
+        }
+    });
+}
 
 fiEls.confirmPrintNo.addEventListener('click', function () {
     fiHideConfirmPrintModal();
 });
 
 fiEls.confirmPrintYes.addEventListener('click', function () {
+    const pendingCopyKey = fiPendingPrintCopyKey;
+    fiPendingPrintCopyKey = null;
     fiHideConfirmPrintModal();
-    fiPrintOfficeCopy();
+
+    if (!pendingCopyKey) {
+        return;
+    }
+
+    fiPrintOfficeCopy(pendingCopyKey);
 });
 
 fiEls.confirmPrintModal.addEventListener('click', function (event) {
     if (event.target === fiEls.confirmPrintModal) {
+        fiPendingPrintCopyKey = null;
         fiHideConfirmPrintModal();
     }
 });
-
-['input', 'change'].forEach(function (eventName) {
-    fiEls.gasoline.addEventListener(eventName, fiRecalculateTotal);
-    fiEls.gasolinePrice.addEventListener(eventName, fiRecalculateTotal);
-    fiEls.diesel.addEventListener(eventName, fiRecalculateTotal);
-    fiEls.dieselPrice.addEventListener(eventName, fiRecalculateTotal);
-    fiEls.fuelSave.addEventListener(eventName, fiRecalculateTotal);
-    fiEls.fuelSavePrice.addEventListener(eventName, fiRecalculateTotal);
-    fiEls.vpower.addEventListener(eventName, fiRecalculateTotal);
-    fiEls.vpowerPrice.addEventListener(eventName, fiRecalculateTotal);
-    fiEls.dealer.addEventListener(eventName, fiValidateRequiredFields);
-    fiEls.gasoline.addEventListener(eventName, fiValidateRequiredFields);
-    fiEls.gasolinePrice.addEventListener(eventName, fiValidateRequiredFields);
-    fiEls.diesel.addEventListener(eventName, fiValidateRequiredFields);
-    fiEls.dieselPrice.addEventListener(eventName, fiValidateRequiredFields);
-    fiEls.fuelSave.addEventListener(eventName, fiValidateRequiredFields);
-    fiEls.fuelSavePrice.addEventListener(eventName, fiValidateRequiredFields);
-    fiEls.vpower.addEventListener(eventName, fiValidateRequiredFields);
-    fiEls.vpowerPrice.addEventListener(eventName, fiValidateRequiredFields);
-});
-
-fiRecalculateTotal();
+fiRenderCopyCards(fiSelectedPayload || {});
 fiAnimateInitialMetrics();
 </script>
 </body></html>

@@ -120,8 +120,8 @@ class DailyTripTicketController extends Controller
             ], 404);
         }
 
-        $assignedDriverName = trim((string) ($transportationRequest->driver_name ?? ''));
-        if ($assignedDriverName === '' || strcasecmp($assignedDriverName, (string) $driverUser->name) !== 0) {
+        $assignedDriverNames = $this->parseDriverNames((string) ($transportationRequest->driver_name ?? ''));
+        if (!$this->driverMatchesAssignment((string) $driverUser->name, $assignedDriverNames)) {
             return response()->json([
                 'message' => 'You are not allowed to submit this trip ticket.',
             ], 403);
@@ -140,7 +140,7 @@ class DailyTripTicketController extends Controller
             : [];
 
         $requestFormData = array_replace($baseSnapshot, $existingSnapshot, $payloadSnapshot);
-        $requestFormData['driver_name'] = $assignedDriverName;
+        $requestFormData['driver_name'] = (string) ($transportationRequest->driver_name ?? '');
 
         $updateData = [
             'request_form_data' => $requestFormData,
@@ -154,14 +154,11 @@ class DailyTripTicketController extends Controller
                 'arrival_time_office',
                 'odometer_end',
                 'odometer_start',
-                'distance_travelled',
                 'fuel_balance_before',
                 'fuel_issued_regional',
                 'fuel_purchased_trip',
                 'fuel_issued_nia',
-                'fuel_total',
                 'fuel_used',
-                'fuel_balance_after',
                 'gear_oil_liters',
                 'engine_oil_liters',
                 'grease_kgs',
@@ -172,6 +169,43 @@ class DailyTripTicketController extends Controller
                 $updateData[$field] = $validated[$field] ?? null;
             }
         }
+
+        // Formula 1: Distance Travelled = odometer_end - odometer_start
+        $odometerStart = $this->resolveNumericField($request, $validated, $existingTicket, 'odometer_start');
+        $odometerEnd = $this->resolveNumericField($request, $validated, $existingTicket, 'odometer_end');
+
+        $distanceTravelled = null;
+        if ($odometerStart !== null && $odometerEnd !== null) {
+            $distanceTravelled = round($odometerEnd - $odometerStart, 2);
+        }
+
+        // Formula 2: Total = fuel_balance_before + fuel_issued_regional + fuel_purchased_trip + fuel_issued_nia
+        $fuelBalanceBefore = $this->resolveNumericField($request, $validated, $existingTicket, 'fuel_balance_before');
+        $fuelIssuedRegional = $this->resolveNumericField($request, $validated, $existingTicket, 'fuel_issued_regional');
+        $fuelPurchasedTrip = $this->resolveNumericField($request, $validated, $existingTicket, 'fuel_purchased_trip');
+        $fuelIssuedNia = $this->resolveNumericField($request, $validated, $existingTicket, 'fuel_issued_nia');
+
+        $fuelValues = [$fuelBalanceBefore, $fuelIssuedRegional, $fuelPurchasedTrip, $fuelIssuedNia];
+        $hasFuelValue = collect($fuelValues)->contains(function ($value) {
+            return $value !== null;
+        });
+
+        $fuelTotal = $hasFuelValue
+            ? round(array_sum(array_map(function ($value) {
+                return (float) ($value ?? 0.0);
+            }, $fuelValues)), 2)
+            : null;
+
+        // Formula 3: Estimated Balance in tank after =
+        // Total - (Distance Travelled / (fuel_balance_before + fuel_issued_regional + fuel_purchased_trip + fuel_issued_nia) / 4)
+        $fuelBalanceAfter = null;
+        if ($fuelTotal !== null && $fuelTotal != 0.0 && $distanceTravelled !== null) {
+            $fuelBalanceAfter = round($fuelTotal - (($distanceTravelled / $fuelTotal) / 4), 2);
+        }
+
+        $updateData['distance_travelled'] = $distanceTravelled;
+        $updateData['fuel_total'] = $fuelTotal;
+        $updateData['fuel_balance_after'] = $fuelBalanceAfter;
 
         $ticket = DailyDriversTripTicket::query()->updateOrCreate(
             ['transportation_request_form_id' => (int) $validated['transportation_request_form_id']],
@@ -215,9 +249,9 @@ class DailyTripTicketController extends Controller
     private function ticketBelongsToDriver(DailyDriversTripTicket $ticket, User $driverUser): bool
     {
         $requestFormData = $this->decodeRequestFormData($ticket->request_form_data);
-        $driverName = trim((string) ($requestFormData['driver_name'] ?? ''));
+        $driverNames = $this->parseDriverNames($requestFormData['driver_name'] ?? '');
 
-        return $driverName !== '' && strcasecmp($driverName, (string) $driverUser->name) === 0;
+        return $this->driverMatchesAssignment((string) $driverUser->name, $driverNames);
     }
 
     private function mapTicketPayload(DailyDriversTripTicket $ticket, User $driverUser): array
@@ -241,6 +275,8 @@ class DailyTripTicketController extends Controller
             'odometer_start' => $ticket->odometer_start,
             'odometer_end' => $ticket->odometer_end,
             'distance_travelled' => $ticket->distance_travelled,
+
+
             'fuel_balance_before' => $ticket->fuel_balance_before,
             'fuel_issued_regional' => $ticket->fuel_issued_regional,
             'fuel_purchased_trip' => $ticket->fuel_purchased_trip,
@@ -248,9 +284,13 @@ class DailyTripTicketController extends Controller
             'fuel_total' => $ticket->fuel_total,
             'fuel_used' => $ticket->fuel_used,
             'fuel_balance_after' => $ticket->fuel_balance_after,
+
+
             'gear_oil_liters' => $ticket->gear_oil_liters,
             'engine_oil_liters' => $ticket->engine_oil_liters,
             'grease_kgs' => $ticket->grease_kgs,
+
+
             'remarks' => $ticket->remarks,
             'created_at' => optional($ticket->created_at)->toDateTimeString(),
             'updated_at' => optional($ticket->updated_at)->toDateTimeString(),
@@ -290,5 +330,72 @@ class DailyTripTicketController extends Controller
         }
 
         return [];
+    }
+
+    private function resolveNumericField(Request $request, array $validated, ?DailyDriversTripTicket $existingTicket, string $field): ?float
+    {
+        if ($request->exists($field)) {
+            return $this->toNullableFloat($validated[$field] ?? null);
+        }
+
+        return $this->toNullableFloat($existingTicket?->{$field});
+    }
+
+    private function toNullableFloat(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_numeric($value) ? (float) $value : null;
+    }
+
+    private function parseDriverNames(mixed $value): array
+    {
+        if (is_array($value)) {
+            $tokens = $value;
+        } else {
+            $stringValue = trim((string) $value);
+            if ($stringValue === '') {
+                return [];
+            }
+
+            $decoded = json_decode($stringValue, true);
+            if (is_array($decoded)) {
+                $tokens = $decoded;
+            } else {
+                $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $stringValue, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            }
+        }
+
+        return collect($tokens)
+            ->map(function ($token) {
+                if (is_array($token)) {
+                    return trim((string) ($token['driver_name'] ?? $token['name'] ?? ''));
+                }
+
+                return trim((string) $token);
+            })
+            ->filter(function (string $name) {
+                return $name !== '';
+            })
+            ->values()
+            ->all();
+    }
+
+    private function driverMatchesAssignment(string $driverName, array $assignedDriverNames): bool
+    {
+        $normalizedDriverName = strtolower(trim($driverName));
+        if ($normalizedDriverName === '') {
+            return false;
+        }
+
+        return collect($assignedDriverNames)
+            ->map(function (string $name) {
+                return strtolower(trim($name));
+            })
+            ->contains(function (string $name) use ($normalizedDriverName) {
+                return $name === $normalizedDriverName;
+            });
     }
 }

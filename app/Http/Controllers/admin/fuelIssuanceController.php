@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminVehicleAvailability;
 use App\Models\TransportationRequestFormModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -20,6 +22,8 @@ class fuelIssuanceController extends Controller
         return view('admin.fuel_issuance_slip.fuel_issuance', [
             'dispatchedRequests' => $payload['dispatchedRequests'],
             'selectedRequest' => $payload['selectedRequest'],
+            'selectedCtrlNumber' => $payload['selectedCtrlNumber'],
+            'selectedCopies' => $payload['selectedCopies'],
             'search' => $payload['search'],
         ]);
     }
@@ -29,10 +33,6 @@ class fuelIssuanceController extends Controller
         $payload = $this->buildPayload($request);
         $requests = $payload['dispatchedRequests'];
         $selectedRequest = $payload['selectedRequest'];
-
-        $ctrlNumber = $selectedRequest
-            ? 'FIS-' . optional($selectedRequest->request_date)->format('Y') . '-' . str_pad((string) $selectedRequest->id, 4, '0', STR_PAD_LEFT)
-            : 'FIS-0000-0000';
 
         return response()->json([
             'filters' => [
@@ -60,12 +60,13 @@ class fuelIssuanceController extends Controller
             })->values(),
             'selected' => [
                 'id' => $selectedRequest?->id,
-                'ctrlNumber' => $ctrlNumber,
+                'ctrlNumber' => $payload['selectedCtrlNumber'],
                 'requestDate' => optional($selectedRequest?->request_date)->format('M d, Y') ?: '________________',
                 'vehicleId' => (string) ($selectedRequest?->vehicle_id ?: '____________________________'),
                 'driverName' => (string) ($selectedRequest?->driver_name ?: 'N/A'),
                 'requestorName' => (string) ($selectedRequest?->requestor_name ?: '________________'),
                 'divisionManagerName' => self::DIVISION_MANAGER,
+                'copies' => $payload['selectedCopies'],
             ],
         ]);
     }
@@ -96,6 +97,7 @@ class fuelIssuanceController extends Controller
             return response()->json([
                 'message' => $message,
                 'requestId' => $transportationRequest->id,
+                'drivers' => $this->extractNameTokens((string) $transportationRequest->driver_name),
             ]);
         }
 
@@ -108,6 +110,9 @@ class fuelIssuanceController extends Controller
     {
         $validated = $request->validate([
             'request_id' => ['required', 'integer', 'exists:transportation_requests_forms,id'],
+            'copy_key' => ['required', 'string', 'max:128'],
+            'vehicle_id' => ['required', 'string', 'max:255'],
+            'driver_name' => ['required', 'string', 'max:255'],
             'dealer' => ['required', 'string', 'max:255'],
             'gasoline' => ['required', 'numeric', 'min:0'],
             'diesel' => ['required', 'numeric', 'min:0'],
@@ -120,6 +125,24 @@ class fuelIssuanceController extends Controller
             ->whereIn('status', ['Dispatched', 'On Trip'])
             ->findOrFail($validated['request_id']);
 
+        $selectedCopies = $this->buildFuelIssuanceCopies($selectedRequest);
+        $selectedCopy = collect($selectedCopies)->firstWhere('copyKey', (string) $validated['copy_key']);
+
+        if (!is_array($selectedCopy)) {
+            throw ValidationException::withMessages([
+                'copy_key' => 'The selected transportation copy is invalid.',
+            ]);
+        }
+
+        if (
+            trim((string) ($selectedCopy['vehicleId'] ?? '')) !== trim((string) $validated['vehicle_id'])
+            || trim((string) ($selectedCopy['driverName'] ?? '')) !== trim((string) $validated['driver_name'])
+        ) {
+            throw ValidationException::withMessages([
+                'copy_key' => 'The selected transportation copy does not match the request assignment.',
+            ]);
+        }
+
         $templatePath = storage_path('app/public/forms/form_2_rev_08.xlsx');
         if (!is_readable($templatePath)) {
             abort(500, 'Template file not found: form_2_rev_08.xlsx');
@@ -128,7 +151,7 @@ class fuelIssuanceController extends Controller
         $spreadsheet = IOFactory::load($templatePath);
         $sheet = $spreadsheet->getActiveSheet();
 
-        $ctrlNumber = 'FIS-' . optional($selectedRequest->request_date)->format('Y') . '-' . str_pad((string) $selectedRequest->id, 4, '0', STR_PAD_LEFT);
+        $ctrlNumber = (string) ($selectedCopy['ctrlNumber'] ?? ('FIS-' . optional($selectedRequest->request_date)->format('Y') . '-' . str_pad((string) $selectedRequest->id, 4, '0', STR_PAD_LEFT)));
         $requestDate = optional($selectedRequest->request_date)->format('M d, Y') ?: '';
 
         // Office Copy
@@ -142,7 +165,7 @@ class fuelIssuanceController extends Controller
         $sheet->setCellValue('C13', (string) ($validated['dealer'] ?? ''));
 
         $sheet->mergeCells('D15:F15');
-        $sheet->setCellValue('D15', (string) ($selectedRequest->vehicle_id ?? ''));
+        $sheet->setCellValue('D15', (string) ($selectedCopy['vehicleId'] ?? ''));
 
         $sheet->mergeCells('E19:F19');
         $sheet->setCellValue('E19', (string) ($validated['gasoline'] ?? ''));
@@ -160,7 +183,7 @@ class fuelIssuanceController extends Controller
         $sheet->setCellValue('E24', (string) ($validated['total_amount'] ?? ''));
 
         $sheet->mergeCells('C27:E27');
-        $sheet->setCellValue('C27', (string) ($selectedRequest->driver_name ?? ''));
+        $sheet->setCellValue('C27', (string) ($selectedCopy['driverName'] ?? ''));
 
         $sheet->mergeCells('C32:E32');
         $sheet->setCellValue('C32', self::DIVISION_MANAGER);
@@ -177,7 +200,7 @@ class fuelIssuanceController extends Controller
         $sheet->setCellValue('K13', (string) ($validated['dealer'] ?? ''));
 
         $sheet->mergeCells('L15:N15');
-        $sheet->setCellValue('L15', (string) ($selectedRequest->vehicle_id ?? ''));
+        $sheet->setCellValue('L15', (string) ($selectedCopy['vehicleId'] ?? ''));
 
         $sheet->mergeCells('M19:N19');
         $sheet->setCellValue('M19', (string) ($validated['gasoline'] ?? ''));
@@ -195,7 +218,7 @@ class fuelIssuanceController extends Controller
         $sheet->setCellValue('M24', (string) ($validated['total_amount'] ?? ''));
 
         $sheet->mergeCells('K27:M27');
-        $sheet->setCellValue('K27', (string) ($selectedRequest->driver_name ?? ''));
+        $sheet->setCellValue('K27', (string) ($selectedCopy['driverName'] ?? ''));
 
         $sheet->mergeCells('K32:M32');
         $sheet->setCellValue('K32', self::DIVISION_MANAGER);
@@ -207,7 +230,8 @@ class fuelIssuanceController extends Controller
 
         $baseFormId = $selectedRequest->form_id ?: 'REQUEST';
         $safeFormId = preg_replace('/[^A-Za-z0-9._-]/', '_', $baseFormId) ?: 'REQUEST';
-        $safeFileName = 'Fuel_Issuance_Office_Copy_' . $safeFormId . '_' . now()->format('Ymd_His_u') . '_' . Str::lower(Str::random(6)) . '.xlsx';
+        $copyNumber = (int) ($selectedCopy['copyNumber'] ?? 1);
+        $safeFileName = 'Fuel_Issuance_Office_Copy_' . $safeFormId . '_copy_' . $copyNumber . '_' . now()->format('Ymd_His_u') . '_' . Str::lower(Str::random(6)) . '.xlsx';
         $outputPath = $outputDirectory . DIRECTORY_SEPARATOR . $safeFileName;
 
         $writer = new Xlsx($spreadsheet);
@@ -249,10 +273,133 @@ class fuelIssuanceController extends Controller
             $selectedRequest = $dispatchedRequests->first();
         }
 
+        $selectedCtrlNumber = $selectedRequest
+            ? 'FIS-' . optional($selectedRequest->request_date)->format('Y') . '-' . str_pad((string) $selectedRequest->id, 4, '0', STR_PAD_LEFT)
+            : 'FIS-0000-0000';
+
+        $selectedCopies = $this->buildFuelIssuanceCopies($selectedRequest);
+
         return [
             'dispatchedRequests' => $dispatchedRequests,
             'selectedRequest' => $selectedRequest,
+            'selectedCtrlNumber' => $selectedCtrlNumber,
+            'selectedCopies' => $selectedCopies,
             'search' => $search,
         ];
+    }
+
+    private function buildFuelIssuanceCopies(?TransportationRequestFormModel $transportationRequest): array
+    {
+        if (!$transportationRequest) {
+            return [];
+        }
+
+        $baseCtrlNumber = 'FIS-' . optional($transportationRequest->request_date)->format('Y') . '-' . str_pad((string) $transportationRequest->id, 4, '0', STR_PAD_LEFT);
+        $vehicleCodes = $this->extractVehicleCodes((string) $transportationRequest->vehicle_id);
+        $driverNames = $this->extractNameTokens((string) $transportationRequest->driver_name);
+
+        if (empty($vehicleCodes)) {
+            $fallbackVehicle = trim((string) ($transportationRequest->vehicle_id ?: '____________________________'));
+            $fallbackDriver = trim((string) ($driverNames[0] ?? $transportationRequest->driver_name ?? 'N/A'));
+
+            return [[
+                'copyKey' => substr(md5($transportationRequest->id . '|fallback|' . $fallbackVehicle . '|0'), 0, 32),
+                'copyNumber' => 1,
+                'ctrlNumber' => $baseCtrlNumber,
+                'vehicleId' => $fallbackVehicle,
+                'driverName' => $fallbackDriver !== '' ? $fallbackDriver : 'N/A',
+            ]];
+        }
+
+        $vehiclesByCode = AdminVehicleAvailability::query()
+            ->whereIn('vehicle_code', $vehicleCodes)
+            ->get(['vehicle_code', 'driver_name'])
+            ->keyBy('vehicle_code');
+
+        $hasMultipleCopies = count($vehicleCodes) > 1;
+
+        return collect($vehicleCodes)
+            ->values()
+            ->map(function (string $vehicleCode, int $index) use ($transportationRequest, $vehiclesByCode, $driverNames, $baseCtrlNumber, $hasMultipleCopies) {
+                $resolvedDriver = trim((string) optional($vehiclesByCode->get($vehicleCode))->driver_name);
+                if ($resolvedDriver === '') {
+                    $resolvedDriver = trim((string) ($driverNames[$index] ?? ''));
+                }
+                if ($resolvedDriver === '') {
+                    $resolvedDriver = trim((string) ($driverNames[0] ?? ''));
+                }
+
+                $copyNumber = $index + 1;
+                $ctrlNumber = $hasMultipleCopies
+                    ? $baseCtrlNumber . '-' . str_pad((string) $copyNumber, 2, '0', STR_PAD_LEFT)
+                    : $baseCtrlNumber;
+
+                return [
+                    'copyKey' => substr(md5($transportationRequest->id . '|' . $vehicleCode . '|' . $index), 0, 32),
+                    'copyNumber' => $copyNumber,
+                    'ctrlNumber' => $ctrlNumber,
+                    'vehicleId' => $vehicleCode,
+                    'driverName' => $resolvedDriver !== '' ? $resolvedDriver : 'N/A',
+                ];
+            })
+            ->all();
+    }
+
+    private function extractVehicleCodes(string $vehicleIds): array
+    {
+        $value = trim($vehicleIds);
+        if ($value === '') {
+            return [];
+        }
+
+        $decoded = json_decode($value, true);
+        if (is_array($decoded)) {
+            $tokens = $decoded;
+        } else {
+            $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        }
+
+        return collect($tokens)
+            ->map(function ($token) {
+                if (is_array($token)) {
+                    return trim((string) ($token['vehicle_code'] ?? $token['code'] ?? ''));
+                }
+
+                return trim((string) $token);
+            })
+            ->filter(function (string $code) {
+                return $code !== '';
+            })
+            ->values()
+            ->all();
+    }
+
+    private function extractNameTokens(string $names): array
+    {
+        $value = trim($names);
+        if ($value === '') {
+            return [];
+        }
+
+        $decoded = json_decode($value, true);
+        if (is_array($decoded)) {
+            $tokens = $decoded;
+        } else {
+            $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        }
+
+        return collect($tokens)
+            ->map(function ($token) {
+                if (is_array($token)) {
+                    return trim((string) ($token['driver_name'] ?? $token['name'] ?? ''));
+                }
+
+                return trim((string) $token);
+            })
+            ->filter(function (string $name) {
+                return $name !== '';
+            })
+            ->values()
+            ->all();
     }
 }
