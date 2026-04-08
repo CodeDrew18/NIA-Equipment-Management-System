@@ -94,7 +94,26 @@
     $selectedDurationDisplay = ($selectedFromDisplay && $selectedToDisplay)
         ? $selectedFromDisplay . ' to ' . $selectedToDisplay
         : '';
+
+    $selectedEvaluationRecord = $selectedEvaluationRecord ?? null;
+    $selectedEvaluationPayload = is_array($selectedEvaluationPayload ?? null)
+        ? $selectedEvaluationPayload
+        : [];
+    $selectedCriteriaScores = is_array($selectedEvaluationPayload['criteria']['scores'] ?? null)
+        ? $selectedEvaluationPayload['criteria']['scores']
+        : [];
+    $selectedCriteriaRemarks = is_array($selectedEvaluationPayload['criteria']['remarks'] ?? null)
+        ? $selectedEvaluationPayload['criteria']['remarks']
+        : [];
+    $selectedImprovementComments = trim((string) ($selectedEvaluationPayload['improvement_comments'] ?? ''));
+    $selectedPraiseComments = trim((string) ($selectedEvaluationPayload['praise_comments'] ?? ''));
+    $canSubmitEvaluation = $selectedEvaluationRecord
+        && strtolower(trim((string) ($selectedEvaluationRecord->status ?? ''))) === 'pending'
+        && (string) ($selectedEvaluation?->status ?? '') === 'For Evaluation';
+
     $selectedDivisionPersonnelName = trim((string) ($selectedEvaluation?->requestor_name ?? ''));
+    $selectedCopyNumber = (int) ($selectedEvaluationRecord?->copy_number ?? 1);
+    $selectedEvaluationYear = optional($selectedEvaluation?->date_time_to)->format('Y') ?: now()->format('Y');
 @endphp
 
 <main class="max-w-5xl mx-auto px-6 pb-12 pt-28">
@@ -111,10 +130,27 @@
 <div class="bg-surface-container-highest p-6 rounded-xl border-l-4 border-primary">
 <div class="text-label-sm font-bold text-primary-container uppercase tracking-tighter mb-1">Evaluation ID</div>
 <div class="text-2xl font-mono font-bold text-on-surface tracking-widest">
-{{ $selectedEvaluation ? ('NIA-DPE-' . optional($selectedEvaluation->date_time_to)->format('Y') . '-' . str_pad((string) $selectedEvaluation->id, 4, '0', STR_PAD_LEFT)) : 'NIA-DPE-0000-0000' }}
+{{ $selectedEvaluationRecord ? ('NIA-DPE-' . $selectedEvaluationYear . '-' . str_pad((string) $selectedEvaluationRecord->id, 4, '0', STR_PAD_LEFT) . '-C' . str_pad((string) $selectedCopyNumber, 2, '0', STR_PAD_LEFT)) : 'NIA-DPE-0000-0000' }}
 </div>
 </div>
 </header>
+
+@if ($errors->any())
+<div class="mb-8 rounded-xl border border-error/30 bg-error-container p-4 text-on-error-container">
+    <p class="font-bold mb-2">Please fix the following before submitting:</p>
+    <ul class="list-disc pl-5 text-sm space-y-1">
+        @foreach ($errors->all() as $error)
+        <li>{{ $error }}</li>
+        @endforeach
+    </ul>
+</div>
+@endif
+
+@if (session('evaluation_submit_success'))
+<div class="mb-8 rounded-xl border border-secondary/30 bg-secondary-container p-4 text-on-secondary-container text-sm font-semibold">
+    {{ session('evaluation_submit_success') }}
+</div>
+@endif
 
 <!-- Pending Evaluation Trips -->
 <section class="mb-12 bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm border border-outline-variant/20">
@@ -167,16 +203,17 @@
 <tbody class="divide-y divide-outline-variant/10">
 @forelse ($pendingEvaluations as $item)
 @php
-    $isSelected = $selectedEvaluation && (int) $selectedEvaluation->id === (int) $item->id;
+    $evaluationRequest = $item->transportationRequestForm;
+    $isSelected = $selectedEvaluationRecord && (int) $selectedEvaluationRecord->id === (int) $item->id;
 @endphp
 <tr class="{{ $isSelected ? 'bg-primary-fixed/30' : 'hover:bg-surface-container-low/40' }} transition-colors">
-<td class="px-5 py-3 text-xs font-mono font-bold text-on-surface-variant">{{ $item->form_id ?: 'N/A' }}</td>
-<td class="px-5 py-3 text-sm">{{ $item->vehicle_id ?: 'N/A' }}</td>
+<td class="px-5 py-3 text-xs font-mono font-bold text-on-surface-variant">{{ $evaluationRequest?->form_id ?: 'N/A' }}</td>
+<td class="px-5 py-3 text-sm">{{ $evaluationRequest?->vehicle_id ?: 'N/A' }}</td>
 <td class="px-5 py-3 text-sm">{{ $item->driver_name ?: 'N/A' }}</td>
-<td class="px-5 py-3 text-xs text-on-surface-variant">{{ optional($item->date_time_from)->format('M d, Y h:i A') ?? 'N/A' }}</td>
-<td class="px-5 py-3 text-xs text-on-surface-variant">{{ optional($item->date_time_to)->format('M d, Y h:i A') ?? 'N/A' }}</td>
+<td class="px-5 py-3 text-xs text-on-surface-variant">{{ optional($evaluationRequest?->date_time_from)->format('M d, Y h:i A') ?? 'N/A' }}</td>
+<td class="px-5 py-3 text-xs text-on-surface-variant">{{ optional($evaluationRequest?->date_time_to)->format('M d, Y h:i A') ?? 'N/A' }}</td>
 <td class="px-5 py-3 text-right">
-<a href="{{ route('evaluation-performance', array_merge(request()->except('page'), ['request_id' => $item->id])) }}" class="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold {{ $isSelected ? 'bg-primary text-white' : 'text-primary hover:bg-primary-container hover:text-white' }} transition-colors">
+<a href="{{ route('evaluation-performance', array_merge(request()->except('page'), ['evaluation_id' => $item->id])) }}" class="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold {{ $isSelected ? 'bg-primary text-white' : 'text-primary hover:bg-primary-container hover:text-white' }} transition-colors">
 <span class="material-symbols-outlined text-sm">edit_note</span>
 Fill Evaluation
 </a>
@@ -225,47 +262,53 @@ Fill Evaluation
 </div>
 </section>
 
+@if ($selectedEvaluation)
+<form id="evaluation-form" method="POST" action="{{ route('evaluation-performance.submit') }}">
+@csrf
+<input type="hidden" name="evaluation_id" value="{{ $selectedEvaluationRecord?->id }}"/>
+@endif
+
 <!-- Personnel & Vehicle Details Bento -->
 <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-<!-- Driver Primary Info -->
 <div class="md:col-span-2 bg-surface-container-low p-8 rounded-xl flex flex-col justify-between">
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div class="space-y-1">
 <label class="text-label-md font-bold text-on-surface-variant uppercase tracking-wider block">Name of Driver</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-xl font-medium" placeholder="Enter full name" type="text" value="{{ $selectedEvaluation?->driver_name ?? '' }}"/>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-xl font-medium" type="text" value="{{ $selectedEvaluationRecord?->driver_name ?? '' }}" readonly/>
 </div>
 <div class="space-y-1">
 <label class="text-label-md font-bold text-on-surface-variant uppercase tracking-wider block">Date of Evaluation</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-xl font-medium" type="date" value="{{ old('evaluation_date', now()->toDateString()) }}"/>
+<input name="evaluation_date" class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-xl font-medium" type="date" value="{{ old('evaluation_date', $selectedEvaluationPayload['evaluation_date'] ?? optional($selectedEvaluationRecord?->evaluated_at)->toDateString() ?? now()->toDateString()) }}" {{ $canSubmitEvaluation ? '' : 'readonly' }}/>
 </div>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
 <div class="space-y-1">
 <label class="text-label-md font-bold text-on-surface-variant uppercase tracking-wider block">Type / Make of Vehicle</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-lg" placeholder="e.g. Toyota Hilux" type="text" value="{{ $selectedEvaluation?->vehicle_type ?? '' }}"/>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-lg" type="text" value="{{ $selectedEvaluation?->vehicle_type ?? '' }}" readonly/>
 </div>
 <div class="space-y-1">
 <label class="text-label-md font-bold text-on-surface-variant uppercase tracking-wider block">Vehicle Plate No.</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-lg font-mono" placeholder="ABC-1234" type="text" value="{{ $selectedEvaluation?->vehicle_id ?? '' }}"/>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-lg font-mono" type="text" value="{{ $selectedEvaluation?->vehicle_id ?? '' }}" readonly/>
 </div>
 </div>
 </div>
-<!-- Trip Context -->
+
 <div class="md:col-span-1 bg-primary text-on-primary p-8 rounded-xl flex flex-col gap-6">
 <div class="space-y-1">
 <label class="text-label-md font-bold opacity-80 uppercase tracking-wider block">Official Destination</label>
-<input class="w-full bg-transparent border-0 border-b border-on-primary/30 py-2 focus:border-on-primary focus:ring-0 outline-none text-lg" type="text" value="{{ $selectedEvaluation?->destination ?? '' }}"/>
+<input class="w-full bg-transparent border-0 border-b border-on-primary/30 py-2 text-lg" type="text" value="{{ $selectedEvaluation?->destination ?? '' }}" readonly/>
 </div>
 <div class="space-y-1">
 <label class="text-label-md font-bold opacity-80 uppercase tracking-wider block">Purpose of Travel</label>
-<textarea class="w-full bg-transparent border-0 border-b border-on-primary/30 py-2 focus:border-on-primary focus:ring-0 outline-none text-sm resize-none" rows="2">{{ $selectedEvaluation?->purpose ?? '' }}</textarea>
+<textarea class="w-full bg-transparent border-0 border-b border-on-primary/30 py-2 text-sm resize-none" rows="2" readonly>{{ $selectedEvaluation?->purpose ?? '' }}</textarea>
 </div>
 <div class="space-y-1">
 <label class="text-label-md font-bold opacity-80 uppercase tracking-wider block">Duration of Travel</label>
-<input class="w-full bg-transparent border-0 border-b border-on-primary/30 py-2 focus:border-on-primary focus:ring-0 outline-none text-lg" placeholder="e.g. 3 Days" type="text" value="{{ $selectedDurationDisplay }}"/>
+<input class="w-full bg-transparent border-0 border-b border-on-primary/30 py-2 text-lg" type="text" value="{{ $selectedDurationDisplay }}" readonly/>
 </div>
 </div>
 </section>
+
 <!-- Evaluation Methodology Header -->
 <div class="flex items-center justify-between mb-8">
 <h2 class="text-2xl font-bold text-primary flex items-center gap-3">
@@ -284,6 +327,25 @@ Fill Evaluation
 <span class="text-primary">5-EXCELLENT</span>
 </div>
 </div>
+
+@php
+    $evaluationCriteria = [
+        ['key' => 'r1', 'title' => 'Punctuality', 'description' => 'Arrival and departure adherence to schedule.', 'striped' => false, 'placeholder' => 'Add details...'],
+        ['key' => 'r2', 'title' => 'Safe Driving', 'description' => 'No unnecessary phone calls, obedience to traffic rules, no distractions (Radio/TV), courtesy to other motorists.', 'striped' => true, 'placeholder' => 'Add details...'],
+        ['key' => 'r3', 'title' => 'Courtesy', 'description' => 'Interactions with passengers and public.', 'striped' => false, 'placeholder' => 'Add details...'],
+        ['key' => 'r4', 'title' => 'Personal Attitude', 'description' => 'Professionalism and willingness to assist.', 'striped' => true, 'placeholder' => 'Add details...'],
+        ['key' => 'r5', 'title' => 'Knowledge of direction to destination', 'description' => 'Navigation efficiency and route familiarity.', 'striped' => false, 'placeholder' => 'Add details...'],
+        ['key' => 'r6', 'title' => 'Personal Hygiene', 'description' => 'Grooming and professional appearance.', 'striped' => true, 'placeholder' => 'Add details...'],
+        ['key' => 'r7', 'title' => 'Trouble shooting', 'description' => 'Action taken during mechanical issues. (Write "N/A" if no problems encountered).', 'striped' => false, 'placeholder' => 'Not applicable'],
+        ['key' => 'r8', 'title' => 'Vehicle Cleanliness', 'description' => 'Interior and exterior upkeep during the trip.', 'striped' => true, 'placeholder' => 'Add details...'],
+    ];
+
+    $criteriaFallbackScores = [
+        'r1' => $selectedEvaluationRecord?->timeliness_score,
+        'r2' => $selectedEvaluationRecord?->safety_score,
+    ];
+@endphp
+
 <!-- Evaluation Form Body -->
 <div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm border border-outline-variant/10">
 <div class="grid grid-cols-12 bg-surface-container-high p-4 text-label-md font-bold text-primary uppercase tracking-widest">
@@ -291,181 +353,56 @@ Fill Evaluation
 <div class="col-span-4 md:col-span-2 text-center">Rate (1-5)</div>
 <div class="hidden md:block md:col-span-3">Remarks</div>
 </div>
-<!-- Row 1 -->
-<div class="grid grid-cols-12 p-6 border-b border-outline-variant/10 items-center hover:bg-surface-container-low transition-colors">
+
+@foreach ($evaluationCriteria as $criterion)
+@php
+    $criterionKey = (string) $criterion['key'];
+    $criterionRemarkKey = 'remark_' . $criterionKey;
+    $storedCriterionScore = $selectedCriteriaScores[$criterionKey] ?? $criteriaFallbackScores[$criterionKey] ?? null;
+    $selectedScore = (int) old($criterionKey, $storedCriterionScore ?? 0);
+    $selectedRemark = old($criterionRemarkKey, $selectedCriteriaRemarks[$criterionKey] ?? '');
+    $rowClass = $criterion['striped']
+        ? 'grid grid-cols-12 p-6 border-b border-outline-variant/10 items-center bg-surface-container-low/30 hover:bg-surface-container-low transition-colors'
+        : 'grid grid-cols-12 p-6 border-b border-outline-variant/10 items-center hover:bg-surface-container-low transition-colors';
+@endphp
+<div class="{{ $rowClass }}">
 <div class="col-span-6 md:col-span-7 pr-4">
-<div class="font-bold text-on-surface">Punctuality</div>
-<p class="text-xs text-on-surface-variant mt-1">Arrival and departure adherence to schedule.</p>
+<div class="font-bold text-on-surface">{{ $criterion['title'] }}</div>
+<p class="text-xs text-on-surface-variant mt-1 {{ $criterionKey === 'r2' ? 'leading-relaxed' : '' }}">{{ $criterion['description'] }}</p>
 </div>
 <div class="col-span-4 md:col-span-2">
 <div class="flex justify-center gap-2">
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r1" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r1" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r1" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r1" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r1" type="radio"/>
+@for ($score = 1; $score <= 5; $score++)
+<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="{{ $criterionKey }}" type="radio" value="{{ $score }}" @checked($selectedScore === $score) {{ $canSubmitEvaluation ? '' : 'disabled' }}/>
+@endfor
 </div>
 </div>
 <div class="col-span-12 md:col-span-3 mt-4 md:mt-0">
-<input class="w-full bg-surface-container-low rounded px-3 py-2 text-sm border-0 focus:ring-1 focus:ring-primary" placeholder="Add details..." type="text"/>
+<input class="w-full bg-surface-container-low rounded px-3 py-2 text-sm border-0 focus:ring-1 focus:ring-primary" name="{{ $criterionRemarkKey }}" placeholder="{{ $criterion['placeholder'] }}" type="text" value="{{ $selectedRemark }}" {{ $canSubmitEvaluation ? '' : 'readonly' }}/>
 </div>
 </div>
-<!-- Row 2 (Complex) -->
-<div class="grid grid-cols-12 p-6 border-b border-outline-variant/10 items-center bg-surface-container-low/30 hover:bg-surface-container-low transition-colors">
-<div class="col-span-6 md:col-span-7 pr-4">
-<div class="font-bold text-on-surface">Safe Driving</div>
-<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">No unnecessary phone calls, obedience to traffic rules, no distractions (Radio/TV), courtesy to other motorists.</p>
+@endforeach
 </div>
-<div class="col-span-4 md:col-span-2">
-<div class="flex justify-center gap-2">
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r2" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r2" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r2" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r2" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r2" type="radio"/>
-</div>
-</div>
-<div class="col-span-12 md:col-span-3 mt-4 md:mt-0">
-<input class="w-full bg-surface-container-low rounded px-3 py-2 text-sm border-0 focus:ring-1 focus:ring-primary" placeholder="Add details..." type="text"/>
-</div>
-</div>
-<!-- Row 3 -->
-<div class="grid grid-cols-12 p-6 border-b border-outline-variant/10 items-center hover:bg-surface-container-low transition-colors">
-<div class="col-span-6 md:col-span-7 pr-4">
-<div class="font-bold text-on-surface">Courtesy</div>
-<p class="text-xs text-on-surface-variant mt-1">Interactions with passengers and public.</p>
-</div>
-<div class="col-span-4 md:col-span-2">
-<div class="flex justify-center gap-2">
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r3" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r3" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r3" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r3" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r3" type="radio"/>
-</div>
-</div>
-<div class="col-span-12 md:col-span-3 mt-4 md:mt-0">
-<input class="w-full bg-surface-container-low rounded px-3 py-2 text-sm border-0 focus:ring-1 focus:ring-primary" placeholder="Add details..." type="text"/>
-</div>
-</div>
-<!-- Row 4 -->
-<div class="grid grid-cols-12 p-6 border-b border-outline-variant/10 items-center bg-surface-container-low/30 hover:bg-surface-container-low transition-colors">
-<div class="col-span-6 md:col-span-7 pr-4">
-<div class="font-bold text-on-surface">Personal Attitude</div>
-<p class="text-xs text-on-surface-variant mt-1">Professionalism and willingness to assist.</p>
-</div>
-<div class="col-span-4 md:col-span-2">
-<div class="flex justify-center gap-2">
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r4" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r4" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r4" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r4" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r4" type="radio"/>
-</div>
-</div>
-<div class="col-span-12 md:col-span-3 mt-4 md:mt-0">
-<input class="w-full bg-surface-container-low rounded px-3 py-2 text-sm border-0 focus:ring-1 focus:ring-primary" placeholder="Add details..." type="text"/>
-</div>
-</div>
-<!-- Row 5 -->
-<div class="grid grid-cols-12 p-6 border-b border-outline-variant/10 items-center hover:bg-surface-container-low transition-colors">
-<div class="col-span-6 md:col-span-7 pr-4">
-<div class="font-bold text-on-surface">Knowledge of direction to destination</div>
-<p class="text-xs text-on-surface-variant mt-1">Navigation efficiency and route familiarity.</p>
-</div>
-<div class="col-span-4 md:col-span-2">
-<div class="flex justify-center gap-2">
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r5" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r5" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r5" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r5" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r5" type="radio"/>
-</div>
-</div>
-<div class="col-span-12 md:col-span-3 mt-4 md:mt-0">
-<input class="w-full bg-surface-container-low rounded px-3 py-2 text-sm border-0 focus:ring-1 focus:ring-primary" placeholder="Add details..." type="text"/>
-</div>
-</div>
-<!-- Row 6 -->
-<div class="grid grid-cols-12 p-6 border-b border-outline-variant/10 items-center bg-surface-container-low/30 hover:bg-surface-container-low transition-colors">
-<div class="col-span-6 md:col-span-7 pr-4">
-<div class="font-bold text-on-surface">Personal Hygiene</div>
-<p class="text-xs text-on-surface-variant mt-1">Grooming and professional appearance.</p>
-</div>
-<div class="col-span-4 md:col-span-2">
-<div class="flex justify-center gap-2">
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r6" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r6" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r6" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r6" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r6" type="radio"/>
-</div>
-</div>
-<div class="col-span-12 md:col-span-3 mt-4 md:mt-0">
-<input class="w-full bg-surface-container-low rounded px-3 py-2 text-sm border-0 focus:ring-1 focus:ring-primary" placeholder="Add details..." type="text"/>
-</div>
-</div>
-<!-- Row 7 -->
-<div class="grid grid-cols-12 p-6 border-b border-outline-variant/10 items-center hover:bg-surface-container-low transition-colors">
-<div class="col-span-6 md:col-span-7 pr-4">
-<div class="font-bold text-on-surface">Trouble shooting</div>
-<p class="text-xs text-on-surface-variant mt-1">Action taken during mechanical issues. (Write "N/A" if no problems encountered).</p>
-</div>
-<div class="col-span-4 md:col-span-2">
-<div class="flex justify-center gap-2">
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r7" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r7" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r7" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r7" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r7" type="radio"/>
-</div>
-</div>
-<div class="col-span-12 md:col-span-3 mt-4 md:mt-0">
-<input class="w-full bg-surface-container-low rounded px-3 py-2 text-sm border-0 focus:ring-1 focus:ring-primary" placeholder="Not applicable" type="text"/>
-</div>
-</div>
-<!-- Row 8 -->
-<div class="grid grid-cols-12 p-6 items-center bg-surface-container-low/30 hover:bg-surface-container-low transition-colors">
-<div class="col-span-6 md:col-span-7 pr-4">
-<div class="font-bold text-on-surface">Vehicle Cleanliness</div>
-<p class="text-xs text-on-surface-variant mt-1">Interior and exterior upkeep during the trip.</p>
-</div>
-<div class="col-span-4 md:col-span-2">
-<div class="flex justify-center gap-2">
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r8" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r8" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r8" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r8" type="radio"/>
-<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary" name="r8" type="radio"/>
-</div>
-</div>
-<div class="col-span-12 md:col-span-3 mt-4 md:mt-0">
-<input class="w-full bg-surface-container-low rounded px-3 py-2 text-sm border-0 focus:ring-1 focus:ring-primary" placeholder="Add details..." type="text"/>
-</div>
-</div>
-</div>
+
 <!-- Summary Section -->
 <section class="mt-12 grid grid-cols-1 md:grid-cols-12 gap-8">
 <div class="md:col-span-8 space-y-8">
 <div class="bg-surface-container-low p-6 rounded-xl border-l-4 border-error">
 <label class="text-label-md font-bold text-error uppercase tracking-wider block mb-3">Comments and Observations (For Improvement)</label>
-<textarea class="w-full bg-surface-container-lowest border-0 rounded-lg p-4 text-sm focus:ring-1 focus:ring-error shadow-inner" placeholder="Detailed feedback for correction or training needs..." rows="4"></textarea>
+<textarea class="w-full bg-surface-container-lowest border-0 rounded-lg p-4 text-sm focus:ring-1 focus:ring-error shadow-inner" name="comments_improvement" placeholder="Detailed feedback for correction or training needs..." rows="4" {{ $canSubmitEvaluation ? '' : 'readonly' }}>{{ old('comments_improvement', $selectedImprovementComments) }}</textarea>
 </div>
 <div class="bg-surface-container-low p-6 rounded-xl border-l-4 border-secondary">
 <label class="text-label-md font-bold text-secondary uppercase tracking-wider block mb-3">Comments and Observations (For Praise and Appreciation)</label>
-<textarea class="w-full bg-surface-container-lowest border-0 rounded-lg p-4 text-sm focus:ring-1 focus:ring-secondary shadow-inner" placeholder="Commendations for exemplary performance..." rows="4"></textarea>
+<textarea class="w-full bg-surface-container-lowest border-0 rounded-lg p-4 text-sm focus:ring-1 focus:ring-secondary shadow-inner" name="comments_praise" placeholder="Commendations for exemplary performance..." rows="4" {{ $canSubmitEvaluation ? '' : 'readonly' }}>{{ old('comments_praise', $selectedPraiseComments) }}</textarea>
 </div>
 </div>
 <div class="md:col-span-4 flex flex-col gap-6">
-<!-- Final Rate Card -->
 <div class="bg-primary-container text-white p-8 rounded-xl flex flex-col items-center justify-center text-center shadow-lg">
 <span class="text-label-sm font-bold opacity-70 uppercase tracking-widest mb-2">Final Evaluation Rate</span>
 <div id="evaluation-final-rate" class="text-6xl font-black mb-4">0.0</div>
 <span id="evaluation-final-rate-label" class="px-4 py-1 bg-tertiary-fixed text-on-tertiary-fixed font-bold rounded-full text-xs uppercase">Not Rated</span>
 </div>
-<!-- Signature Block -->
 <div class="bg-surface-container-high p-8 rounded-xl flex flex-col items-center justify-end h-full">
-
 <span class="text-lg font-bold text-on-surface text-center">{{ $selectedDivisionPersonnelName !== '' ? $selectedDivisionPersonnelName : '____________________________' }}</span>
 <div class="w-full border-b-2 border-primary mb-2"></div>
 <span class="text-label-md font-bold text-primary uppercase text-center mt-1">Official Passenger / Team Leader</span>
@@ -473,24 +410,66 @@ Fill Evaluation
 </div>
 </div>
 </section>
+
 <!-- Actions -->
 <div class="mt-16 flex flex-col md:flex-row justify-end gap-4 print:hidden">
-<button class="px-8 py-3 rounded-lg text-primary font-bold hover:bg-surface-container-high transition-all flex items-center gap-2">
-<span class="material-symbols-outlined">save</span>
-                Save Draft
-            </button>
-<button class="px-8 py-3 bg-primary text-on-primary rounded-lg font-bold shadow-lg hover:shadow-primary/20 transition-all flex items-center gap-2">
+@if ($canSubmitEvaluation)
+<button id="evaluation-submit-trigger" type="button" class="px-8 py-3 bg-primary text-on-primary rounded-lg font-bold shadow-lg hover:shadow-primary/20 transition-all flex items-center gap-2">
 <span class="material-symbols-outlined">print</span>
                 Submit &amp; Print Evaluation
             </button>
+@elseif ($selectedEvaluation)
+<button type="button" disabled class="px-8 py-3 bg-surface-container-high text-on-surface-variant rounded-lg font-bold flex items-center gap-2 cursor-not-allowed">
+<span class="material-symbols-outlined">task_alt</span>
+                Evaluation Submitted
+            </button>
+@else
+<button type="button" disabled class="px-8 py-3 bg-surface-container-high text-on-surface-variant rounded-lg font-bold flex items-center gap-2 cursor-not-allowed">
+<span class="material-symbols-outlined">radio_button_unchecked</span>
+                Select a Trip to Evaluate
+            </button>
+@endif
 </div>
+
+@if ($selectedEvaluation)
+</form>
+@endif
 </main>
+
+<div id="evaluation-submit-confirm-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/45 px-4">
+    <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
+        <div class="mb-4 flex items-center gap-3 text-primary">
+            <span class="material-symbols-outlined">warning</span>
+            <h3 class="text-lg font-bold">Submit Evaluation</h3>
+        </div>
+        <p class="text-sm text-on-surface-variant leading-relaxed">Are you sure you want to submit and print this evaluation? You will no longer be able to edit it after submission.</p>
+        <div class="mt-6 flex justify-end gap-3">
+            <button id="evaluation-submit-confirm-no" type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50">No</button>
+            <button id="evaluation-submit-confirm-yes" type="button" class="rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-primary/90">Yes</button>
+        </div>
+    </div>
+</div>
+
+<div id="evaluation-submit-loading-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/45 px-4">
+    <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center">
+        <div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary"></div>
+        <p class="text-sm font-semibold text-on-surface">Submitting evaluation and preparing print...</p>
+    </div>
+</div>
+
 <!-- Footer -->
 @include('layouts.footer')
 <script>
     (function () {
         const finalRateEl = document.getElementById('evaluation-final-rate');
         const finalRateLabelEl = document.getElementById('evaluation-final-rate-label');
+        const evaluationForm = document.getElementById('evaluation-form');
+        const submitTrigger = document.getElementById('evaluation-submit-trigger');
+        const confirmModal = document.getElementById('evaluation-submit-confirm-modal');
+        const confirmNoButton = document.getElementById('evaluation-submit-confirm-no');
+        const confirmYesButton = document.getElementById('evaluation-submit-confirm-yes');
+        const loadingModal = document.getElementById('evaluation-submit-loading-modal');
+        const shouldAutoPrintEvaluation = @json((bool) session('auto_print_evaluation'));
 
         if (!finalRateEl || !finalRateLabelEl) {
             return;
@@ -544,9 +523,92 @@ Fill Evaluation
             finalRateLabelEl.textContent = resolveLabel(average);
         }
 
+        function showConfirmModal() {
+            if (!confirmModal) {
+                return;
+            }
+
+            confirmModal.classList.remove('hidden');
+            confirmModal.classList.add('flex');
+        }
+
+        function hideConfirmModal() {
+            if (!confirmModal) {
+                return;
+            }
+
+            confirmModal.classList.add('hidden');
+            confirmModal.classList.remove('flex');
+        }
+
+        function showLoadingModal() {
+            if (!loadingModal) {
+                return;
+            }
+
+            loadingModal.classList.remove('hidden');
+            loadingModal.classList.add('flex');
+        }
+
+        function hideLoadingModal() {
+            if (!loadingModal) {
+                return;
+            }
+
+            loadingModal.classList.add('hidden');
+            loadingModal.classList.remove('flex');
+        }
+
+        function hasCompleteRatings() {
+            return ratingNames.every(function (name) {
+                return !!document.querySelector(`input[type="radio"][name="${name}"]:checked`);
+            });
+        }
+
         ratingInputs.forEach(function (input) {
             input.addEventListener('change', refreshFinalRate);
         });
+
+        if (submitTrigger && evaluationForm) {
+            submitTrigger.addEventListener('click', function () {
+                if (!hasCompleteRatings()) {
+                    window.alert('Please rate all criteria before submitting the evaluation.');
+                    return;
+                }
+
+                showConfirmModal();
+            });
+        }
+
+        if (confirmNoButton) {
+            confirmNoButton.addEventListener('click', function () {
+                hideConfirmModal();
+                hideLoadingModal();
+            });
+        }
+
+        if (confirmModal) {
+            confirmModal.addEventListener('click', function (event) {
+                if (event.target === confirmModal) {
+                    hideConfirmModal();
+                    hideLoadingModal();
+                }
+            });
+        }
+
+        if (confirmYesButton && evaluationForm) {
+            confirmYesButton.addEventListener('click', function () {
+                hideConfirmModal();
+                showLoadingModal();
+                evaluationForm.requestSubmit();
+            });
+        }
+
+        if (shouldAutoPrintEvaluation) {
+            window.setTimeout(function () {
+                window.print();
+            }, 450);
+        }
 
         refreshFinalRate();
     })();

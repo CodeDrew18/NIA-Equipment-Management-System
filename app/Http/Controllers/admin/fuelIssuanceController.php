@@ -4,8 +4,10 @@ namespace App\Http\Controllers\admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminVehicleAvailability;
+use App\Models\FuelIssuance;
 use App\Models\TransportationRequestFormModel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -87,9 +89,93 @@ class fuelIssuanceController extends Controller
                 ->withErrors(['fuel_issuance' => $message]);
         }
 
-        $transportationRequest->update([
-            'status' => 'On Trip',
+        $validated = $request->validate([
+            'fuel_issuance_copies' => ['required', 'array', 'min:1'],
+            'fuel_issuance_copies.*.copy_key' => ['required', 'string', 'max:64'],
+            'fuel_issuance_copies.*.dealer' => ['required', 'string', 'max:255'],
+            'fuel_issuance_copies.*.gasoline' => ['required', 'numeric', 'min:0'],
+            'fuel_issuance_copies.*.gasoline_price' => ['required', 'numeric', 'min:0'],
+            'fuel_issuance_copies.*.diesel' => ['required', 'numeric', 'min:0'],
+            'fuel_issuance_copies.*.diesel_price' => ['required', 'numeric', 'min:0'],
+            'fuel_issuance_copies.*.fuel_save' => ['required', 'numeric', 'min:0'],
+            'fuel_issuance_copies.*.fuel_save_price' => ['required', 'numeric', 'min:0'],
+            'fuel_issuance_copies.*.v_power' => ['required', 'numeric', 'min:0'],
+            'fuel_issuance_copies.*.v_power_price' => ['required', 'numeric', 'min:0'],
+            'fuel_issuance_copies.*.total_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
+
+        $expectedCopies = collect($this->buildFuelIssuanceCopies($transportationRequest))
+            ->keyBy(function (array $copy) {
+                return (string) ($copy['copyKey'] ?? '');
+            });
+
+        $submittedCopies = collect($validated['fuel_issuance_copies'])
+            ->keyBy(function (array $copy) {
+                return (string) ($copy['copy_key'] ?? '');
+            });
+
+        $missingCopyKeys = $expectedCopies->keys()->diff($submittedCopies->keys());
+        $unexpectedCopyKeys = $submittedCopies->keys()->diff($expectedCopies->keys());
+
+        if ($missingCopyKeys->isNotEmpty() || $unexpectedCopyKeys->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'fuel_issuance' => 'Fuel issuance data is incomplete. Please complete all transportation copies before dispatch.',
+            ]);
+        }
+
+        DB::transaction(function () use ($transportationRequest, $expectedCopies, $submittedCopies) {
+            $requestSnapshot = $this->buildRequestFormDataSnapshot($transportationRequest);
+
+            foreach ($expectedCopies as $copyKey => $expectedCopy) {
+                $copyPayload = (array) $submittedCopies->get($copyKey, []);
+
+                $gasolineQuantity = round((float) ($copyPayload['gasoline'] ?? 0), 2);
+                $gasolinePrice = round((float) ($copyPayload['gasoline_price'] ?? 0), 2);
+                $dieselQuantity = round((float) ($copyPayload['diesel'] ?? 0), 2);
+                $dieselPrice = round((float) ($copyPayload['diesel_price'] ?? 0), 2);
+                $fuelSaveQuantity = round((float) ($copyPayload['fuel_save'] ?? 0), 2);
+                $fuelSavePrice = round((float) ($copyPayload['fuel_save_price'] ?? 0), 2);
+                $vPowerQuantity = round((float) ($copyPayload['v_power'] ?? 0), 2);
+                $vPowerPrice = round((float) ($copyPayload['v_power_price'] ?? 0), 2);
+
+                $calculatedTotal = round(
+                    ($gasolineQuantity * $gasolinePrice)
+                        + ($dieselQuantity * $dieselPrice)
+                        + ($fuelSaveQuantity * $fuelSavePrice)
+                        + ($vPowerQuantity * $vPowerPrice),
+                    2
+                );
+
+                FuelIssuance::query()->updateOrCreate(
+                    [
+                        'transportation_request_form_id' => $transportationRequest->id,
+                        'copy_key' => (string) $copyKey,
+                    ],
+                    [
+                        'copy_number' => (int) ($expectedCopy['copyNumber'] ?? 1),
+                        'ctrl_number' => (string) ($expectedCopy['ctrlNumber'] ?? ''),
+                        'vehicle_id' => (string) ($expectedCopy['vehicleId'] ?? ''),
+                        'driver_name' => (string) ($expectedCopy['driverName'] ?? 'N/A'),
+                        'dealer' => trim((string) ($copyPayload['dealer'] ?? '')),
+                        'gasoline_quantity' => $gasolineQuantity,
+                        'gasoline_price' => $gasolinePrice,
+                        'diesel_quantity' => $dieselQuantity,
+                        'diesel_price' => $dieselPrice,
+                        'fuel_save_quantity' => $fuelSaveQuantity,
+                        'fuel_save_price' => $fuelSavePrice,
+                        'v_power_quantity' => $vPowerQuantity,
+                        'v_power_price' => $vPowerPrice,
+                        'total_amount' => $calculatedTotal,
+                        'request_form_data' => $requestSnapshot,
+                        'dispatched_at' => now(),
+                    ]
+                );
+            }
+
+            $transportationRequest->update([
+                'status' => 'On Trip',
+            ]);
+        });
 
         $message = 'Vehicle dispatched successfully. The request is now listed in On Trip Vehicles.';
 
@@ -104,6 +190,25 @@ class fuelIssuanceController extends Controller
         return redirect()
             ->route('admin.fuel_issuance_slip')
             ->with('admin_fuel_issuance_success', $message);
+    }
+
+    private function buildRequestFormDataSnapshot(TransportationRequestFormModel $transportationRequest): array
+    {
+        return [
+            'id' => $transportationRequest->id,
+            'form_id' => (string) ($transportationRequest->form_id ?? ''),
+            'request_date' => optional($transportationRequest->request_date)->toDateString(),
+            'requested_by' => (string) ($transportationRequest->requested_by ?? ''),
+            'destination' => (string) ($transportationRequest->destination ?? ''),
+            'date_time_from' => optional($transportationRequest->date_time_from)->toDateTimeString(),
+            'date_time_to' => optional($transportationRequest->date_time_to)->toDateTimeString(),
+            'purpose' => (string) ($transportationRequest->purpose ?? ''),
+            'vehicle_type' => (string) ($transportationRequest->vehicle_type ?? ''),
+            'vehicle_quantity' => (int) ($transportationRequest->vehicle_quantity ?? 0),
+            'vehicle_id' => (string) ($transportationRequest->vehicle_id ?? ''),
+            'driver_name' => (string) ($transportationRequest->driver_name ?? ''),
+            'status' => (string) ($transportationRequest->status ?? ''),
+        ];
     }
 
     public function printOfficeCopy(Request $request)

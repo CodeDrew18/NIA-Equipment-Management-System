@@ -11,9 +11,10 @@ class landingController extends Controller
     function landingPage()
     {
         $requesterMessages = collect();
+        $authUser = Auth::user();
 
-        if (Auth::check()) {
-            $roles = collect(explode(',', (string) Auth::user()->role))
+        if ($authUser) {
+            $roles = collect(explode(',', (string) $authUser->role))
                 ->map(function ($value) {
                     return strtolower(trim((string) $value));
                 })
@@ -29,7 +30,7 @@ class landingController extends Controller
             }
 
             $requesterMessages = TransportationRequestFormModel::query()
-                ->where('form_creator_id', Auth::user()->personnel_id)
+                ->where('form_creator_id', $authUser->personnel_id)
                 ->where('status', 'Rejected')
                 ->whereNotNull('rejection_reason')
                 ->orderByDesc('updated_at')

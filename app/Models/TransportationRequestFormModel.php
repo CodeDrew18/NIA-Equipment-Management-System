@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TransportationRequestFormModel extends Model
@@ -67,5 +68,20 @@ class TransportationRequestFormModel extends Model
     public function dailyDriversTripTicket(): HasOne
     {
         return $this->hasOne(DailyDriversTripTicket::class, 'transportation_request_form_id');
+    }
+
+    public function fuelIssuanceRecords(): HasMany
+    {
+        return $this->hasMany(FuelIssuance::class, 'transportation_request_form_id');
+    }
+
+    public function driverPerformanceEvaluations(): HasMany
+    {
+        return $this->hasMany(DriverPerformanceEvaluation::class, 'transportation_request_form_id');
+    }
+
+    public function driverPerformanceEvaluation(): HasOne
+    {
+        return $this->hasOne(DriverPerformanceEvaluation::class, 'transportation_request_form_id')->latestOfMany('id');
     }
 }

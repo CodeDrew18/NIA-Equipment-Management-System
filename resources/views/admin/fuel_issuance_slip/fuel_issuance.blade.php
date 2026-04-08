@@ -475,6 +475,26 @@ function fiCopyTotal(copyState) {
         + (fiToNumber(copyState.vpower) * fiToNumber(copyState.vpowerPrice));
 }
 
+function fiBuildDispatchCopiesPayload() {
+    return fiCurrentCopies.map(function (copy) {
+        const copyState = fiGetCopyState(copy.copyKey);
+
+        return {
+            copy_key: String(copy.copyKey),
+            dealer: String(copyState.dealer || '').trim(),
+            gasoline: fiToNumber(copyState.gasoline),
+            gasoline_price: fiToNumber(copyState.gasolinePrice),
+            diesel: fiToNumber(copyState.diesel),
+            diesel_price: fiToNumber(copyState.dieselPrice),
+            fuel_save: fiToNumber(copyState.fuelSave),
+            fuel_save_price: fiToNumber(copyState.fuelSavePrice),
+            v_power: fiToNumber(copyState.vpower),
+            v_power_price: fiToNumber(copyState.vpowerPrice),
+            total_amount: fiCopyTotal(copyState),
+        };
+    });
+}
+
 function fiRenderCopyCard(copy, selectedMeta) {
     const copyKey = String(copy.copyKey);
     const copyState = fiGetCopyState(copyKey);
@@ -815,7 +835,9 @@ async function fiDispatchRequest(dispatchUrl, requestId, triggerButton) {
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRF-TOKEN': fiCsrfToken,
             },
-            body: JSON.stringify({}),
+            body: JSON.stringify({
+                fuel_issuance_copies: fiBuildDispatchCopiesPayload(),
+            }),
         });
 
         const payload = await response.json().catch(function () {

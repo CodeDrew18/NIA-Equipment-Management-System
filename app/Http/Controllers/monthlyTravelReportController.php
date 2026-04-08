@@ -21,7 +21,7 @@ class monthlyTravelReportController extends Controller
         $monthStart = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
         $monthEnd = (clone $monthStart)->endOfMonth();
 
-        $reportItems = TransportationRequestFormModel::query()
+        $candidateItems = TransportationRequestFormModel::query()
             ->with([
                 'dailyDriversTripTicket:id,transportation_request_form_id,request_form_data,distance_travelled,odometer_start,odometer_end,fuel_total,fuel_issued_regional,fuel_purchased_trip,fuel_issued_nia,gear_oil_liters,engine_oil_liters,grease_kgs',
             ])
@@ -29,12 +29,6 @@ class monthlyTravelReportController extends Controller
             ->whereDate('request_date', '<=', $monthEnd->toDateString())
             ->whereNotNull('driver_name')
             ->where('driver_name', '!=', '')
-            ->when($loggedInUserName !== '', function ($query) use ($loggedInUserName) {
-                $query->whereRaw('LOWER(TRIM(driver_name)) = ?', [strtolower($loggedInUserName)]);
-            }, function ($query) {
-                // If no authenticated name is available, do not expose all driver trips.
-                $query->whereRaw('1 = 0');
-            })
             ->orderBy('request_date')
             ->orderBy('id')
             ->get([
@@ -50,6 +44,12 @@ class monthlyTravelReportController extends Controller
                 'status',
                 'business_passengers',
             ]);
+
+        $reportItems = $loggedInUserName !== ''
+            ? $candidateItems->filter(function (TransportationRequestFormModel $item) use ($loggedInUserName): bool {
+                return $this->containsDriverName((string) ($item->driver_name ?? ''), $loggedInUserName);
+            })->values()
+            : collect();
 
         $groupedByDay = $reportItems->groupBy(function (TransportationRequestFormModel $item): string {
             return optional($item->request_date)->format('d') ?? '--';
@@ -398,5 +398,51 @@ class monthlyTravelReportController extends Controller
         }
 
         return is_numeric($value) ? (float) $value : null;
+    }
+
+    private function containsDriverName(string $driverNamesValue, string $targetName): bool
+    {
+        $needle = strtolower(trim($targetName));
+        if ($needle === '') {
+            return false;
+        }
+
+        $parsedNames = $this->extractDriverNames($driverNamesValue);
+
+        return collect($parsedNames)
+            ->map(function (string $name): string {
+                return strtolower(trim($name));
+            })
+            ->contains($needle);
+    }
+
+    private function extractDriverNames(string $value): array
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return [];
+        }
+
+        $decoded = json_decode($trimmed, true);
+        if (is_array($decoded)) {
+            $tokens = $decoded;
+        } else {
+            $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $trimmed, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        }
+
+        return collect($tokens)
+            ->map(function ($token): string {
+                if (is_array($token)) {
+                    return trim((string) ($token['driver_name'] ?? $token['name'] ?? ''));
+                }
+
+                return trim((string) $token);
+            })
+            ->filter(function (string $name): bool {
+                return $name !== '';
+            })
+            ->unique()
+            ->values()
+            ->all();
     }
 }

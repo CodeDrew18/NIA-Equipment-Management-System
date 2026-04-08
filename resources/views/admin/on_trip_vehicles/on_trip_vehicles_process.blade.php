@@ -161,7 +161,6 @@ Clear Filters
 <th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-primary">Date Printed</th>
 <th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-primary">Date Time To</th>
 <th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-primary">Status</th>
-<th class="px-6 py-4 text-right"></th>
 </tr>
 </thead>
 <tbody id="otv-tbody" class="divide-y divide-slate-50">
@@ -195,16 +194,10 @@ Clear Filters
 <td class="px-6 py-4">
 <span class="bg-primary-fixed text-on-primary-fixed-variant px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">On Trip</span>
 </td>
-<td class="px-6 py-4 text-right">
-<a href="{{ route('admin.fuel_issuance_slip', ['request_id' => $item->id]) }}" class="text-primary hover:bg-primary-container hover:text-white px-4 py-2 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-2">
-<span class="material-symbols-outlined text-sm" data-icon="visibility">visibility</span>
-View Copy
-</a>
-</td>
 </tr>
 @empty
 <tr>
-<td colspan="8" class="px-6 py-8 text-center text-sm font-semibold text-outline">No on-trip vehicle records found.</td>
+<td colspan="7" class="px-6 py-8 text-center text-sm font-semibold text-outline">No on-trip vehicle records found.</td>
 </tr>
 @endforelse
 </tbody>
@@ -424,17 +417,11 @@ function otvRow(item, index) {
     <td class="px-6 py-4">
       <span class="bg-primary-fixed text-on-primary-fixed-variant px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">On Trip</span>
     </td>
-    <td class="px-6 py-4 text-right">
-      <a href="${otvEsc(item.viewCopyUrl)}" class="text-primary hover:bg-primary-container hover:text-white px-4 py-2 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-2">
-        <span class="material-symbols-outlined text-sm" data-icon="visibility">visibility</span>
-        View Copy
-      </a>
-    </td>
   </tr>`;
 }
 
 function otvNoDataRow() {
-  return '<tr><td colspan="8" class="px-6 py-8 text-center text-sm font-semibold text-outline">No on-trip vehicle records found.</td></tr>';
+  return '<tr><td colspan="7" class="px-6 py-8 text-center text-sm font-semibold text-outline">No on-trip vehicle records found.</td></tr>';
 }
 
 function otvRenderPagination(pagination) {

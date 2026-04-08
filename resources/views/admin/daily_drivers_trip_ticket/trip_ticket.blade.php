@@ -161,7 +161,7 @@
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest">Vehicle Type</th>
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest">Requestor</th>
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest">Date Range</th>
-<th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest text-center">DTT Count</th>
+<th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest text-center">DTT</th>
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest">Status</th>
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest text-right">Actions</th>
 </tr>
@@ -178,7 +178,7 @@
 {{ max(1, optional($item->date_time_from)->startOfDay()?->diffInDays(optional($item->date_time_to)->startOfDay() ?? optional($item->date_time_from)->startOfDay()) + 1) }} Days Total
 </div>
 </td>
-<td class="px-6 py-5 text-center"><span class="inline-flex items-center justify-center px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container font-bold text-sm">{{ max(1, optional($item->date_time_from)->startOfDay()?->diffInDays(optional($item->date_time_to)->startOfDay() ?? optional($item->date_time_from)->startOfDay()) + 1) }}</span></td>
+<td class="px-6 py-5 text-center"><span class="inline-flex items-center justify-center px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container font-bold text-sm"></span></td>
 <td class="px-6 py-5">
 @php
     $status = (string) ($item->status ?? 'Signed');

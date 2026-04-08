@@ -56,7 +56,6 @@ class onTripVehicleController extends Controller
                     'driverName' => (string) ($item->driver_name ?: 'N/A'),
                     'requestDate' => optional($item->request_date)->format('M d, Y') ?: 'N/A',
                     'dateTimeTo' => optional($item->date_time_to)->format('M d, Y h:i A') ?: 'N/A',
-                    'viewCopyUrl' => route('admin.fuel_issuance_slip', ['request_id' => $item->id]),
                 ];
             }),
         ]);

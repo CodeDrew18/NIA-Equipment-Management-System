@@ -360,14 +360,15 @@ Remove
 <div class="bg-white border-2 border-secondary/20 p-8 rounded-2xl shadow-sm">
 <div class="flex flex-col md:flex-row md:items-center gap-4 mb-6">
 <p class="text-on-surface font-medium">I hereby certify that vehicle RP/RPT:</p>
-<input class="flex-1 max-w-[200px] border-b-2 border-slate-200 focus:border-secondary border-t-0 border-x-0 bg-transparent px-2 py-1 font-bold text-secondary" placeholder="Vehicle ID #" type="text" name="vehicle_id" value="{{ old('vehicle_id') }}"/>
-<p class="text-on-surface font-medium">and Driver:</p>
-<select class="flex-1 max-w-[250px] border-b-2 border-slate-200 focus:border-secondary border-t-0 border-x-0 bg-transparent px-2 py-1 font-bold text-secondary" name="driver_name">
+<input class="flex-1 max-w-[200px] border-b-2 border-slate-200 focus:border-secondary border-t-0 border-x-0 bg-transparent px-2 py-1 font-bold text-secondary" placeholder="" type="text" name="vehicle_id" value="{{ old('vehicle_id') }}" readonly/>
+<input class="flex-1 max-w-[200px] border-b-2 border-slate-200 focus:border-secondary border-t-0 border-x-0 bg-transparent px-2 py-1 font-bold text-secondary" placeholder="" type="text" name="vehicle_id" value="{{ old('vehicle_id') }}" readonly/>
+{{-- <p class="text-on-surface font-medium">and Driver:</p>
+<select class="flex-1 max-w-[250px] border-b-2 border-slate-200 focus:border-secondary border-t-0 bor der-x-0 bg-transparent px-2 py-1 font-bold text-secondary" name="driver_name" readonly>
 <option value="">Select Driver</option>
-@foreach (($drivers ?? collect()) as $driver)
+{{-- @foreach (($drivers ?? collect()) as $driver)
 <option value="{{ $driver->name }}" @selected(old('driver_name') === $driver->name)>{{ $driver->name }}</option>
-@endforeach
-</select>
+@endforeach --}}
+{{-- </select> --}}
 </div>
 <div class="flex items-center gap-3 text-secondary">
 <span class="material-symbols-outlined">verified</span>
