@@ -8,6 +8,8 @@ Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'me']);
+    Route::post('/fcm-token', [AuthController::class, 'updateFcmToken']);
+    Route::delete('/fcm-token', [AuthController::class, 'clearFcmToken']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/daily-trip-tickets', [DailyTripTicketController::class, 'index']);
     Route::post('/daily-trip-tickets', [DailyTripTicketController::class, 'store']);

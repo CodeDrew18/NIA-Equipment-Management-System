@@ -300,7 +300,14 @@ No vehicle records found.
     }
 
     animateVehicleInitialCount();
-    setInterval(refreshVehiclesAjax, 1000);
+
+    if (typeof window.emsLiveRefresh === 'function') {
+        window.emsLiveRefresh(function () {
+            return refreshVehiclesAjax();
+        }, {
+            intervalMs: 4000,
+        });
+    }
 </script>
 </body>
 </html>

@@ -691,6 +691,15 @@
 
   animateDashboardInitialMetrics();
 
-  setInterval(() => refreshDashboard(dashboardCurrentPage), 1000);
+  if (typeof window.emsLiveRefresh === 'function') {
+    window.emsLiveRefresh(function () {
+      return refreshDashboard(dashboardCurrentPage);
+    }, {
+      intervalMs: 4000,
+      shouldPause: function () {
+        return Boolean(dashboardRejectModal) && !dashboardRejectModal.classList.contains('hidden');
+      },
+    });
+  }
 </script>
 </body></html>

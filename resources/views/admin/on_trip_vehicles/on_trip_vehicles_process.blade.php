@@ -534,8 +534,13 @@ if (otvEls.pagination) {
 
 otvAnimateInitialMetrics();
 otvRefresh(otvCurrentPage);
-setInterval(function () {
-  otvRefresh(otvCurrentPage);
-}, 3000);
+
+if (typeof window.emsLiveRefresh === 'function') {
+  window.emsLiveRefresh(function () {
+    return otvRefresh(otvCurrentPage);
+  }, {
+    intervalMs: 3000,
+  });
+}
 </script>
 </body></html>

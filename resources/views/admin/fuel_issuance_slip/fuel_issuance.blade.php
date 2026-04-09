@@ -1198,5 +1198,20 @@ fiEls.confirmPrintModal.addEventListener('click', function (event) {
 });
 fiRenderCopyCards(fiSelectedPayload || {});
 fiAnimateInitialMetrics();
+
+if (typeof window.emsLiveRefresh === 'function') {
+    window.emsLiveRefresh(function () {
+        return fiRefresh(fiCurrentPage);
+    }, {
+        intervalMs: 4000,
+        shouldPause: function () {
+            const isDispatchModalOpen = Boolean(fiEls.confirmDispatchModal) && !fiEls.confirmDispatchModal.classList.contains('hidden');
+            const isPrintModalOpen = Boolean(fiEls.confirmPrintModal) && !fiEls.confirmPrintModal.classList.contains('hidden');
+            const isLoadingModalOpen = Boolean(fiEls.loadingModal) && !fiEls.loadingModal.classList.contains('hidden');
+
+            return isDispatchModalOpen || isPrintModalOpen || isLoadingModalOpen;
+        },
+    });
+}
 </script>
 </body></html>

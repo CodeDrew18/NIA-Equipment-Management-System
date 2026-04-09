@@ -5,9 +5,14 @@ namespace App\Http\Controllers\admin;
 use App\Http\Controllers\Controller;
 use App\Models\AdminVehicleAvailability;
 use App\Models\TransportationRequestFormModel;
+use App\Models\User;
+use App\Services\FcmPushService;
+use Illuminate\Support\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class vehicleAssignmentController extends Controller
@@ -85,7 +90,7 @@ class vehicleAssignmentController extends Controller
         ]);
     }
 
-    public function assign(Request $request, TransportationRequestFormModel $transportationRequest)
+    public function assign(Request $request, TransportationRequestFormModel $transportationRequest, FcmPushService $fcmPushService)
     {
         $previousVehicleCodes = $this->extractVehicleCodes((string) $transportationRequest->vehicle_id);
 
@@ -229,9 +234,187 @@ class vehicleAssignmentController extends Controller
                 ]);
         });
 
+        $notifiedDrivers = $this->sendAssignmentPushToDrivers(
+            $transportationRequest,
+            $driverNames->all(),
+            $fcmPushService
+        );
+
+        $successMessage = 'Assigned ' . count($selectedVehicleCodes) . ' vehicle' . (count($selectedVehicleCodes) === 1 ? '' : 's') . ' to ' . $transportationRequest->form_id . '. You can now process the Daily Driver\'s Trip Ticket.';
+
+        if ($notifiedDrivers > 0) {
+            $successMessage .= ' Push sent to ' . $notifiedDrivers . ' driver' . ($notifiedDrivers === 1 ? '' : 's') . '.';
+        } else {
+            $successMessage .= ' No push sent (missing FCM token or unmatched driver account name).';
+        }
+
         return redirect()
             ->route('admin.daily-trip-ticket')
-            ->with('admin_dtt_success', 'Assigned ' . count($selectedVehicleCodes) . ' vehicle' . (count($selectedVehicleCodes) === 1 ? '' : 's') . ' to ' . $transportationRequest->form_id . '. You can now process the Daily Driver\'s Trip Ticket.');
+            ->with('admin_dtt_success', $successMessage);
+    }
+
+    private function sendAssignmentPushToDrivers(TransportationRequestFormModel $transportationRequest, array $assignedDriverNames, FcmPushService $fcmPushService): int
+    {
+        $normalizedDriverNames = collect($assignedDriverNames)
+            ->map(function ($name) {
+                return $this->normalizePersonName((string) $name);
+            })
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($normalizedDriverNames)) {
+            Log::info('Assignment push skipped because no normalized driver names were resolved.', [
+                'transportation_request_form_id' => $transportationRequest->id,
+            ]);
+
+            return 0;
+        }
+
+        $matchedUsers = User::query()
+            ->select(['id', 'name', 'fcm_token'])
+            ->get()
+            ->filter(function (User $user) use ($normalizedDriverNames) {
+                $normalizedUserName = $this->normalizePersonName((string) ($user->name ?? ''));
+
+                return in_array($normalizedUserName, $normalizedDriverNames, true);
+            })
+            ->values();
+
+        if ($matchedUsers->isEmpty()) {
+            Log::warning('Assignment push skipped because no matching user account names were found.', [
+                'transportation_request_form_id' => $transportationRequest->id,
+                'assigned_driver_names' => $assignedDriverNames,
+            ]);
+
+            return 0;
+        }
+
+        $driverUsers = $matchedUsers
+            ->filter(function (User $user) {
+                return trim((string) ($user->fcm_token ?? '')) !== '';
+            })
+            ->values();
+
+        if ($driverUsers->isEmpty()) {
+            Log::warning('Assignment push skipped because matched drivers have no registered FCM tokens.', [
+                'transportation_request_form_id' => $transportationRequest->id,
+                'matched_driver_user_ids' => $matchedUsers->pluck('id')->values()->all(),
+            ]);
+
+            return 0;
+        }
+
+        $pushedCount = 0;
+
+        $divisionPersonnelNames = $this->resolveDivisionPersonnelNames(
+            $transportationRequest->division_personnel,
+            (string) ($transportationRequest->requested_by ?? '')
+        );
+        $purpose = $this->normalizeInlineText((string) ($transportationRequest->purpose ?? ''));
+        $dateTimeTo = $this->formatDateTimeForNotification($transportationRequest->date_time_to);
+
+        $notificationTitle = 'New Transportation Request';
+        $notificationBody = implode("\n", [
+            'Division Personnel: ' . $divisionPersonnelNames,
+            'Purpose: ' . Str::limit($purpose !== '' ? $purpose : 'N/A', 140),
+            'date_time_to: ' . $dateTimeTo,
+        ]);
+
+        foreach ($driverUsers as $driverUser) {
+            try {
+                $isSent = $fcmPushService->sendToToken(
+                    (string) $driverUser->fcm_token,
+                    $notificationTitle,
+                    $notificationBody,
+                    [
+                        'transportation_request_form_id' => (string) $transportationRequest->id,
+                        'form_id' => (string) ($transportationRequest->form_id ?? ''),
+                        'division_personnel_name' => $divisionPersonnelNames,
+                        'purpose' => $purpose,
+                        'date_time_to' => $dateTimeTo,
+                        'type' => 'new_transportation_request',
+                    ]
+                );
+
+                if ($isSent) {
+                    $pushedCount += 1;
+                }
+            } catch (\Throwable $exception) {
+                Log::warning('Failed sending assignment push notification.', [
+                    'transportation_request_form_id' => $transportationRequest->id,
+                    'driver_user_id' => $driverUser->id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        return $pushedCount;
+    }
+
+    private function normalizePersonName(string $name): string
+    {
+        return strtolower(trim(preg_replace('/\s+/', ' ', $name) ?? ''));
+    }
+
+    private function normalizeInlineText(string $value): string
+    {
+        return trim(preg_replace('/\s+/', ' ', $value) ?? '');
+    }
+
+    private function resolveDivisionPersonnelNames(mixed $divisionPersonnel, string $fallbackName): string
+    {
+        $source = $divisionPersonnel;
+
+        if (is_string($source)) {
+            $decoded = json_decode($source, true);
+            $source = is_array($decoded) ? $decoded : [$source];
+        }
+
+        if (!is_array($source)) {
+            $source = [];
+        }
+
+        $names = collect($source)
+            ->map(function ($item) {
+                if (is_array($item)) {
+                    return $this->normalizeInlineText((string) ($item['name'] ?? ''));
+                }
+
+                return $this->normalizeInlineText((string) $item);
+            })
+            ->filter(function (string $name) {
+                return $name !== '';
+            })
+            ->unique()
+            ->values();
+
+        if ($names->isNotEmpty()) {
+            return $names->implode(', ');
+        }
+
+        $fallback = $this->normalizeInlineText($fallbackName);
+
+        return $fallback !== '' ? $fallback : 'N/A';
+    }
+
+    private function formatDateTimeForNotification(mixed $value): string
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('M d, Y h:i A');
+        }
+
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return 'N/A';
+        }
+
+        try {
+            return Carbon::parse($raw)->format('M d, Y h:i A');
+        } catch (\Throwable) {
+            return $raw;
+        }
     }
 
     private function parseRequestedVehicleMix(string $vehicleTypeSummary, int $vehicleQuantity): array

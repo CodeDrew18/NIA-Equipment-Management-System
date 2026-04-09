@@ -625,7 +625,16 @@ dttEls.tbody.addEventListener('click', function (event) {
 syncStatusSelectOriginalValues();
 animateDttInitialMetrics();
 
-// setInterval(() => refreshDtt(dttCurrentPage), 1000);
+if (typeof window.emsLiveRefresh === 'function') {
+    window.emsLiveRefresh(function () {
+        return refreshDtt(dttCurrentPage);
+    }, {
+        intervalMs: 4000,
+        shouldPause: function () {
+            return dttDownloadInProgress === true;
+        },
+    });
+}
 </script>
 </body>
 </html>

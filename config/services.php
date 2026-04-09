@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'fcm' => [
+        'server_key' => env('FCM_SERVER_KEY', env('FIREBASE_SERVER_KEY')),
+        'endpoint' => env('FCM_ENDPOINT', 'https://fcm.googleapis.com/fcm/send'),
+        'project_id' => env('FCM_PROJECT_ID', env('GOOGLE_CLOUD_PROJECT')),
+        'service_account_path' => env('FCM_SERVICE_ACCOUNT_PATH', env('GOOGLE_APPLICATION_CREDENTIALS')),
+        'service_account_json' => env('FCM_SERVICE_ACCOUNT_JSON'),
+        'google_services_path' => env('FCM_GOOGLE_SERVICES_PATH', base_path('google-services.json')),
+    ],
+
 ];

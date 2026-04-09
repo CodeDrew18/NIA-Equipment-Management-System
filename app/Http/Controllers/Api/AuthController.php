@@ -17,12 +17,14 @@ class AuthController extends Controller
             'personnel_id' => $request->input('personnel_id', $request->input('userId')),
             'password' => $request->input('password'),
             'device_name' => $request->input('device_name'),
+            'fcm_token' => $request->input('fcm_token', $request->input('fcmToken', $request->input('token'))),
         ];
 
         $validator = Validator::make($payload, [
             'personnel_id' => ['required', 'digits:6'],
             'password' => ['required', 'string'],
             'device_name' => ['nullable', 'string', 'max:100'],
+            'fcm_token' => ['nullable', 'string', 'max:4096'],
         ]);
 
         if ($validator->fails()) {
@@ -51,6 +53,13 @@ class AuthController extends Controller
             $deviceName = 'flutter-mobile';
         }
 
+        $incomingFcmToken = trim((string) ($validated['fcm_token'] ?? ''));
+        if ($incomingFcmToken !== '') {
+            $user->update([
+                'fcm_token' => $incomingFcmToken,
+            ]);
+        }
+
         $token = $user->createToken($deviceName)->plainTextToken;
 
         return response()->json([
@@ -63,6 +72,7 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'role' => $user->role,
                 'email' => $user->email,
+                'fcm_token' => $user->fcm_token,
             ],
         ]);
     }
@@ -77,6 +87,48 @@ class AuthController extends Controller
             'name' => $user->name,
             'role' => $user->role,
             'email' => $user->email,
+            'fcm_token' => $user->fcm_token,
+        ]);
+    }
+
+    public function updateFcmToken(Request $request): JsonResponse
+    {
+        $payload = [
+            'fcm_token' => $request->input('fcm_token', $request->input('fcmToken', $request->input('token'))),
+        ];
+
+        $validator = Validator::make($payload, [
+            'fcm_token' => ['required', 'string', 'max:4096'],
+        ]);
+
+        if ($validator->fails()) {
+            $errors = $validator->errors();
+
+            return response()->json([
+                'message' => $errors->first() ?: 'Validation failed.',
+                'errors' => $errors,
+            ], 422);
+        }
+
+        $validated = $validator->validated();
+
+        $request->user()->update([
+            'fcm_token' => trim((string) $validated['fcm_token']),
+        ]);
+
+        return response()->json([
+            'message' => 'FCM token updated successfully.',
+        ]);
+    }
+
+    public function clearFcmToken(Request $request): JsonResponse
+    {
+        $request->user()->update([
+            'fcm_token' => null,
+        ]);
+
+        return response()->json([
+            'message' => 'FCM token cleared successfully.',
         ]);
     }
 
