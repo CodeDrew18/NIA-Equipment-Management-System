@@ -19,6 +19,8 @@
 /storage/*.key
 /storage/pail
 /vendor
+google-services.json
+*-firebase-adminsdk-*
 *-firebase-adminsdk-*.json
 Homestead.json
 Homestead.yaml
