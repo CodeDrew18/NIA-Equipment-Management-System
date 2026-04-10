@@ -161,6 +161,7 @@
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest">Vehicle Type</th>
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest">Requestor</th>
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest">Date Range</th>
+<th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest w-[220px]">Drivers</th>
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest w-[320px]">Attachments</th>
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest w-[220px]">Status</th>
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest text-right">Actions</th>
@@ -177,6 +178,23 @@
 <div class="text-[10px] font-bold text-outline uppercase tracking-tight">
 {{ max(1, optional($item->date_time_from)->startOfDay()?->diffInDays(optional($item->date_time_to)->startOfDay() ?? optional($item->date_time_from)->startOfDay()) + 1) }} Days Total
 </div>
+</td>
+<td class="px-6 py-5 align-top">
+@php
+    $driverTargets = is_array($item->driver_targets ?? null) ? $item->driver_targets : [];
+@endphp
+@if (count($driverTargets) > 0)
+<div class="space-y-1 max-w-[240px]">
+@foreach ($driverTargets as $driverTarget)
+<div class="inline-flex max-w-full items-center gap-1 text-xs font-semibold text-on-surface">
+<span class="material-symbols-outlined text-sm text-outline">badge</span>
+<span class="truncate" title="{{ (string) ($driverTarget['name'] ?? '') }}">{{ (string) ($driverTarget['name'] ?? 'Unassigned Driver') }}</span>
+</div>
+@endforeach
+</div>
+@else
+<span class="text-xs text-outline">No assigned driver</span>
+@endif
 </td>
 <td class="px-6 py-5">
 @php
@@ -215,16 +233,21 @@
 </div>
 </td>
 <td class="px-6 py-5 text-right">
-<div class="flex items-center justify-end gap-2">
-<a href="{{ route('admin.daily-trip-ticket.download', $item) }}" class="dtt-download-link flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[10px] uppercase rounded-md hover:bg-primary hover:text-white transition-all shadow-sm">
+<div class="flex flex-col items-end gap-2">
+@php
+    $driverTargets = is_array($item->driver_targets ?? null) ? $item->driver_targets : [];
+@endphp
+@foreach ($driverTargets as $driverTarget)
+<a href="{{ (string) ($driverTarget['downloadUrl'] ?? '#') }}" class="dtt-download-link inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[10px] uppercase rounded-md hover:bg-primary hover:text-white transition-all shadow-sm max-w-[240px]" title="{{ (string) ($driverTarget['name'] ?? '') }}">
 <span class="material-symbols-outlined text-[14px]">print</span>
-Print DTTs
+<span class="truncate">Print {{ (string) ($driverTarget['name'] ?? 'DTT') }}</span>
 </a>
+@endforeach
 </div>
 </td>
 </tr>
 @empty
-<tr><td colspan="7" class="px-6 py-8 text-center text-sm font-semibold text-outline">No DTT records found.</td></tr>
+<tr><td colspan="8" class="px-6 py-8 text-center text-sm font-semibold text-outline">No DTT records found.</td></tr>
 @endforelse
 </tbody>
 </table>
@@ -445,14 +468,31 @@ function dttAttachmentLinks(attachments) {
 function dttRow(item) {
     const canDispatch = Boolean(item.canDispatch);
     const showDispatchHint = !canDispatch && item.status !== 'Dispatched';
+    const driverTargets = Array.isArray(item.driverTargets) ? item.driverTargets : [];
+    const driverNamesHtml = driverTargets.length > 0
+        ? `<div class="space-y-1 max-w-[240px]">${driverTargets.map((target) => {
+            const name = String(target?.name || 'Unassigned Driver');
+            return `<div class="inline-flex max-w-full items-center gap-1 text-xs font-semibold text-on-surface"><span class="material-symbols-outlined text-sm text-outline">badge</span><span class="truncate" title="${esc(name)}">${esc(name)}</span></div>`;
+        }).join('')}</div>`
+        : '<span class="text-xs text-outline">No assigned driver</span>';
+
+    const driverButtonsHtml = driverTargets.length > 0
+        ? driverTargets.map((target) => {
+            const name = String(target?.name || 'DTT');
+            const downloadUrl = String(target?.downloadUrl || item.downloadUrl || '#');
+            return `<a href="${esc(downloadUrl)}" class="dtt-download-link inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[10px] uppercase rounded-md hover:bg-primary hover:text-white transition-all shadow-sm max-w-[240px]" title="${esc(name)}"><span class="material-symbols-outlined text-[14px]">print</span><span class="truncate">Print ${esc(name)}</span></a>`;
+        }).join('')
+        : `<a href="${esc(item.downloadUrl)}" class="dtt-download-link inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[10px] uppercase rounded-md hover:bg-primary hover:text-white transition-all shadow-sm"><span class="material-symbols-outlined text-[14px]">print</span>Print DTT</a>`;
+
     return `<tr class="hover:bg-surface-container-low transition-colors group cursor-pointer">
 <td class="px-6 py-5"><span class="font-bold text-primary">${esc(item.formId)}</span></td>
 <td class="px-6 py-5"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-outline text-[18px]">airport_shuttle</span><span class="font-medium">${esc(item.vehicleType)}</span></div></td>
 <td class="px-6 py-5"><div class="flex items-center gap-3"><div class="w-7 h-7 bg-primary-container text-white text-[10px] font-bold rounded-full flex items-center justify-center uppercase">${esc(item.requestorInitials)}</div><span class="font-medium">${esc(item.requestorName)}</span></div></td>
 <td class="px-6 py-5"><div class="text-sm font-semibold text-on-surface">${esc(item.dateRangeLabel)}</div><div class="text-[10px] font-bold text-outline uppercase tracking-tight">${esc(item.daysTotalLabel)}</div></td>
+<td class="px-6 py-5 align-top">${driverNamesHtml}</td>
 <td class="px-6 py-5">${dttAttachmentLinks(item.attachments)}</td>
 <td class="px-6 py-5 align-top"><div class="max-w-[190px]"><label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-outline">Update Status</label><select data-status-url="${esc(item.updateStatusUrl)}" data-can-dispatch="${canDispatch ? '1' : '0'}" class="dtt-status-select w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-xs font-bold text-on-surface shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20">${dttStatusOptions(item.status, canDispatch)}</select>${showDispatchHint ? '<p class="mt-1 text-[10px] font-semibold text-outline">Print DTT first to enable Dispatched.</p>' : ''}</div></td>
-<td class="px-6 py-5 text-right"><div class="flex items-center justify-end gap-2"><a href="${esc(item.downloadUrl)}" class="dtt-download-link flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[10px] uppercase rounded-md hover:bg-primary hover:text-white transition-all shadow-sm"><span class="material-symbols-outlined text-[14px]">print</span>Print DTTs</a></div></td>
+<td class="px-6 py-5 text-right"><div class="flex flex-col items-end gap-2">${driverButtonsHtml}</div></td>
 </tr>`;
 }
 

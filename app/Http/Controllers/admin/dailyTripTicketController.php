@@ -51,6 +51,8 @@ class dailyTripTicketController extends Controller
                 'pageUrls' => $requests->getUrlRange(1, $requests->lastPage()),
             ],
             'requests' => $requests->getCollection()->map(function (TransportationRequestFormModel $item) {
+                $driverTargets = $this->buildDriverDownloadTargets($item);
+
                 return [
                     'formId' => $item->form_id,
                     'vehicleType' => $item->vehicle_type,
@@ -64,6 +66,7 @@ class dailyTripTicketController extends Controller
                     'attachments' => is_array($item->attachment_links ?? null)
                         ? $item->attachment_links
                         : $this->buildAttachmentLinks($item),
+                    'driverTargets' => $driverTargets,
                     'downloadUrl' => route('admin.daily-trip-ticket.download', $item),
                     'updateStatusUrl' => route('admin.daily-trip-ticket.status', $item),
                 ];
@@ -174,6 +177,42 @@ class dailyTripTicketController extends Controller
             ->implode(', ');
 
         $assignedDriverNames = $this->parseDriverNames((string) ($transportationRequest->driver_name ?? ''));
+
+        $requestedDriver = trim((string) request()->query('driver', ''));
+        if ($requestedDriver !== '') {
+            $targetDriver = collect($assignedDriverNames)
+                ->first(function (string $driverName) use ($requestedDriver) {
+                    return mb_strtolower(trim($driverName)) === mb_strtolower($requestedDriver);
+                });
+
+            if (!$targetDriver) {
+                abort(404, 'Requested driver is not assigned to this transportation request.');
+            }
+
+            $this->generateDttForDriver(
+                $transportationRequest,
+                $templatePath,
+                $targetDriver,
+                $passengerNames
+            );
+
+            $driverTicket = DailyDriversTripTicket::query()
+                ->where('transportation_request_form_id', $transportationRequest->id)
+                ->where('assigned_driver_name', $targetDriver)
+                ->first();
+
+            $driverFilePath = trim((string) data_get($driverTicket?->attachment, 'file_path', ''));
+            $driverFileName = trim((string) data_get($driverTicket?->attachment, 'file_name', ''));
+
+            if ($driverFilePath !== '' && Storage::disk('public')->exists($driverFilePath)) {
+                return response()->download(
+                    Storage::disk('public')->path($driverFilePath),
+                    $driverFileName !== '' ? $driverFileName : basename($driverFilePath)
+                );
+            }
+
+            abort(404, 'Driver DTT attachment not found.');
+        }
 
         // Generate DTT for each driver
         foreach ($assignedDriverNames as $driverName) {
@@ -350,6 +389,7 @@ class dailyTripTicketController extends Controller
             $item->setAttribute('can_dispatch', $this->hasPrintedDttAttachment($item));
             $item->setAttribute('normalized_attachments', $item->normalizeAttachments());
             $item->setAttribute('attachment_links', $this->buildAttachmentLinks($item));
+            $item->setAttribute('driver_targets', $this->buildDriverDownloadTargets($item));
 
             return $item;
         });
@@ -575,6 +615,30 @@ class dailyTripTicketController extends Controller
                 return [
                     'name' => (string) ($link['name'] ?? 'Attachment'),
                     'url' => (string) ($link['url'] ?? '#'),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function buildDriverDownloadTargets(TransportationRequestFormModel $transportationRequest): array
+    {
+        $driverNames = $this->parseDriverNames((string) ($transportationRequest->driver_name ?? ''));
+
+        if (empty($driverNames)) {
+            return [[
+                'name' => 'Unassigned Driver',
+                'downloadUrl' => route('admin.daily-trip-ticket.download', $transportationRequest),
+            ]];
+        }
+
+        return collect($driverNames)
+            ->map(function (string $driverName) use ($transportationRequest) {
+                return [
+                    'name' => $driverName,
+                    'downloadUrl' => route('admin.daily-trip-ticket.download', $transportationRequest, [
+                        'driver' => $driverName,
+                    ]),
                 ];
             })
             ->values()
