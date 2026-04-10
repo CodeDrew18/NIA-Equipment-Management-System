@@ -167,6 +167,7 @@
             @forelse ($dispatchedRequests as $item)
             @php
                 $isSelectedRow = $selectedRequest && $selectedRequest->id === $item->id;
+                $canDispatchVehicle = (bool) ($item->can_dispatch_vehicle ?? false);
             @endphp
             <tr data-request-row="{{ $item->id }}" class="transition-colors {{ $isSelectedRow ? 'bg-primary-fixed/40' : 'hover:bg-surface-container-low' }}">
                 <td class="px-6 py-4 font-bold text-primary">{{ $item->form_id }}</td>
@@ -180,7 +181,7 @@
                             <span class="material-symbols-outlined text-sm">visibility</span>
                             View Copy
                         </button>
-                        <button type="button" data-dispatch-url="{{ route('admin.fuel_issuance_slip.dispatch', $item) }}" data-request-id="{{ $item->id }}" class="fi-dispatch-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-secondary text-white text-[11px] font-bold uppercase tracking-wider hover:bg-secondary/90 transition-colors">
+                        <button type="button" data-dispatch-url="{{ route('admin.fuel_issuance_slip.dispatch', $item) }}" data-request-id="{{ $item->id }}" data-can-dispatch="{{ $canDispatchVehicle ? '1' : '0' }}" title="{{ $canDispatchVehicle ? 'Dispatch vehicle' : 'Print all fuel issuance copies first' }}" class="fi-dispatch-request inline-flex items-center gap-1 px-3 py-2 rounded-md text-[11px] font-bold uppercase tracking-wider transition-colors {{ $canDispatchVehicle ? 'bg-secondary text-white hover:bg-secondary/90' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest' }}">
                             <span class="material-symbols-outlined text-sm">local_shipping</span>
                             Dispatch Vehicle
                         </button>
@@ -239,20 +240,6 @@
     </div>
 </div>
 
-<div id="fi-confirm-dispatch-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4">
-    <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
-        <div class="mb-4 flex items-center gap-3 text-primary">
-            <span class="material-symbols-outlined">local_shipping</span>
-            <h3 class="text-lg font-bold">Confirm Dispatch</h3>
-        </div>
-        <p class="text-sm text-on-surface-variant">Are you sure you want to dispatch this vehicle to On Trip Vehicles?</p>
-        <div class="mt-6 flex justify-end gap-3">
-            <button id="fi-confirm-dispatch-no" type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50">No</button>
-            <button id="fi-confirm-dispatch-yes" type="button" class="rounded-lg bg-secondary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-secondary/90">Yes</button>
-        </div>
-    </div>
-</div>
-
 <div id="fi-confirm-print-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4">
     <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center space-y-4">
         <h3 class="text-lg font-bold">Confirm Print</h3>
@@ -285,9 +272,6 @@ const fiEls = {
     warningModal: document.getElementById('fi-warning-modal'),
     warningModalText: document.getElementById('fi-warning-modal-text'),
     warningModalClose: document.getElementById('fi-warning-modal-close'),
-    confirmDispatchModal: document.getElementById('fi-confirm-dispatch-modal'),
-    confirmDispatchNo: document.getElementById('fi-confirm-dispatch-no'),
-    confirmDispatchYes: document.getElementById('fi-confirm-dispatch-yes'),
     confirmPrintModal: document.getElementById('fi-confirm-print-modal'),
     confirmPrintNo: document.getElementById('fi-confirm-print-no'),
     confirmPrintYes: document.getElementById('fi-confirm-print-yes'),
@@ -302,7 +286,6 @@ const fiCsrfToken = "{{ csrf_token() }}";
 const fiDefaultDivisionManager = "{{ $divisionManagerName }}";
 let fiCurrentPage = {{ $dispatchedRequests->currentPage() }};
 let fiSelectedRequestId = {{ $selectedRequest?->id ?? 'null' }};
-let fiPendingDispatch = null;
 let fiPendingPrintCopyKey = null;
 let fiCurrentCopies = [];
 let fiCopyStateByKey = {};
@@ -482,15 +465,15 @@ function fiBuildDispatchCopiesPayload() {
         return {
             copy_key: String(copy.copyKey),
             dealer: String(copyState.dealer || '').trim(),
-            gasoline: fiToNumber(copyState.gasoline),
-            gasoline_price: fiToNumber(copyState.gasolinePrice),
-            diesel: fiToNumber(copyState.diesel),
-            diesel_price: fiToNumber(copyState.dieselPrice),
-            fuel_save: fiToNumber(copyState.fuelSave),
-            fuel_save_price: fiToNumber(copyState.fuelSavePrice),
-            v_power: fiToNumber(copyState.vpower),
-            v_power_price: fiToNumber(copyState.vpowerPrice),
-            total_amount: fiCopyTotal(copyState),
+            gasoline: String(copyState.gasoline ?? '').trim(),
+            gasoline_price: String(copyState.gasolinePrice ?? '').trim(),
+            diesel: String(copyState.diesel ?? '').trim(),
+            diesel_price: String(copyState.dieselPrice ?? '').trim(),
+            fuel_save: String(copyState.fuelSave ?? '').trim(),
+            fuel_save_price: String(copyState.fuelSavePrice ?? '').trim(),
+            v_power: String(copyState.vpower ?? '').trim(),
+            v_power_price: String(copyState.vpowerPrice ?? '').trim(),
+            total_amount: String(fiCopyTotal(copyState)),
         };
     });
 }
@@ -638,6 +621,10 @@ function fiRow(item) {
     const isSelected = Number(item.id) === Number(fiSelectedRequestId);
     const rowClass = isSelected ? 'bg-primary-fixed/40' : 'hover:bg-surface-container-low';
     const dispatchUrl = item.dispatchUrl || fiDispatchUrlTemplate.replace('__ID__', item.id);
+    const canDispatchVehicle = Boolean(item.canDispatchVehicle);
+    const dispatchButtonClass = canDispatchVehicle
+        ? 'bg-secondary text-white hover:bg-secondary/90'
+        : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest';
 
     return `<tr data-request-row="${fiEsc(item.id)}" class="transition-colors ${rowClass}">
         <td class="px-6 py-4 font-bold text-primary">${fiEsc(item.formId)}</td>
@@ -651,7 +638,7 @@ function fiRow(item) {
                     <span class="material-symbols-outlined text-sm">visibility</span>
                     View Copy
                 </button>
-                <button type="button" data-dispatch-url="${fiEsc(dispatchUrl)}" data-request-id="${fiEsc(item.id)}" class="fi-dispatch-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-secondary text-white text-[11px] font-bold uppercase tracking-wider hover:bg-secondary/90 transition-colors">
+                <button type="button" data-dispatch-url="${fiEsc(dispatchUrl)}" data-request-id="${fiEsc(item.id)}" data-can-dispatch="${canDispatchVehicle ? '1' : '0'}" title="${canDispatchVehicle ? 'Dispatch vehicle' : 'Print all fuel issuance copies first'}" class="fi-dispatch-request inline-flex items-center gap-1 px-3 py-2 rounded-md text-[11px] font-bold uppercase tracking-wider transition-colors ${dispatchButtonClass}">
                     <span class="material-symbols-outlined text-sm">local_shipping</span>
                     Dispatch Vehicle
                 </button>
@@ -677,31 +664,6 @@ function fiHideWarningModal() {
 
     fiEls.warningModal.classList.add('hidden');
     fiEls.warningModal.classList.remove('flex');
-}
-
-function fiShowConfirmDispatchModal(dispatchUrl, requestId, triggerButton) {
-    if (!fiEls.confirmDispatchModal || !dispatchUrl || !requestId) {
-        return;
-    }
-
-    fiPendingDispatch = {
-        dispatchUrl,
-        requestId,
-        triggerButton,
-    };
-
-    fiEls.confirmDispatchModal.classList.remove('hidden');
-    fiEls.confirmDispatchModal.classList.add('flex');
-}
-
-function fiHideConfirmDispatchModal() {
-    fiPendingDispatch = null;
-    if (!fiEls.confirmDispatchModal) {
-        return;
-    }
-
-    fiEls.confirmDispatchModal.classList.add('hidden');
-    fiEls.confirmDispatchModal.classList.remove('flex');
 }
 
 function fiShowLoadingModal(message = 'Preparing your download...') {
@@ -755,26 +717,6 @@ function fiValidateCopyFields(copyKey) {
     return !hasError;
 }
 
-function fiValidateAllCopyFields(showWarning = false, warningMessage = 'Required to fill all fields before dispatch.') {
-    if (!fiCurrentCopies.length) {
-        if (showWarning) {
-            fiShowWarningModal('No transportation copies available for this request.');
-        }
-
-        return false;
-    }
-
-    const hasInvalid = fiCurrentCopies.some(function (copy) {
-        return !fiValidateCopyFields(copy.copyKey);
-    });
-
-    if (hasInvalid && showWarning) {
-        fiShowWarningModal(warningMessage);
-    }
-
-    return !hasInvalid;
-}
-
 function fiValidateSingleCopyFields(copyKey, showWarning = false, warningMessage = 'Dealer, all fuel quantities, and all fuel prices per liter are required.') {
     const isValid = fiValidateCopyFields(copyKey);
     if (!isValid && showWarning) {
@@ -813,10 +755,6 @@ function fiHandleCopyInputChange(event) {
 
 async function fiDispatchRequest(dispatchUrl, requestId, triggerButton) {
     if (!dispatchUrl || !requestId) {
-        return;
-    }
-
-    if (!fiValidateAllCopyFields(true, 'Required to fill all fields before dispatch.')) {
         return;
     }
 
@@ -996,6 +934,8 @@ async function fiPrintOfficeCopy(copyKey) {
             printButton.disabled = false;
         }
         window.removeEventListener('focus', handleWindowFocus);
+
+        fiRefresh(fiCurrentPage);
     }
 
     function handleWindowFocus() {
@@ -1099,7 +1039,14 @@ fiEls.tbody.addEventListener('click', function (event) {
     }
 
     event.preventDefault();
-    fiShowConfirmDispatchModal(
+
+    const canDispatch = String(dispatchButton.getAttribute('data-can-dispatch') || '0') === '1';
+    if (!canDispatch) {
+        fiShowWarningModal('Please print all Fuel Issuance copies first before proceeding to dispatch vehicle.');
+        return;
+    }
+
+    fiDispatchRequest(
         dispatchButton.getAttribute('data-dispatch-url'),
         Number(dispatchButton.getAttribute('data-request-id')),
         dispatchButton
@@ -1143,37 +1090,6 @@ if (fiEls.warningModal) {
     });
 }
 
-if (fiEls.confirmDispatchNo) {
-    fiEls.confirmDispatchNo.addEventListener('click', function () {
-        fiHideConfirmDispatchModal();
-    });
-}
-
-if (fiEls.confirmDispatchYes) {
-    fiEls.confirmDispatchYes.addEventListener('click', function () {
-        const pendingDispatch = fiPendingDispatch;
-        fiHideConfirmDispatchModal();
-
-        if (!pendingDispatch) {
-            return;
-        }
-
-        fiDispatchRequest(
-            pendingDispatch.dispatchUrl,
-            pendingDispatch.requestId,
-            pendingDispatch.triggerButton
-        );
-    });
-}
-
-if (fiEls.confirmDispatchModal) {
-    fiEls.confirmDispatchModal.addEventListener('click', function (event) {
-        if (event.target === fiEls.confirmDispatchModal) {
-            fiHideConfirmDispatchModal();
-        }
-    });
-}
-
 fiEls.confirmPrintNo.addEventListener('click', function () {
     fiHideConfirmPrintModal();
 });
@@ -1205,11 +1121,10 @@ if (typeof window.emsLiveRefresh === 'function') {
     }, {
         intervalMs: 4000,
         shouldPause: function () {
-            const isDispatchModalOpen = Boolean(fiEls.confirmDispatchModal) && !fiEls.confirmDispatchModal.classList.contains('hidden');
             const isPrintModalOpen = Boolean(fiEls.confirmPrintModal) && !fiEls.confirmPrintModal.classList.contains('hidden');
             const isLoadingModalOpen = Boolean(fiEls.loadingModal) && !fiEls.loadingModal.classList.contains('hidden');
 
-            return isDispatchModalOpen || isPrintModalOpen || isLoadingModalOpen;
+            return isPrintModalOpen || isLoadingModalOpen;
         },
     });
 }

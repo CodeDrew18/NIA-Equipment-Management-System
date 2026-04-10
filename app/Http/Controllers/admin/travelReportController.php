@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class travelReportController extends Controller
@@ -31,6 +32,14 @@ class travelReportController extends Controller
         }
 
         $reportRequests = $baseQuery->paginate(10)->withQueryString();
+
+        $reportRequests->getCollection()->transform(function (TransportationRequestFormModel $requestItem) {
+            $requestItem->setAttribute('attachment_links', $this->formatAttachmentLinks(
+                $this->buildTransportationRequestAttachmentLinks($requestItem)
+            ));
+
+            return $requestItem;
+        });
 
         $activeRequests = (clone $metricsQuery)->count();
         $activeTripTickets = $this->countTripTickets($fromDate, $toDate, $selectedStatus, false);
@@ -251,7 +260,7 @@ class travelReportController extends Controller
     {
         $rows = DailyDriversTripTicket::query()
             ->with([
-                'transportationRequestForm:id,form_id,request_date,date_time_from,date_time_to,destination,vehicle_id,driver_name,status',
+                'transportationRequestForm:id,form_id,request_date,date_time_from,date_time_to,destination,vehicle_id,driver_name,status,attachments',
             ])
             ->whereHas('transportationRequestForm', function (Builder $query) use ($fromDate, $toDate, $selectedStatus) {
                 $query->whereDate('request_date', '>=', $fromDate)
@@ -282,6 +291,9 @@ class travelReportController extends Controller
                     'fuelTotal' => is_numeric($ticket->fuel_total)
                         ? number_format((float) $ticket->fuel_total, 1)
                         : 'N/A',
+                    'attachments' => $this->formatAttachmentLinks(
+                        $this->buildTripTicketAttachmentLinks($ticket)
+                    ),
                     'status' => (string) ($request?->status ?: 'N/A'),
                 ];
             })
@@ -292,7 +304,7 @@ class travelReportController extends Controller
     {
         $rows = FuelIssuance::query()
             ->with([
-                'transportationRequestForm:id,form_id,request_date,status,destination,driver_name',
+                'transportationRequestForm:id,form_id,request_date,status,destination,driver_name,attachments',
             ])
             ->whereHas('transportationRequestForm', function (Builder $query) use ($fromDate, $toDate, $selectedStatus) {
                 $query->whereDate('request_date', '>=', $fromDate)
@@ -324,6 +336,9 @@ class travelReportController extends Controller
                     'liters' => number_format($liters, 1),
                     'totalAmount' => number_format((float) $issuance->total_amount, 2),
                     'dispatchedAt' => optional($issuance->dispatched_at)->format('M d, Y h:i A') ?: 'N/A',
+                    'attachments' => $this->formatAttachmentLinks(
+                        $this->buildFuelIssuanceAttachmentLinks($issuance)
+                    ),
                     'status' => (string) ($request?->status ?: 'N/A'),
                 ];
             })
@@ -334,7 +349,7 @@ class travelReportController extends Controller
     {
         $rows = DriverPerformanceEvaluation::query()
             ->with([
-                'transportationRequestForm:id,form_id,request_date,status,destination,driver_name',
+                'transportationRequestForm:id,form_id,request_date,status,destination,driver_name,attachments',
             ])
             ->whereHas('transportationRequestForm', function (Builder $query) use ($fromDate, $toDate, $selectedStatus) {
                 $query->whereDate('request_date', '>=', $fromDate)
@@ -363,13 +378,208 @@ class travelReportController extends Controller
                     'evaluationStatus' => (string) ($evaluation->status ?: 'Pending'),
                     'overallRating' => $rating,
                     'evaluatedAt' => optional($evaluation->evaluated_at)->format('M d, Y h:i A') ?: 'Not yet evaluated',
-                    'comments' => trim((string) ($evaluation->comments ?: '')) !== ''
-                        ? (string) $evaluation->comments
-                        : 'No comments yet',
+                    'attachments' => $this->formatAttachmentLinks(
+                        $this->buildPerformanceEvaluationAttachmentLinks($evaluation)
+                    ),
                     'requestStatus' => (string) ($request?->status ?: 'N/A'),
                 ];
             })
             ->values();
+    }
+
+    private function buildPerformanceEvaluationAttachmentLinks(DriverPerformanceEvaluation $evaluation): Collection
+    {
+        $request = $evaluation->transportationRequestForm;
+        $targetCopyKey = strtolower(trim((string) ($evaluation->copy_key ?? '')));
+
+        $links = $this->buildRequestAttachmentLinks($request, function (array $attachment) use ($targetCopyKey): bool {
+            $process = strtolower(trim((string) ($attachment['process'] ?? '')));
+            $copyKey = strtolower(trim((string) ($attachment['copy_key'] ?? '')));
+
+            if ($process === 'driver_performance_evaluation') {
+                return $targetCopyKey === '' || $copyKey === '' || $copyKey === $targetCopyKey;
+            }
+
+            if ($process !== '') {
+                return false;
+            }
+
+            $fileName = strtolower(trim((string) ($attachment['file_name'] ?? '')));
+
+            return str_starts_with($fileName, 'driver_performance_evaluation_')
+                || str_starts_with($fileName, 'dpe_form15_');
+        });
+
+        $this->appendDirectAttachmentLink($links, $evaluation->attachment);
+
+        return $links;
+    }
+
+    private function buildTransportationRequestAttachmentLinks(?TransportationRequestFormModel $request): Collection
+    {
+        return $this->buildRequestAttachmentLinks($request, function (array $attachment): bool {
+            $process = strtolower(trim((string) ($attachment['process'] ?? '')));
+            if ($process === 'transportation_request_form') {
+                return true;
+            }
+
+            if ($process !== '') {
+                return false;
+            }
+
+            $fileName = strtolower(trim((string) ($attachment['file_name'] ?? '')));
+
+            return str_starts_with($fileName, 'transportation_request_form_');
+        });
+    }
+
+    private function buildTripTicketAttachmentLinks(DailyDriversTripTicket $ticket): Collection
+    {
+        $request = $ticket->transportationRequestForm;
+
+        $links = $this->buildRequestAttachmentLinks($request, function (array $attachment): bool {
+            $process = strtolower(trim((string) ($attachment['process'] ?? '')));
+            if ($process === 'daily_drivers_trip_ticket') {
+                return true;
+            }
+
+            if ($process !== '') {
+                return false;
+            }
+
+            $fileName = strtolower(trim((string) ($attachment['file_name'] ?? '')));
+
+            return str_starts_with($fileName, 'dtt_');
+        });
+
+        $this->appendDirectAttachmentLink($links, $ticket->attachment);
+
+        return $links;
+    }
+
+    private function buildFuelIssuanceAttachmentLinks(FuelIssuance $issuance): Collection
+    {
+        $request = $issuance->transportationRequestForm;
+        $targetCopyKey = strtolower(trim((string) ($issuance->copy_key ?? '')));
+
+        $links = $this->buildRequestAttachmentLinks($request, function (array $attachment) use ($targetCopyKey): bool {
+            $process = strtolower(trim((string) ($attachment['process'] ?? '')));
+            $copyKey = strtolower(trim((string) ($attachment['copy_key'] ?? '')));
+
+            if ($process === 'fuel_issuance') {
+                return $targetCopyKey === '' || $copyKey === '' || $copyKey === $targetCopyKey;
+            }
+
+            if ($process !== '') {
+                return false;
+            }
+
+            $fileName = strtolower(trim((string) ($attachment['file_name'] ?? '')));
+
+            return str_starts_with($fileName, 'fuel_issuance_');
+        });
+
+        $this->appendDirectAttachmentLink($links, $issuance->attachment);
+
+        return $links;
+    }
+
+    private function buildRequestAttachmentLinks(?TransportationRequestFormModel $request, ?callable $filter = null): Collection
+    {
+        $links = collect();
+
+        if (!$request) {
+            return $links;
+        }
+
+        $attachments = $request->normalizeAttachments();
+
+        foreach ($attachments as $index => $attachment) {
+            if (!is_array($attachment)) {
+                continue;
+            }
+
+            if ($filter && !$filter($attachment)) {
+                continue;
+            }
+
+            $filePath = trim((string) ($attachment['file_path'] ?? ''));
+            if ($filePath === '' || !Storage::disk('public')->exists($filePath)) {
+                continue;
+            }
+
+            $fileName = trim((string) ($attachment['file_name'] ?? basename($filePath)));
+
+            $this->appendAttachmentLink($links, [
+                'name' => $fileName !== '' ? $fileName : basename($filePath),
+                'url' => route('admin.transportation-request.attachment.view', [
+                    'transportationRequest' => $request->id,
+                    'index' => $index,
+                ]),
+                'file_path' => $filePath,
+            ]);
+        }
+
+        return $links;
+    }
+
+    private function appendDirectAttachmentLink(Collection $links, mixed $attachment): void
+    {
+        $filePath = '';
+        $fileName = '';
+
+        if (is_array($attachment)) {
+            $filePath = trim((string) ($attachment['file_path'] ?? ''));
+            $fileName = trim((string) ($attachment['file_name'] ?? basename($filePath)));
+        } elseif (is_string($attachment)) {
+            $filePath = trim($attachment);
+            $fileName = basename($filePath);
+        }
+
+        if ($filePath === '' || !Storage::disk('public')->exists($filePath)) {
+            return;
+        }
+
+        $this->appendAttachmentLink($links, [
+            'name' => $fileName !== '' ? $fileName : basename($filePath),
+            'url' => asset('storage/' . ltrim($filePath, '/')),
+            'file_path' => $filePath,
+        ]);
+    }
+
+    private function appendAttachmentLink(Collection $links, array $link): void
+    {
+        $filePath = trim((string) ($link['file_path'] ?? ''));
+        if ($filePath === '') {
+            return;
+        }
+
+        $alreadyExists = $links->contains(function (array $existingLink) use ($filePath): bool {
+            return trim((string) ($existingLink['file_path'] ?? '')) === $filePath;
+        });
+
+        if ($alreadyExists) {
+            return;
+        }
+
+        $links->push([
+            'name' => (string) ($link['name'] ?? 'Attachment'),
+            'url' => (string) ($link['url'] ?? '#'),
+            'file_path' => $filePath,
+        ]);
+    }
+
+    private function formatAttachmentLinks(Collection $links): array
+    {
+        return $links
+            ->map(function (array $link): array {
+                return [
+                    'name' => (string) ($link['name'] ?? 'Attachment'),
+                    'url' => (string) ($link['url'] ?? '#'),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function averagePerformanceRating(string $fromDate, string $toDate, string $selectedStatus): ?float

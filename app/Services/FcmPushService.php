@@ -135,6 +135,7 @@ class FcmPushService
                     'priority' => 'HIGH',
                     'notification' => [
                         'sound' => 'default',
+                        'channel_id' => 'transportation_updates_v2',
                     ],
                 ],
                 'data' => array_merge([

@@ -16,37 +16,16 @@ use Illuminate\Support\Facades\Storage;
 
 class requestFormController extends Controller
 {
+    private const REQUEST_FORM_ATTACHMENT_KEY = 'transportation_request_form_file';
+
     public function requestForm()
     {
         $user = Auth::user();
 
-        $availableVehicleTypes = [
-            'coaster' => false,
-            'van' => false,
-            'pickup' => false,
-        ];
-
-        $availableVehicles = AdminVehicleAvailability::query()
-            ->where('status', 'Available')
-            ->get(['vehicle_type']);
-
-        $hasAnyAvailableVehicle = $availableVehicles->isNotEmpty();
-
-        foreach ($availableVehicles as $availableVehicle) {
-            $label = strtolower((string) $availableVehicle->vehicle_type);
-
-            if (str_contains($label, 'coaster')) {
-                $availableVehicleTypes['coaster'] = true;
-            }
-
-            if (str_contains($label, 'van')) {
-                $availableVehicleTypes['van'] = true;
-            }
-
-            if (str_contains($label, 'pickup') || str_contains($label, 'pick-up')) {
-                $availableVehicleTypes['pickup'] = true;
-            }
-        }
+        $availableVehicleInventory = $this->resolveAvailableVehicleInventory();
+        $availableVehicleTypes = $availableVehicleInventory['types'];
+        $availableVehicleCounts = $availableVehicleInventory['counts'];
+        $hasAnyAvailableVehicle = collect($availableVehicleCounts)->sum() > 0;
 
         $drivers = User::query()
             ->whereRaw("CONCAT(',', role, ',') LIKE '%,driver,%'")
@@ -63,6 +42,7 @@ class requestFormController extends Controller
 
         return view('letter_of_request/requestform', [
             'availableVehicleTypes' => $availableVehicleTypes,
+            'availableVehicleCounts' => $availableVehicleCounts,
             'showNoAvailableVehiclesModal' => !$hasAnyAvailableVehicle,
             'drivers' => $drivers,
             'requesterMessages' => $requesterMessages,
@@ -144,31 +124,9 @@ class requestFormController extends Controller
                 ->withInput();
         }
 
-        $availableVehicleTypes = [
-            'coaster' => false,
-            'van' => false,
-            'pickup' => false,
-        ];
-
-        $vehicleTypeLabels = AdminVehicleAvailability::query()
-            ->where('status', 'Available')
-            ->pluck('vehicle_type');
-
-        foreach ($vehicleTypeLabels as $vehicleTypeLabel) {
-            $label = strtolower((string) $vehicleTypeLabel);
-
-            if (str_contains($label, 'coaster')) {
-                $availableVehicleTypes['coaster'] = true;
-            }
-
-            if (str_contains($label, 'van')) {
-                $availableVehicleTypes['van'] = true;
-            }
-
-            if (str_contains($label, 'pickup') || str_contains($label, 'pick-up')) {
-                $availableVehicleTypes['pickup'] = true;
-            }
-        }
+        $availableVehicleInventory = $this->resolveAvailableVehicleInventory();
+        $availableVehicleTypes = $availableVehicleInventory['types'];
+        $availableVehicleCounts = $availableVehicleInventory['counts'];
 
         $requestedVehicleTypes = $selectedVehicleRequests->pluck('type')->unique();
         $hasUnavailableVehicle = $requestedVehicleTypes->contains(function (string $type) use ($availableVehicleTypes) {
@@ -179,6 +137,20 @@ class requestFormController extends Controller
             return back()
                 ->withErrors(['vehicle_requests' => 'One or more selected vehicles are currently unavailable.'])
                 ->withInput();
+        }
+
+        foreach ($selectedVehicleRequests as $vehicleRequest) {
+            $vehicleType = (string) ($vehicleRequest['type'] ?? '');
+            $requestedQuantity = (int) ($vehicleRequest['quantity'] ?? 0);
+            $maxAllowed = (int) ($availableVehicleCounts[$vehicleType] ?? 0);
+
+            if ($requestedQuantity > $maxAllowed) {
+                return back()
+                    ->withErrors([
+                        'vehicle_requests' => 'Requested quantity for ' . strtoupper($vehicleType) . ' exceeds available units (' . $maxAllowed . ').',
+                    ])
+                    ->withInput();
+            }
         }
 
         $vehicleSummary = $selectedVehicleRequests
@@ -353,9 +325,17 @@ class requestFormController extends Controller
             $transportationRequest->update([
                 'status' => 'To be Signed',
             ]);
+
+            $transportationRequest->upsertAttachment([
+                'file_name' => $safeFilename,
+                'file_path' => 'generated_forms/' . $safeFilename,
+                'process' => 'transportation_request_form',
+                'process_key' => self::REQUEST_FORM_ATTACHMENT_KEY,
+                'source' => 'request_form_download',
+            ]);
         }
 
-        return response()->download($path)->deleteFileAfterSend(true);
+        return response()->download($path, $safeFilename);
     }
 
     public function personnelLookup(string $personnelId)
@@ -387,7 +367,7 @@ class requestFormController extends Controller
             abort(403);
         }
 
-        $attachments = is_array($transportationRequest->attachments) ? $transportationRequest->attachments : [];
+        $attachments = $transportationRequest->normalizeAttachments();
 
         if (!array_key_exists($index, $attachments)) {
             abort(404);
@@ -406,5 +386,43 @@ class requestFormController extends Controller
         return response()->file($absolutePath, [
             'Content-Disposition' => 'inline; filename="' . $filename . '"',
         ]);
+    }
+
+    private function resolveAvailableVehicleInventory(): array
+    {
+        $vehicleTypeCounts = [
+            'coaster' => 0,
+            'van' => 0,
+            'pickup' => 0,
+        ];
+
+        $availableVehicles = AdminVehicleAvailability::query()
+            ->where('status', 'Available')
+            ->get(['vehicle_type']);
+
+        foreach ($availableVehicles as $availableVehicle) {
+            $label = strtolower((string) ($availableVehicle->vehicle_type ?? ''));
+
+            if (str_contains($label, 'coaster')) {
+                $vehicleTypeCounts['coaster']++;
+            }
+
+            if (str_contains($label, 'van')) {
+                $vehicleTypeCounts['van']++;
+            }
+
+            if (str_contains($label, 'pickup') || str_contains($label, 'pick-up')) {
+                $vehicleTypeCounts['pickup']++;
+            }
+        }
+
+        return [
+            'counts' => $vehicleTypeCounts,
+            'types' => [
+                'coaster' => $vehicleTypeCounts['coaster'] > 0,
+                'van' => $vehicleTypeCounts['van'] > 0,
+                'pickup' => $vehicleTypeCounts['pickup'] > 0,
+            ],
+        ];
     }
 }

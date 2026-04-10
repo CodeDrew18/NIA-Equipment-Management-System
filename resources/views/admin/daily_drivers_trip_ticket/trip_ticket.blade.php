@@ -161,8 +161,8 @@
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest">Vehicle Type</th>
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest">Requestor</th>
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest">Date Range</th>
-<th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest text-center">DTT</th>
-<th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest">Status</th>
+<th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest w-[320px]">Attachments</th>
+<th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest w-[220px]">Status</th>
 <th class="px-6 py-4 text-xs font-black uppercase text-on-surface tracking-widest text-right">Actions</th>
 </tr>
 </thead>
@@ -178,15 +178,41 @@
 {{ max(1, optional($item->date_time_from)->startOfDay()?->diffInDays(optional($item->date_time_to)->startOfDay() ?? optional($item->date_time_from)->startOfDay()) + 1) }} Days Total
 </div>
 </td>
-<td class="px-6 py-5 text-center"><span class="inline-flex items-center justify-center px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container font-bold text-sm"></span></td>
 <td class="px-6 py-5">
 @php
-    $status = (string) ($item->status ?? 'Signed');
+    $attachmentLinks = is_array($item->attachment_links ?? null) ? $item->attachment_links : [];
 @endphp
-<select data-status-url="{{ route('admin.daily-trip-ticket.status', $item) }}" class="dtt-status-select w-full border border-outline-variant rounded-md py-2 px-2 text-sm bg-white">
+@if (count($attachmentLinks) > 0)
+<div class="space-y-1 max-w-[300px]">
+@foreach ($attachmentLinks as $attachment)
+@php
+    $attachmentName = (string) ($attachment['name'] ?? 'Attachment');
+@endphp
+<a href="{{ $attachment['url'] ?? '#' }}" target="_blank" rel="noopener" class="inline-flex max-w-full items-center gap-1 text-xs font-semibold text-primary hover:text-primary-container hover:underline">
+<span class="material-symbols-outlined text-sm">attach_file</span>
+<span class="truncate" title="{{ $attachmentName }}">{{ $attachmentName }}</span>
+</a>
+@endforeach
+</div>
+@else
+<span class="text-xs text-outline">No attachment</span>
+@endif
+</td>
+<td class="px-6 py-5 align-top">
+@php
+    $status = (string) ($item->status ?? 'Signed');
+    $canDispatch = (bool) ($item->can_dispatch ?? false);
+@endphp
+<div class="max-w-[190px]">
+<label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-outline">Update Status</label>
+<select data-status-url="{{ route('admin.daily-trip-ticket.status', $item) }}" data-can-dispatch="{{ $canDispatch ? '1' : '0' }}" class="dtt-status-select w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-xs font-bold text-on-surface shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20">
 <option value="Signed" @selected($status === 'Signed')>Signed</option>
-<option value="Dispatched" @selected($status === 'Dispatched')>Dispatched</option>
+<option value="Dispatched" @selected($status === 'Dispatched') @disabled(!$canDispatch && $status !== 'Dispatched')>Dispatched</option>
 </select>
+@if (!$canDispatch && $status !== 'Dispatched')
+<p class="mt-1 text-[10px] font-semibold text-outline">Print DTT first to enable Dispatched.</p>
+@endif
+</div>
 </td>
 <td class="px-6 py-5 text-right">
 <div class="flex items-center justify-end gap-2">
@@ -240,6 +266,33 @@ Print DTTs
 </div>
 </div>
 
+<div id="dtt-confirm-download-modal" class="fixed inset-0 z-[62] hidden items-center justify-center bg-black/40 px-4">
+<div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
+<div class="mb-4 flex items-center gap-3 text-primary">
+<span class="material-symbols-outlined">help</span>
+<h3 class="text-lg font-bold">Confirm Download</h3>
+</div>
+<p class="text-sm text-on-surface-variant">Are you sure you want to download?</p>
+<div class="mt-6 flex justify-end gap-3">
+<button id="dtt-confirm-download-no" type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50">No</button>
+<button id="dtt-confirm-download-yes" type="button" class="rounded-lg bg-secondary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-secondary/90">Yes</button>
+</div>
+</div>
+</div>
+
+<div id="dtt-warning-modal" class="fixed inset-0 z-[63] hidden items-center justify-center bg-black/45 px-4">
+<div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-error/20">
+<div class="mb-4 flex items-center gap-3 text-error">
+<span class="material-symbols-outlined">warning</span>
+<h3 class="text-lg font-bold">Action Required</h3>
+</div>
+<p id="dtt-warning-modal-message" class="text-sm text-on-surface-variant">Please print the Daily Driver's Trip Ticket first before dispatching.</p>
+<div class="mt-6 flex justify-end">
+<button id="dtt-warning-modal-close" type="button" class="rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-primary/90">OK</button>
+</div>
+</div>
+</div>
+
 @include('layouts.admin_footer')
 
 <script>
@@ -260,12 +313,19 @@ const dttEls = {
     pickup: document.getElementById('count-pickup'),
     downloadSuccessMessage: document.getElementById('dtt-download-success-message'),
     downloadLoadingModal: document.getElementById('dtt-download-loading-modal'),
+    confirmDownloadModal: document.getElementById('dtt-confirm-download-modal'),
+    confirmDownloadYes: document.getElementById('dtt-confirm-download-yes'),
+    confirmDownloadNo: document.getElementById('dtt-confirm-download-no'),
+    warningModal: document.getElementById('dtt-warning-modal'),
+    warningModalMessage: document.getElementById('dtt-warning-modal-message'),
+    warningModalClose: document.getElementById('dtt-warning-modal-close'),
 };
 
 const dttDataUrl = "{{ route('admin.daily-trip-ticket.data') }}";
 const dttCsrfToken = "{{ csrf_token() }}";
 let dttCurrentPage = {{ $requests->currentPage() }};
 let dttDownloadInProgress = false;
+let pendingDttDownload = null;
 const dttMetricAnimationFrames = new WeakMap();
 const dttPrefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -359,21 +419,39 @@ function animateDttInitialMetrics() {
     });
 }
 
-function dttStatusOptions(selectedStatus) {
+function dttStatusOptions(selectedStatus, canDispatch) {
     const options = ['Signed', 'Dispatched'];
     return options
-        .map((option) => `<option value="${esc(option)}"${option === selectedStatus ? ' selected' : ''}>${esc(option)}</option>`)
+        .map((option) => {
+            const shouldDisable = option === 'Dispatched' && !canDispatch && selectedStatus !== 'Dispatched';
+            return `<option value="${esc(option)}"${option === selectedStatus ? ' selected' : ''}${shouldDisable ? ' disabled' : ''}>${esc(option)}</option>`;
+        })
         .join('');
 }
 
+function dttAttachmentLinks(attachments) {
+    if (!Array.isArray(attachments) || attachments.length === 0) {
+        return '<span class="text-xs text-outline">No attachment</span>';
+    }
+
+    return `<div class="space-y-1 max-w-[300px]">${attachments.map((attachment) => {
+        const name = String(attachment?.name || 'Attachment');
+        const url = String(attachment?.url || '#');
+
+        return `<a href="${esc(url)}" target="_blank" rel="noopener" class="inline-flex max-w-full items-center gap-1 text-xs font-semibold text-primary hover:text-primary-container hover:underline"><span class="material-symbols-outlined text-sm">attach_file</span><span class="truncate" title="${esc(name)}">${esc(name)}</span></a>`;
+    }).join('')}</div>`;
+}
+
 function dttRow(item) {
+    const canDispatch = Boolean(item.canDispatch);
+    const showDispatchHint = !canDispatch && item.status !== 'Dispatched';
     return `<tr class="hover:bg-surface-container-low transition-colors group cursor-pointer">
 <td class="px-6 py-5"><span class="font-bold text-primary">${esc(item.formId)}</span></td>
 <td class="px-6 py-5"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-outline text-[18px]">airport_shuttle</span><span class="font-medium">${esc(item.vehicleType)}</span></div></td>
 <td class="px-6 py-5"><div class="flex items-center gap-3"><div class="w-7 h-7 bg-primary-container text-white text-[10px] font-bold rounded-full flex items-center justify-center uppercase">${esc(item.requestorInitials)}</div><span class="font-medium">${esc(item.requestorName)}</span></div></td>
 <td class="px-6 py-5"><div class="text-sm font-semibold text-on-surface">${esc(item.dateRangeLabel)}</div><div class="text-[10px] font-bold text-outline uppercase tracking-tight">${esc(item.daysTotalLabel)}</div></td>
-<td class="px-6 py-5 text-center"><span class="inline-flex items-center justify-center px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container font-bold text-sm">${esc(item.dttCount)}</span></td>
-<td class="px-6 py-5"><select data-status-url="${esc(item.updateStatusUrl)}" class="dtt-status-select w-full border border-outline-variant rounded-md py-2 px-2 text-sm bg-white">${dttStatusOptions(item.status)}</select></td>
+<td class="px-6 py-5">${dttAttachmentLinks(item.attachments)}</td>
+<td class="px-6 py-5 align-top"><div class="max-w-[190px]"><label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-outline">Update Status</label><select data-status-url="${esc(item.updateStatusUrl)}" data-can-dispatch="${canDispatch ? '1' : '0'}" class="dtt-status-select w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-xs font-bold text-on-surface shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20">${dttStatusOptions(item.status, canDispatch)}</select>${showDispatchHint ? '<p class="mt-1 text-[10px] font-semibold text-outline">Print DTT first to enable Dispatched.</p>' : ''}</div></td>
 <td class="px-6 py-5 text-right"><div class="flex items-center justify-end gap-2"><a href="${esc(item.downloadUrl)}" class="dtt-download-link flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[10px] uppercase rounded-md hover:bg-primary hover:text-white transition-all shadow-sm"><span class="material-symbols-outlined text-[14px]">print</span>Print DTTs</a></div></td>
 </tr>`;
 }
@@ -384,6 +462,53 @@ function showDttDownloadLoadingModal() {
     }
     dttEls.downloadLoadingModal.classList.remove('hidden');
     dttEls.downloadLoadingModal.classList.add('flex');
+}
+
+function showDttConfirmDownloadModal(downloadUrl, linkEl) {
+    pendingDttDownload = {
+        url: downloadUrl,
+        link: linkEl || null,
+    };
+
+    if (!dttEls.confirmDownloadModal) {
+        return;
+    }
+
+    dttEls.confirmDownloadModal.classList.remove('hidden');
+    dttEls.confirmDownloadModal.classList.add('flex');
+}
+
+function hideDttConfirmDownloadModal() {
+    pendingDttDownload = null;
+
+    if (!dttEls.confirmDownloadModal) {
+        return;
+    }
+
+    dttEls.confirmDownloadModal.classList.add('hidden');
+    dttEls.confirmDownloadModal.classList.remove('flex');
+}
+
+function showDttWarningModal(message) {
+    if (!dttEls.warningModal) {
+        return;
+    }
+
+    if (dttEls.warningModalMessage) {
+        dttEls.warningModalMessage.textContent = message || 'Please print the Daily Driver\'s Trip Ticket first before dispatching.';
+    }
+
+    dttEls.warningModal.classList.remove('hidden');
+    dttEls.warningModal.classList.add('flex');
+}
+
+function hideDttWarningModal() {
+    if (!dttEls.warningModal) {
+        return;
+    }
+
+    dttEls.warningModal.classList.add('hidden');
+    dttEls.warningModal.classList.remove('flex');
 }
 
 function hideDttDownloadLoadingModal() {
@@ -485,6 +610,14 @@ async function updateDttStatus(selectEl) {
     }
 
     const originalValue = selectEl.dataset.original || selectEl.value;
+    const canDispatch = String(selectEl.dataset.canDispatch || '0') === '1';
+
+    if (status === 'Dispatched' && !canDispatch) {
+        selectEl.value = originalValue;
+        showDttWarningModal('Please print the Daily Driver\'s Trip Ticket first before setting status to Dispatched.');
+        return;
+    }
+
     selectEl.disabled = true;
 
     try {
@@ -500,13 +633,23 @@ async function updateDttStatus(selectEl) {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to update DTT status');
+            let errorMessage = 'Failed to update DTT status.';
+
+            try {
+                const payload = await response.json();
+                errorMessage = String(payload.message || errorMessage);
+            } catch (parseError) {
+                // Keep fallback message when backend response body is not JSON.
+            }
+
+            throw new Error(errorMessage);
         }
 
         await refreshDtt(dttCurrentPage);
     } catch (error) {
         selectEl.value = originalValue;
         console.error('DTT status update failed', error);
+        showDttWarningModal(error.message);
     } finally {
         selectEl.disabled = false;
         selectEl.dataset.original = selectEl.value;
@@ -619,8 +762,51 @@ dttEls.tbody.addEventListener('click', function (event) {
     }
 
     event.preventDefault();
-    startDttExcelDownload(downloadLink.getAttribute('href'), downloadLink);
+    showDttConfirmDownloadModal(downloadLink.getAttribute('href'), downloadLink);
 });
+
+if (dttEls.confirmDownloadNo) {
+    dttEls.confirmDownloadNo.addEventListener('click', function () {
+        hideDttConfirmDownloadModal();
+        hideDttDownloadLoadingModal();
+    });
+}
+
+if (dttEls.confirmDownloadModal) {
+    dttEls.confirmDownloadModal.addEventListener('click', function (event) {
+        if (event.target === dttEls.confirmDownloadModal) {
+            hideDttConfirmDownloadModal();
+            hideDttDownloadLoadingModal();
+        }
+    });
+}
+
+if (dttEls.confirmDownloadYes) {
+    dttEls.confirmDownloadYes.addEventListener('click', function () {
+        const payload = pendingDttDownload;
+        hideDttConfirmDownloadModal();
+
+        if (!payload || !payload.url) {
+            return;
+        }
+
+        startDttExcelDownload(payload.url, payload.link || null);
+    });
+}
+
+if (dttEls.warningModalClose) {
+    dttEls.warningModalClose.addEventListener('click', function () {
+        hideDttWarningModal();
+    });
+}
+
+if (dttEls.warningModal) {
+    dttEls.warningModal.addEventListener('click', function (event) {
+        if (event.target === dttEls.warningModal) {
+            hideDttWarningModal();
+        }
+    });
+}
 
 syncStatusSelectOriginalValues();
 animateDttInitialMetrics();

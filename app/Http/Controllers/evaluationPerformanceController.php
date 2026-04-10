@@ -13,10 +13,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use PhpOffice\PhpWord\TemplateProcessor;
 
 class evaluationPerformanceController extends Controller
 {
+    private const DPE_ATTACHMENT_KEY_PREFIX = 'driver_performance_evaluation_file';
+
     public function index(Request $request, TripLifecycleManager $tripLifecycleManager)
     {
         $tripLifecycleManager->moveFinishedTripsToEvaluationQueue();
@@ -195,6 +200,7 @@ class evaluationPerformanceController extends Controller
             ->setTimeFromTimeString(now()->format('H:i:s'));
 
         $driverNotifiedCount = 0;
+        $evaluationAttachmentUrl = null;
 
         DB::transaction(function () use (
             $transportationRequest,
@@ -206,8 +212,15 @@ class evaluationPerformanceController extends Controller
             $complianceScore,
             $evaluationDateTime,
             &$driverNotifiedCount,
+            &$evaluationAttachmentUrl,
             $validated
         ) {
+            $attachmentPayload = $this->generateEvaluationDocumentAttachment(
+                $evaluation,
+                $validated,
+                $overallRating
+            );
+
             $evaluation->fill([
                 'status' => 'Submitted',
                 'overall_rating' => $overallRating,
@@ -215,6 +228,7 @@ class evaluationPerformanceController extends Controller
                 'safety_score' => (int) ($criteriaPayload['scores']['r2'] ?? 0),
                 'compliance_score' => $complianceScore,
                 'evaluator_name' => trim((string) (Auth::user()?->name ?? $transportationRequest->requestor_name ?: 'N/A')),
+                'attachment' => $attachmentPayload,
                 'comments' => $this->buildCommentSummary($criteriaPayload, $improvementComments, $praiseComments),
                 'evaluation_payload' => [
                     'evaluation_date' => (string) $validated['evaluation_date'],
@@ -227,6 +241,13 @@ class evaluationPerformanceController extends Controller
                 'evaluated_at' => $evaluationDateTime,
             ]);
             $evaluation->save();
+
+            $savedAttachments = $transportationRequest->upsertAttachment($attachmentPayload);
+            $evaluationAttachmentUrl = $this->resolveEvaluationAttachmentUrl(
+                $transportationRequest,
+                $savedAttachments,
+                $attachmentPayload
+            );
 
             $hasPendingEvaluations = DriverPerformanceEvaluation::query()
                 ->where('transportation_request_form_id', (int) $transportationRequest->id)
@@ -252,7 +273,265 @@ class evaluationPerformanceController extends Controller
         return redirect()
             ->route('evaluation-performance', ['evaluation_id' => $evaluation->id])
             ->with('evaluation_submit_success', $flashMessage)
-            ->with('auto_print_evaluation', true);
+            ->with('auto_open_evaluation_docx', $evaluationAttachmentUrl !== null)
+            ->with('evaluation_attachment_url', $evaluationAttachmentUrl);
+    }
+
+    private function generateEvaluationDocumentAttachment(
+        DriverPerformanceEvaluation $evaluation,
+        array $validated,
+        float $overallRating
+    ): array {
+        $templatePath = $this->resolveEvaluationTemplatePath();
+
+        $transportationRequest = TransportationRequestFormModel::query()
+            ->findOrFail((int) $evaluation->transportation_request_form_id);
+
+        $outputDirectory = Storage::disk('public')->path('generated_forms');
+        if (!is_dir($outputDirectory)) {
+            mkdir($outputDirectory, 0755, true);
+        }
+
+        $fileName = 'driver_performance_evaluation_' . ($transportationRequest->form_id ?: 'request')
+            . '_' . now()->format('Ymd_His_u') . '_' . Str::lower(Str::random(6)) . '.docx';
+        $safeFileName = preg_replace('/[^A-Za-z0-9._-]/', '_', $fileName)
+            ?: ('driver_performance_evaluation_' . now()->format('Ymd_His_u') . '.docx');
+        $relativePath = 'generated_forms/' . $safeFileName;
+        $outputPath = Storage::disk('public')->path($relativePath);
+
+        $from = $transportationRequest->date_time_from ? Carbon::parse($transportationRequest->date_time_from) : null;
+        $to = $transportationRequest->date_time_to ? Carbon::parse($transportationRequest->date_time_to) : null;
+
+        $duration = 'N/A';
+        if ($from && $to) {
+            $duration = $from->format('M d, Y h:i A') . ' to ' . $to->format('M d, Y h:i A');
+        }
+
+        $driverName = (string) ($evaluation->driver_name ?: $transportationRequest->driver_name ?: 'N/A');
+        $evaluationDate = Carbon::parse((string) $validated['evaluation_date'])->format('M d, Y');
+        $vehicle = (string) ($transportationRequest->vehicle_type ?: 'N/A');
+        $plateNo = (string) ($transportationRequest->vehicle_id ?: 'N/A');
+        $destination = (string) ($transportationRequest->destination ?: 'N/A');
+        $purposeTravel = (string) ($transportationRequest->purpose ?: 'N/A');
+        $overallRatingText = number_format($overallRating, 2);
+        $personnelName = trim((string) ($transportationRequest->division_personnel[0]['name'] ?? 'N/A')) ?: 'N/A';
+
+        $remarksCombined = trim(implode(' | ', array_filter([
+            trim((string) ($validated['comments_improvement'] ?? '')),
+            trim((string) ($validated['comments_praise'] ?? '')),
+        ])));
+        if ($remarksCombined === '') {
+            $remarksCombined = 'N/A';
+        }
+
+        // dd([
+        //     'personnel_name' => $personnelName,
+        //     'driver_name' => $driverName,
+        //     'date' => $evaluationDate,
+        //     'vehicle' => $vehicle,
+        //     'plate_no' => $plateNo,
+        //     'destination' => $destination,
+        //     'purpose_travel' => $purposeTravel,
+        //     'duration_travel' => $duration,
+        //     'overall_rating' => $overallRatingText,
+        //     'rating' => $overallRatingText,
+        //     'remarks' => $remarksCombined,
+        // ]);
+
+        // dd([
+        //     'driver_name' => $driverName,
+        //     'date' => $evaluationDate,
+        //     'vehicle' => $vehicle,
+        //     'plate_no' => $plateNo,
+        //     'destination' => $destination,
+        //     'purpose_travel' => $purposeTravel,
+        //     'duration_travel' => $duration,
+        //     'overall_rating' => $overallRatingText,
+        //     'personnel_name' => $personnelName,
+
+        //     // ratings
+        //     'r1' => $validated['r1'] ?? null,
+        //     'r2' => $validated['r2'] ?? null,
+        //     'r3' => $validated['r3'] ?? null,
+        //     'r4' => $validated['r4'] ?? null,
+        //     'r5' => $validated['r5'] ?? null,
+        //     'r6' => $validated['r6'] ?? null,
+        //     'r7' => $validated['r7'] ?? null,
+        //     'r8' => $validated['r8'] ?? null,
+
+        //     // remarks (IMPORTANT)
+        //     'remarks_array' => [
+        //         'r1' => $validated['remark_r1'] ?? null,
+        //         'r2' => $validated['remark_r2'] ?? null,
+        //         'r3' => $validated['remark_r3'] ?? null,
+        //         'r4' => $validated['remark_r4'] ?? null,
+        //         'r5' => $validated['remark_r5'] ?? null,
+        //         'r6' => $validated['remark_r6'] ?? null,
+        //         'r7' => $validated['remark_r7'] ?? null,
+        //         'r8' => $validated['remark_r8'] ?? null,
+        //     ],
+        //     'remark_r1' => $validated['remark_r1'] ?? null,
+        //     'remark_r2' => $validated['remark_r2'] ?? null,
+
+        //     // comments
+        //     'improvement_comments' => $validated['comments_improvement'] ?? null,
+        //     'praise_comments' => $validated['comments_praise'] ?? null,
+
+        //     'overall_label' => $this->resolveRatingLabel($overallRating),
+        // ]);
+
+        $templateProcessor = new TemplateProcessor($templatePath);
+
+        // Primary placeholders
+        $templateProcessor->setValue('driver_name', $driverName);
+        $templateProcessor->setValue('date', $evaluationDate);
+        $templateProcessor->setValue('vehicle', $vehicle);
+        $templateProcessor->setValue('plate_no', $plateNo);
+        $templateProcessor->setValue('destination', $destination);
+        $templateProcessor->setValue('purpose_travel', $purposeTravel);
+        $templateProcessor->setValue('duration_travel', $duration);
+        $templateProcessor->setValue('overall_rating', $overallRatingText);
+        $templateProcessor->setValue('personnel_name', $personnelName);
+
+        // Aliases for template compatibility (example style)
+        $templateProcessor->setValue('rating', $this->normalizeDocxText($overallRatingText));
+        $templateProcessor->setValue('remarks', $this->normalizeDocxText($remarksCombined));
+
+        // Criteria ratings
+        $templateProcessor->setValue('r1', $this->normalizeDocxText((string) ((int) ($validated['r1'] ?? 0))));
+        $templateProcessor->setValue('r2', $this->normalizeDocxText((string) ((int) ($validated['r2'] ?? 0))));
+        $templateProcessor->setValue('r3', $this->normalizeDocxText((string) ((int) ($validated['r3'] ?? 0))));
+        $templateProcessor->setValue('r4', $this->normalizeDocxText((string) ((int) ($validated['r4'] ?? 0))));
+        $templateProcessor->setValue('r5', $this->normalizeDocxText((string) ((int) ($validated['r5'] ?? 0))));
+        $templateProcessor->setValue('r6', $this->normalizeDocxText((string) ((int) ($validated['r6'] ?? 0))));
+        $templateProcessor->setValue('r7', $this->normalizeDocxText((string) ((int) ($validated['r7'] ?? 0))));
+        $templateProcessor->setValue('r8', $this->normalizeDocxText((string) ((int) ($validated['r8'] ?? 0))));
+
+        // Criteria remarks
+        $templateProcessor->setValue('remark_r1', $this->normalizeDocxText((string) ($validated['remark_r1'] ?? '')));
+        $templateProcessor->setValue('remark_r2', $this->normalizeDocxText((string) ($validated['remark_r2'] ?? '')));
+        $templateProcessor->setValue('remark_r3', $this->normalizeDocxText((string) ($validated['remark_r3'] ?? '')));
+        $templateProcessor->setValue('remark_r4', $this->normalizeDocxText((string) ($validated['remark_r4'] ?? '')));
+        $templateProcessor->setValue('remark_r5', $this->normalizeDocxText((string) ($validated['remark_r5'] ?? '')));
+        $templateProcessor->setValue('remark_r6', $this->normalizeDocxText((string) ($validated['remark_r6'] ?? '')));
+        $templateProcessor->setValue('remark_r7', $this->normalizeDocxText((string) ($validated['remark_r7'] ?? '')));
+        $templateProcessor->setValue('remark_r8', $this->normalizeDocxText((string) ($validated['remark_r8'] ?? '')));
+        // $templateProcessor->setValue('remark_r1', $this->normalizeDocxText((string) ($validated['criteria']['remarks']['r1'] ?? '')));
+        // $templateProcessor->setValue('remark_r2', $this->normalizeDocxText((string) ($validated['criteria']['remarks']['r2'] ?? '')));
+        // $templateProcessor->setValue('remark_r3', $this->normalizeDocxText((string) ($validated['criteria']['remarks']['r3'] ?? '')));
+        // $templateProcessor->setValue('remark_r4', $this->normalizeDocxText((string) ($validated['criteria']['remarks']['r4'] ?? '')));
+        // $templateProcessor->setValue('remark_r5', $this->normalizeDocxText((string) ($validated['criteria']['remarks']['r5'] ?? '')));
+        // $templateProcessor->setValue('remark_r6', $this->normalizeDocxText((string) ($validated['criteria']['remarks']['r6'] ?? '')));
+        // $templateProcessor->setValue('remark_r7', $this->normalizeDocxText((string) ($validated['criteria']['remarks']['r7'] ?? '')));
+        // $templateProcessor->setValue('remark_r8', $this->normalizeDocxText((string) ($validated['criteria']['remarks']['r8'] ?? '')));
+
+        $templateProcessor->setValue('improvement_comments', $this->formatCommentWithUnderlineAndWrap($validated['comments_improvement'] ?? '', 58));
+        $templateProcessor->setValue('praise_comments', $this->formatCommentWithUnderlineAndWrap($validated['comments_praise'] ?? '', 58));
+
+        $templateProcessor->setValue('overall_label', $this->normalizeDocxText($this->resolveRatingLabel($overallRating)));
+
+        $templateProcessor->saveAs($outputPath);
+
+        return [
+            'file_name' => $safeFileName,
+            'file_path' => $relativePath,
+            'process' => 'driver_performance_evaluation',
+            'process_key' => self::DPE_ATTACHMENT_KEY_PREFIX . '_' . ($evaluation->copy_key ?: $evaluation->id),
+            'source' => 'evaluation_performance_submit',
+            'copy_key' => (string) ($evaluation->copy_key ?? ''),
+        ];
+    }
+
+    private function resolveEvaluationAttachmentUrl(
+        TransportationRequestFormModel $transportationRequest,
+        array $attachments,
+        array $attachmentPayload
+    ): ?string {
+        $processKey = trim((string) ($attachmentPayload['process_key'] ?? ''));
+        $filePath = trim((string) ($attachmentPayload['file_path'] ?? ''));
+
+        $index = collect($attachments)->search(function ($attachment) use ($processKey, $filePath) {
+            if (!is_array($attachment)) {
+                return false;
+            }
+
+            $attachmentProcessKey = trim((string) ($attachment['process_key'] ?? ''));
+            $attachmentFilePath = trim((string) ($attachment['file_path'] ?? ''));
+
+            if ($processKey !== '' && $attachmentProcessKey === $processKey) {
+                return true;
+            }
+
+            return $filePath !== '' && $attachmentFilePath === $filePath;
+        });
+
+        if ($index === false) {
+            return null;
+        }
+
+        return route('request-form.attachment.view', [
+            'transportationRequest' => $transportationRequest->id,
+            'index' => (int) $index,
+        ]);
+    }
+
+    private function resolveEvaluationTemplatePath(): string
+    {
+        $candidates = [
+            storage_path('app/public/forms/form15_rev_00.docx'),
+            storage_path('app/public/forms/form_15_rev_00.docx'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_readable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        abort(500, 'Evaluation template file not found: form15_rev_00.docx');
+    }
+
+    private function normalizeDocxText(string $value): string
+    {
+        $normalized = str_replace(["\r\n", "\r", "\n"], ' ', trim($value));
+
+        return preg_replace('/\s+/', ' ', $normalized) ?: '';
+    }
+
+    private function formatCommentWithUnderlineAndWrap(string $value, int $lineLimit = 58): string
+    {
+        if (trim($value) === '') {
+            return '';
+        }
+
+        $normalized = $this->normalizeDocxText($value);
+
+        // Split text into lines that respect word boundaries
+        $words = explode(' ', $normalized);
+        $lines = [];
+        $currentLine = '';
+
+        foreach ($words as $word) {
+            // Check if adding this word exceeds the limit
+            if (strlen($currentLine) + strlen($word) + 1 > $lineLimit && $currentLine !== '') {
+                $lines[] = $currentLine;
+                $currentLine = $word;
+            } else {
+                $currentLine = ($currentLine === '') ? $word : $currentLine . ' ' . $word;
+            }
+        }
+
+        if ($currentLine !== '') {
+            $lines[] = $currentLine;
+        }
+
+        // Join lines with newline and tab for indentation
+        $formattedText = implode("\n\t", $lines);
+
+        // Create XML with underline formatting for PHPWord/DOCX
+        // The underline formatting is embedded in the text itself as a marker
+        // The DOCX template fields need to support this formatting
+        return $formattedText;
     }
 
     private function buildCriteriaPayload(array $validated): array

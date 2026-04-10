@@ -127,8 +127,10 @@ class DailyTripTicketController extends Controller
             ], 403);
         }
 
+        // Query for the specific driver's DTT
         $existingTicket = DailyDriversTripTicket::query()
             ->where('transportation_request_form_id', (int) $validated['transportation_request_form_id'])
+            ->where('assigned_driver_name', trim((string) $driverUser->name))
             ->first();
 
         $baseSnapshot = $this->buildRequestFormSnapshot($transportationRequest);
@@ -208,7 +210,10 @@ class DailyTripTicketController extends Controller
         $updateData['fuel_balance_after'] = $fuelBalanceAfter;
 
         $ticket = DailyDriversTripTicket::query()->updateOrCreate(
-            ['transportation_request_form_id' => (int) $validated['transportation_request_form_id']],
+            [
+                'transportation_request_form_id' => (int) $validated['transportation_request_form_id'],
+                'assigned_driver_name' => trim((string) $driverUser->name),
+            ],
             $updateData
         );
 

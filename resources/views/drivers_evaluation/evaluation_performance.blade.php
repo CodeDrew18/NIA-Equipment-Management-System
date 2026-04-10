@@ -453,7 +453,7 @@ Fill Evaluation
 <div id="evaluation-submit-loading-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/45 px-4">
     <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center">
         <div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary"></div>
-        <p class="text-sm font-semibold text-on-surface">Submitting evaluation and preparing print...</p>
+        <p class="text-sm font-semibold text-on-surface">Submitting evaluation and preparing Form 15 document...</p>
     </div>
 </div>
 
@@ -469,7 +469,8 @@ Fill Evaluation
         const confirmNoButton = document.getElementById('evaluation-submit-confirm-no');
         const confirmYesButton = document.getElementById('evaluation-submit-confirm-yes');
         const loadingModal = document.getElementById('evaluation-submit-loading-modal');
-        const shouldAutoPrintEvaluation = @json((bool) session('auto_print_evaluation'));
+        const shouldAutoOpenEvaluationDocx = @json((bool) session('auto_open_evaluation_docx'));
+        const evaluationAttachmentUrl = @json((string) session('evaluation_attachment_url', ''));
 
         if (!finalRateEl || !finalRateLabelEl) {
             return;
@@ -604,9 +605,12 @@ Fill Evaluation
             });
         }
 
-        if (shouldAutoPrintEvaluation) {
+        if (shouldAutoOpenEvaluationDocx && evaluationAttachmentUrl !== '') {
             window.setTimeout(function () {
-                window.print();
+                const generatedDocWindow = window.open(evaluationAttachmentUrl, '_blank', 'noopener');
+                if (!generatedDocWindow) {
+                    window.location.href = evaluationAttachmentUrl;
+                }
             }, 450);
         }
 

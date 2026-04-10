@@ -137,7 +137,7 @@
 <th class="px-6 py-4 font-label text-xs font-semibold uppercase tracking-wider text-outline">Status</th>
 </tr>
 </thead>
-<tbody class="divide-y divide-outline-variant/10">
+<tbody id="audit-log-tbody" class="divide-y divide-outline-variant/10">
 @forelse ($auditLogs as $log)
 @php
   $rowClass = $loop->even ? 'bg-surface-container-low/30 hover:bg-surface-container-low transition-colors' : 'hover:bg-surface-container-low transition-colors';
@@ -204,8 +204,8 @@
 </div>
 <!-- Pagination -->
 <footer class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/15 flex items-center justify-between">
-<span class="text-xs font-medium text-on-surface-variant">Showing {{ $auditLogs->firstItem() ?? 0 }} to {{ $auditLogs->lastItem() ?? 0 }} of {{ $auditLogs->total() }} entries</span>
-<div class="flex items-center gap-2">
+<span id="audit-log-summary" class="text-xs font-medium text-on-surface-variant">{{ $summaryText ?? ('Showing ' . ($auditLogs->firstItem() ?? 0) . ' to ' . ($auditLogs->lastItem() ?? 0) . ' of ' . $auditLogs->total() . ' entries') }}</span>
+<div id="audit-log-pagination" class="flex items-center gap-2">
 @if ($auditLogs->onFirstPage())
 <button class="p-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline disabled:opacity-30" disabled="">
 <span class="material-symbols-outlined">chevron_left</span>
@@ -225,11 +225,13 @@
 @endforeach
 
 @if ($auditLogs->hasMorePages())
-<a href="{{ $auditLogs->nextPageUrl() }}" class="p-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline">
+<a href="{{ $auditLogs->nextPageUrl() }}" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline text-xs font-semibold">
+<span>Next</span>
 <span class="material-symbols-outlined">chevron_right</span>
 </a>
 @else
-<button class="p-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline disabled:opacity-30" disabled="">
+<button class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline text-xs font-semibold disabled:opacity-30" disabled="">
+<span>Next</span>
 <span class="material-symbols-outlined">chevron_right</span>
 </button>
 @endif
@@ -240,23 +242,23 @@
 <section class="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
 <div class="bg-primary p-6 rounded-xl text-on-primary">
 <span class="font-label text-[10px] font-bold uppercase tracking-widest opacity-80">Total audit entries</span>
-<div class="text-3xl font-extrabold mt-1 tracking-tight">{{ number_format($totalLogs) }}</div>
+<div id="audit-total-logs" data-count-value="{{ $totalLogs }}" class="text-3xl font-extrabold mt-1 tracking-tight">{{ number_format($totalLogs) }}</div>
 <div class="mt-4 flex items-center gap-1 text-secondary-fixed text-xs font-bold">
 <span class="material-symbols-outlined text-xs">{{ $trendIcon }}</span>
-          {{ ($trendPercentage >= 0 ? '+' : '') . number_format($trendPercentage, 1) }}% vs previous month
+      <span id="audit-trend-percentage">{{ ($trendPercentage >= 0 ? '+' : '') . number_format($trendPercentage, 1) }}% vs previous month</span>
                 </div>
 </div>
 <div class="bg-surface-container-low p-6 rounded-xl">
 <span class="font-label text-[10px] font-bold uppercase tracking-widest text-outline">Access and process alerts</span>
-<div class="text-3xl font-extrabold mt-1 tracking-tight text-primary">{{ number_format($securityAlerts) }}</div>
+<div id="audit-security-alerts" data-count-value="{{ $securityAlerts }}" class="text-3xl font-extrabold mt-1 tracking-tight text-primary">{{ number_format($securityAlerts) }}</div>
 <div class="mt-4 flex items-center gap-1 text-error text-xs font-bold">
 <span class="material-symbols-outlined text-xs">warning</span>
-          {{ number_format($criticalAlerts) }} failed events requiring review
+      <span id="audit-critical-alerts">{{ number_format($criticalAlerts) }}</span> failed events requiring review
                 </div>
 </div>
 <div class="bg-surface-container-low p-6 rounded-xl">
 <span class="font-label text-[10px] font-bold uppercase tracking-widest text-outline">Users active (24h)</span>
-<div class="text-3xl font-extrabold mt-1 tracking-tight text-primary">{{ str_pad((string) $activeUsers, 2, '0', STR_PAD_LEFT) }}</div>
+<div id="audit-active-users" data-count-value="{{ $activeUsers }}" class="text-3xl font-extrabold mt-1 tracking-tight text-primary">{{ str_pad((string) $activeUsers, 2, '0', STR_PAD_LEFT) }}</div>
 <div class="mt-4 flex items-center gap-1 text-on-surface-variant text-xs font-bold">
 <span class="material-symbols-outlined text-xs">group</span>
           With recorded authenticated activity
@@ -264,7 +266,7 @@
 </div>
 <div class="bg-surface-container-low p-6 rounded-xl overflow-hidden relative">
 <span class="font-label text-[10px] font-bold uppercase tracking-widest text-outline relative z-10">Latest audit event</span>
-<div class="text-3xl font-extrabold mt-1 tracking-tight text-primary relative z-10">{{ $latestEventLabel }}</div>
+<div id="audit-latest-event" class="text-3xl font-extrabold mt-1 tracking-tight text-primary relative z-10">{{ $latestEventLabel }}</div>
 <div class="mt-4 flex items-center gap-1 text-secondary text-xs font-bold relative z-10">
 <span class="material-symbols-outlined text-xs">check_circle</span>
       User, action, and request details captured
@@ -277,4 +279,302 @@
 </main>
 <!-- Footer Space -->
 @include('layouts.footer')
+<script>
+(function () {
+  const auditEls = {
+    form: document.querySelector('form[action="{{ route('audit-log') }}"]'),
+    search: document.querySelector('input[name="search"]'),
+    from: document.querySelector('input[name="from"]'),
+    to: document.querySelector('input[name="to"]'),
+    tbody: document.getElementById('audit-log-tbody'),
+    summary: document.getElementById('audit-log-summary'),
+    pagination: document.getElementById('audit-log-pagination'),
+    totalLogs: document.getElementById('audit-total-logs'),
+    trendPercentage: document.getElementById('audit-trend-percentage'),
+    securityAlerts: document.getElementById('audit-security-alerts'),
+    criticalAlerts: document.getElementById('audit-critical-alerts'),
+    activeUsers: document.getElementById('audit-active-users'),
+    latestEvent: document.getElementById('audit-latest-event'),
+  };
+
+  const auditDataUrl = "{{ route('audit-log') }}";
+  const auditPrefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const auditAnimationFrames = new WeakMap();
+  let auditCurrentPage = {{ $auditLogs->currentPage() }};
+  let auditFilters = {
+    search: @json($search),
+    from: @json($fromDate),
+    to: @json($toDate),
+  };
+
+  function auditEsc(value) {
+    return String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  function auditToNumber(value) {
+    const parsed = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function auditFormatNumber(value, decimals = 0) {
+    return Number(value).toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  }
+
+  function auditAnimateMetric(element, targetValue, options = {}) {
+    if (!element) {
+      return;
+    }
+
+    const decimals = Number(options.decimals ?? 0);
+    const suffix = String(options.suffix ?? '');
+    const duration = Number(options.duration ?? 700);
+    const numericTarget = Number(targetValue);
+    const target = Number.isFinite(numericTarget) ? numericTarget : 0;
+
+    const existingFrameId = auditAnimationFrames.get(element);
+    if (existingFrameId) {
+      cancelAnimationFrame(existingFrameId);
+    }
+
+    const storedValue = Number(element.dataset.countValue);
+    const start = Number.isFinite(storedValue) ? storedValue : auditToNumber(element.textContent);
+
+    if (auditPrefersReducedMotion || duration <= 0 || Math.abs(start - target) < 0.001) {
+      element.textContent = `${auditFormatNumber(target, decimals)}${suffix}`;
+      element.dataset.countValue = String(target);
+      return;
+    }
+
+    const startedAt = performance.now();
+
+    function tick(now) {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = start + ((target - start) * eased);
+
+      element.textContent = `${auditFormatNumber(current, decimals)}${suffix}`;
+
+      if (progress < 1) {
+        const frameId = requestAnimationFrame(tick);
+        auditAnimationFrames.set(element, frameId);
+        return;
+      }
+
+      element.textContent = `${auditFormatNumber(target, decimals)}${suffix}`;
+      element.dataset.countValue = String(target);
+      auditAnimationFrames.delete(element);
+    }
+
+    const frameId = requestAnimationFrame(tick);
+    auditAnimationFrames.set(element, frameId);
+  }
+
+  function auditAnimateInitialMetrics() {
+    [auditEls.totalLogs, auditEls.securityAlerts, auditEls.activeUsers].forEach(function (metricEl) {
+      if (!metricEl) {
+        return;
+      }
+
+      const target = auditToNumber(metricEl.textContent);
+      metricEl.dataset.countValue = '0';
+      metricEl.textContent = '0';
+      auditAnimateMetric(metricEl, target);
+    });
+  }
+
+  function auditCategoryClass(category) {
+    const value = String(category ?? '').toUpperCase();
+    if (value.includes('LOGIN') || value.includes('LOGOUT')) {
+      return 'bg-tertiary-fixed text-on-tertiary-fixed-variant';
+    }
+
+    if (value.includes('PROCESS') || value.includes('EDIT') || value.includes('CREATE') || value.includes('UPDATE')) {
+      return 'bg-primary-fixed text-on-primary-fixed';
+    }
+
+    if (value.includes('ACCESS')) {
+      return 'bg-primary-fixed-dim text-on-primary-fixed-variant';
+    }
+
+    return 'bg-outline-variant/30 text-on-surface-variant';
+  }
+
+  function auditStatusClass(status) {
+    const value = String(status ?? '').toUpperCase();
+    if (value === 'FAILED') {
+      return { badge: 'bg-error-container text-on-error-container', dot: 'bg-error' };
+    }
+
+    if (value === 'WARNING') {
+      return { badge: 'bg-surface-container-highest text-on-surface-variant', dot: 'bg-outline' };
+    }
+
+    return { badge: 'bg-secondary-fixed text-on-secondary-fixed', dot: 'bg-secondary' };
+  }
+
+  function auditRow(item, index) {
+    const rowClass = index % 2 === 1 ? 'bg-surface-container-low/30 hover:bg-surface-container-low transition-colors' : 'hover:bg-surface-container-low transition-colors';
+    const category = String(item.actionCategory ?? '');
+    const status = String(item.status ?? '');
+    const categoryClass = auditCategoryClass(category);
+    const statusClass = auditStatusClass(status);
+
+    return `<tr class="${rowClass}">
+      <td class="px-6 py-5 text-sm font-medium text-on-surface">${auditEsc(item.timestamp)}</td>
+      <td class="px-6 py-5 text-sm font-semibold text-primary">${auditEsc(item.name || 'Unknown User')}</td>
+      <td class="px-6 py-5"><span class="${categoryClass} px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">${auditEsc(String(category || '').replaceAll('_', ' '))}</span></td>
+      <td class="px-6 py-5 text-sm text-on-surface-variant max-w-xs truncate">${auditEsc(item.activityDescription)}</td>
+      <td class="px-6 py-5 text-xs text-outline"><span>${auditEsc(item.otherDetails || 'N/A')}</span></td>
+      <td class="px-6 py-5"><span class="inline-flex items-center gap-1.5 ${statusClass.badge} px-3 py-1 rounded-full text-xs font-bold"><span class="w-1.5 h-1.5 rounded-full ${statusClass.dot}"></span> ${auditEsc(status.toUpperCase())}</span></td>
+    </tr>`;
+  }
+
+  function auditRenderPagination(pagination) {
+    if (!auditEls.pagination) {
+      return;
+    }
+
+    const currentPage = Number(pagination.currentPage || 1);
+    const onFirstPage = Boolean(pagination.onFirstPage);
+    const hasMorePages = Boolean(pagination.hasMorePages);
+    const pageUrls = pagination.pageUrls || {};
+
+    const prevButton = onFirstPage
+      ? '<button class="p-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline disabled:opacity-30" disabled><span class="material-symbols-outlined">chevron_left</span></button>'
+      : `<button type="button" data-audit-page="${currentPage - 1}" class="p-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline"><span class="material-symbols-outlined">chevron_left</span></button>`;
+
+    const pageButtons = Object.keys(pageUrls).map(function (pageKey) {
+      const page = Number(pageKey);
+      if (page === currentPage) {
+        return `<span class="h-8 w-8 rounded-lg bg-primary text-on-primary text-xs font-bold inline-flex items-center justify-center">${page}</span>`;
+      }
+
+      return `<button type="button" data-audit-page="${page}" class="h-8 w-8 rounded-lg hover:bg-surface-container-high text-xs font-bold text-on-surface inline-flex items-center justify-center">${page}</button>`;
+    }).join('');
+
+    const nextButton = hasMorePages
+      ? `<button type="button" data-audit-page="${currentPage + 1}" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline text-xs font-semibold"><span>Next</span><span class="material-symbols-outlined">chevron_right</span></button>`
+      : '<button class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline text-xs font-semibold disabled:opacity-30" disabled><span>Next</span><span class="material-symbols-outlined">chevron_right</span></button>';
+
+    auditEls.pagination.innerHTML = `${prevButton}${pageButtons}${nextButton}`;
+  }
+
+  async function auditRefresh(page = auditCurrentPage) {
+    try {
+      const params = new URLSearchParams();
+      if (auditFilters.search) params.set('search', auditFilters.search);
+      if (auditFilters.from) params.set('from', auditFilters.from);
+      if (auditFilters.to) params.set('to', auditFilters.to);
+      params.set('page', String(page || 1));
+
+      const response = await fetch(`${auditDataUrl}?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = await response.json();
+      const rows = Array.isArray(payload.rows) ? payload.rows : [];
+      const pagination = payload.auditLogs?.pagination || payload.pagination || {};
+
+      auditCurrentPage = Number(pagination.currentPage || 1);
+
+      if (auditEls.tbody) {
+        auditEls.tbody.innerHTML = rows.length > 0
+          ? rows.map(auditRow).join('')
+          : '<tr><td colspan="6" class="px-6 py-8 text-center text-sm font-semibold text-outline">No audit records found for the selected filters.</td></tr>';
+      }
+
+      if (auditEls.summary) {
+        auditEls.summary.textContent = payload.summaryText || 'Showing 0 to 0 of 0 entries';
+      }
+
+      if (auditEls.totalLogs) {
+        auditAnimateMetric(auditEls.totalLogs, Number(payload.totalLogs) || 0);
+      }
+
+      if (auditEls.securityAlerts) {
+        auditAnimateMetric(auditEls.securityAlerts, Number(payload.securityAlerts) || 0);
+      }
+
+      if (auditEls.activeUsers) {
+        auditAnimateMetric(auditEls.activeUsers, Number(payload.activeUsers) || 0);
+      }
+
+      if (auditEls.criticalAlerts) {
+        auditEls.criticalAlerts.textContent = String(Number(payload.criticalAlerts) || 0);
+      }
+
+      if (auditEls.trendPercentage) {
+        const trend = Number(payload.trendPercentage) || 0;
+        auditEls.trendPercentage.textContent = `${trend >= 0 ? '+' : ''}${trend.toFixed(1)}% vs previous month`;
+      }
+
+      if (auditEls.latestEvent) {
+        auditEls.latestEvent.textContent = payload.latestEventLabel || 'No records yet';
+      }
+
+      auditRenderPagination(pagination);
+    } catch (error) {
+      console.error('Audit log AJAX refresh failed', error);
+    }
+  }
+
+  if (auditEls.form) {
+    auditEls.form.addEventListener('submit', function (event) {
+      event.preventDefault();
+
+      auditFilters.search = String(auditEls.search?.value ?? '').trim();
+      auditFilters.from = String(auditEls.from?.value ?? '').trim();
+      auditFilters.to = String(auditEls.to?.value ?? '').trim();
+      auditCurrentPage = 1;
+
+      auditRefresh(1);
+    });
+  }
+
+  if (auditEls.pagination) {
+    auditEls.pagination.addEventListener('click', function (event) {
+      const button = event.target.closest('[data-audit-page]');
+      if (!button) {
+        return;
+      }
+
+      event.preventDefault();
+      const page = Number(button.getAttribute('data-audit-page'));
+      if (!Number.isFinite(page) || page < 1) {
+        return;
+      }
+
+      auditRefresh(page);
+    });
+  }
+
+  auditAnimateInitialMetrics();
+  auditRefresh(auditCurrentPage);
+
+  if (typeof window.emsLiveRefresh === 'function') {
+    window.emsLiveRefresh(function () {
+      return auditRefresh(auditCurrentPage);
+    }, {
+      intervalMs: 5000,
+    });
+  }
+})();
+</script>
 </body></html>

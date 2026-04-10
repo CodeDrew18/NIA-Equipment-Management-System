@@ -151,7 +151,7 @@ Clear Filters
 <!-- Main Data Table Container -->
 <div class="bg-surface-container-lowest rounded-xl shadow-[0px_12px_32px_rgba(25,28,30,0.06)] overflow-hidden">
 <div class="overflow-x-auto">
-<table class="w-full text-left border-collapse">
+<table class="w-full min-w-[1240px] text-left border-collapse">
 <thead>
 <tr class="bg-surface-container-low">
 <th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-primary">Document Type</th>
@@ -160,7 +160,8 @@ Clear Filters
 <th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-primary">Driver / Personnel</th>
 <th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-primary">Date Printed</th>
 <th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-primary">Date Time To</th>
-<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-primary">Status</th>
+<th class="px-6 py-4 w-[340px] text-[10px] font-bold uppercase tracking-widest text-primary">Attachments</th>
+<th class="px-6 py-4 w-[160px] text-[10px] font-bold uppercase tracking-widest text-primary">Status</th>
 </tr>
 </thead>
 <tbody id="otv-tbody" class="divide-y divide-slate-50">
@@ -191,13 +192,44 @@ Clear Filters
 </td>
 <td class="px-6 py-4 text-sm text-slate-500">{{ optional($item->request_date)->format('M d, Y') ?? 'N/A' }}</td>
 <td class="px-6 py-4 text-sm text-slate-500">{{ optional($item->date_time_to)->format('M d, Y h:i A') ?? 'N/A' }}</td>
-<td class="px-6 py-4">
-<span class="bg-primary-fixed text-on-primary-fixed-variant px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">On Trip</span>
+<td class="px-6 py-4 align-top">
+@php
+  $attachmentLinks = is_array($item->attachment_links ?? null) ? $item->attachment_links : [];
+@endphp
+@if (!empty($attachmentLinks))
+<div class="max-w-[320px]">
+<div class="mb-1 text-[10px] font-bold uppercase tracking-wider text-outline">{{ count($attachmentLinks) }} file{{ count($attachmentLinks) > 1 ? 's' : '' }}</div>
+<div class="max-h-[110px] space-y-1.5 overflow-y-auto pr-1">
+@foreach ($attachmentLinks as $attachment)
+@php
+  $attachmentName = (string) ($attachment['name'] ?? 'Attachment');
+@endphp
+<a href="{{ $attachment['url'] ?? '#' }}" target="_blank" rel="noopener" class="group flex items-center gap-1.5 rounded-lg border border-primary/10 bg-primary/5 px-2 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/10 hover:border-primary/20">
+<span class="material-symbols-outlined text-sm" data-icon="attach_file">attach_file</span>
+<span class="truncate" title="{{ $attachmentName }}">{{ $attachmentName }}</span>
+<span class="material-symbols-outlined ml-auto text-[13px] text-primary/60 transition-transform duration-200 group-hover:translate-x-0.5" data-icon="open_in_new">open_in_new</span>
+</a>
+@endforeach
+</div>
+</div>
+@else
+<div class="inline-flex items-center gap-1.5 rounded-md border border-dashed border-outline-variant px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-outline">
+<span class="material-symbols-outlined text-sm" data-icon="attach_file">attach_file</span>
+No Attachments
+</div>
+@endif
+</td>
+<td class="px-6 py-4 align-top">
+<div class="inline-flex items-center gap-2 rounded-full bg-secondary-container/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-secondary">
+<span class="h-2 w-2 rounded-full bg-secondary animate-pulse"></span>
+On Trip
+</div>
+<div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-outline">Active Deployment</div>
 </td>
 </tr>
 @empty
 <tr>
-<td colspan="7" class="px-6 py-8 text-center text-sm font-semibold text-outline">No on-trip vehicle records found.</td>
+<td colspan="8" class="px-6 py-8 text-center text-sm font-semibold text-outline">No on-trip vehicle records found.</td>
 </tr>
 @endforelse
 </tbody>
@@ -329,6 +361,38 @@ function otvDriverInitials(name) {
   return `${first}${last}`.toUpperCase() || '--';
 }
 
+function otvSafeHref(value) {
+  const normalized = String(value ?? '').trim();
+  if (normalized === '') {
+    return '#';
+  }
+
+  const lower = normalized.toLowerCase();
+  if (lower.startsWith('javascript:') || lower.startsWith('data:')) {
+    return '#';
+  }
+
+  return otvEsc(normalized);
+}
+
+function otvAttachmentsMarkup(attachments) {
+  const files = Array.isArray(attachments) ? attachments : [];
+  if (files.length === 0) {
+    return '<div class="inline-flex items-center gap-1.5 rounded-md border border-dashed border-outline-variant px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-outline"><span class="material-symbols-outlined text-sm" data-icon="attach_file">attach_file</span>No Attachments</div>';
+  }
+
+  return `<div class="max-w-[320px]"><div class="mb-1 text-[10px] font-bold uppercase tracking-wider text-outline">${files.length} file${files.length > 1 ? 's' : ''}</div><div class="max-h-[110px] space-y-1.5 overflow-y-auto pr-1">${files.map(function (attachment) {
+    const attachmentName = otvEsc(attachment?.name || 'Attachment');
+    const attachmentUrl = otvSafeHref(attachment?.url || '#');
+
+    return `<a href="${attachmentUrl}" target="_blank" rel="noopener" class="group flex items-center gap-1.5 rounded-lg border border-primary/10 bg-primary/5 px-2 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/10 hover:border-primary/20"><span class="material-symbols-outlined text-sm" data-icon="attach_file">attach_file</span><span class="truncate" title="${attachmentName}">${attachmentName}</span><span class="material-symbols-outlined ml-auto text-[13px] text-primary/60 transition-transform duration-200 group-hover:translate-x-0.5" data-icon="open_in_new">open_in_new</span></a>`;
+  }).join('')}</div></div>`;
+}
+
+function otvStatusMarkup() {
+  return '<div class="inline-flex items-center gap-2 rounded-full bg-secondary-container/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-secondary"><span class="h-2 w-2 rounded-full bg-secondary animate-pulse"></span>On Trip</div><div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-outline">Active Deployment</div>';
+}
+
 function otvAnimateMetric(element, targetValue, options = {}) {
   if (!element) {
     return;
@@ -414,14 +478,13 @@ function otvRow(item, index) {
     </td>
     <td class="px-6 py-4 text-sm text-slate-500">${otvEsc(item.requestDate)}</td>
     <td class="px-6 py-4 text-sm text-slate-500">${otvEsc(item.dateTimeTo)}</td>
-    <td class="px-6 py-4">
-      <span class="bg-primary-fixed text-on-primary-fixed-variant px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">On Trip</span>
-    </td>
+    <td class="px-6 py-4 align-top">${otvAttachmentsMarkup(item.attachments)}</td>
+    <td class="px-6 py-4 align-top">${otvStatusMarkup()}</td>
   </tr>`;
 }
 
 function otvNoDataRow() {
-  return '<tr><td colspan="7" class="px-6 py-8 text-center text-sm font-semibold text-outline">No on-trip vehicle records found.</td></tr>';
+  return '<tr><td colspan="8" class="px-6 py-8 text-center text-sm font-semibold text-outline">No on-trip vehicle records found.</td></tr>';
 }
 
 function otvRenderPagination(pagination) {

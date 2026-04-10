@@ -13,6 +13,17 @@ class auditLogController extends Controller
 {
     public function index(Request $request)
     {
+        $payload = $this->buildPayload($request);
+
+        if ($request->expectsJson()) {
+            return response()->json($payload);
+        }
+
+        return view('admin.audit_log.audit_log', $payload);
+    }
+
+    private function buildPayload(Request $request): array
+    {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'from' => ['nullable', 'date_format:Y-m-d'],
@@ -24,8 +35,9 @@ class auditLogController extends Controller
         $toDate = $validated['to'] ?? '';
 
         if (!Schema::hasTable('audit_logs')) {
-            return view('admin.audit_log.audit_log', [
+            return [
                 'auditLogs' => new LengthAwarePaginator([], 0, 10, 1),
+                'rows' => [],
                 'search' => $search,
                 'fromDate' => $fromDate,
                 'toDate' => $toDate,
@@ -36,7 +48,8 @@ class auditLogController extends Controller
                 'criticalAlerts' => 0,
                 'activeUsers' => 0,
                 'latestEventLabel' => 'No records yet',
-            ]);
+                'summaryText' => 'Showing 0 to 0 of 0 entries',
+            ];
         }
 
         $query = AuditLog::query()
@@ -108,7 +121,7 @@ class auditLogController extends Controller
             ? Carbon::parse($latestLog->created_at)->diffForHumans()
             : 'No records yet';
 
-        return view('admin.audit_log.audit_log', [
+        return [
             'auditLogs' => $auditLogs,
             'search' => $search,
             'fromDate' => $fromDate,
@@ -120,6 +133,25 @@ class auditLogController extends Controller
             'criticalAlerts' => $criticalAlerts,
             'activeUsers' => $activeUsers,
             'latestEventLabel' => $latestEventLabel,
-        ]);
+            'summaryText' => 'Showing ' . ($auditLogs->firstItem() ?? 0) . ' to ' . ($auditLogs->lastItem() ?? 0) . ' of ' . $auditLogs->total() . ' entries',
+            'pagination' => [
+                'currentPage' => $auditLogs->currentPage(),
+                'lastPage' => $auditLogs->lastPage(),
+                'onFirstPage' => $auditLogs->onFirstPage(),
+                'hasMorePages' => $auditLogs->hasMorePages(),
+                'pageUrls' => $auditLogs->getUrlRange(1, $auditLogs->lastPage()),
+            ],
+            'rows' => $auditLogs->getCollection()->values()->map(function (AuditLog $log): array {
+                return [
+                    'timestamp' => optional($log->created_at)->format('M d, Y h:i A') ?? 'N/A',
+                    'personnelId' => (string) ($log->personnel_id ?: ('USR-' . $log->user_id)),
+                    'userName' => (string) ($log->user_name ?: 'Unknown User'),
+                    'actionCategory' => (string) $log->action_category,
+                    'activityDescription' => (string) ($log->activity_description ?? ''),
+                    'ipAddress' => (string) ($log->ip_address ?: 'N/A'),
+                    'status' => (string) $log->status,
+                ];
+            })->all(),
+        ];
     }
 }

@@ -12,12 +12,17 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class vehicleAssignmentController extends Controller
 {
     private const VEHICLE_TYPES = ['coaster', 'van', 'pickup', 'other'];
+    private const REQUEST_FORM_ATTACHMENT_KEY = 'transportation_request_form_file';
+    private const DIVISION_MANAGER = 'ENGR. EMILIO M. DOMAGAS JR.';
 
     public function index(Request $request)
     {
@@ -233,6 +238,16 @@ class vehicleAssignmentController extends Controller
                     'status' => 'Reserved',
                 ]);
         });
+
+        try {
+            $transportationRequest->refresh();
+            $this->storeAssignedRequestFormAttachment($transportationRequest);
+        } catch (\Throwable $exception) {
+            Log::warning('Failed updating transportation request attachment after assignment.', [
+                'transportation_request_form_id' => $transportationRequest->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
 
         $notifiedDrivers = $this->sendAssignmentPushToDrivers(
             $transportationRequest,
@@ -498,6 +513,115 @@ class vehicleAssignmentController extends Controller
             ->unique()
             ->values()
             ->all();
+    }
+
+    private function storeAssignedRequestFormAttachment(TransportationRequestFormModel $transportationRequest): void
+    {
+        $templatePath = storage_path('app/public/forms/form_05_Transportation_Request_rev_08.xlsx');
+        if (!is_readable($templatePath)) {
+            throw new \RuntimeException('Transportation request template file not found.');
+        }
+
+        $spreadsheet = IOFactory::load($templatePath);
+        $sheet = $spreadsheet->getActiveSheet();
+
+        $requestDate = optional($transportationRequest->request_date)->toDateString() ?: '';
+        $requestedBy = (string) ($transportationRequest->requested_by ?? '');
+        $purpose = trim((string) ($transportationRequest->purpose ?? ''));
+        $destination = (string) ($transportationRequest->destination ?? '');
+        $dateTimeFrom = optional($transportationRequest->date_time_from)->toDateTimeString();
+        $dateTimeTo = optional($transportationRequest->date_time_to)->toDateTimeString();
+
+        $divisionPersonnel = $transportationRequest->division_personnel;
+        if (is_string($divisionPersonnel) && trim($divisionPersonnel) !== '') {
+            $decodedDivisionPersonnel = json_decode($divisionPersonnel, true);
+            if (is_array($decodedDivisionPersonnel)) {
+                $divisionPersonnel = $decodedDivisionPersonnel;
+            }
+        }
+
+        $divisionName = '';
+        $divisionPosition = '';
+
+        if (is_array($divisionPersonnel) && isset($divisionPersonnel[0]) && is_array($divisionPersonnel[0])) {
+            $divisionName = trim((string) ($divisionPersonnel[0]['name'] ?? ''));
+            $divisionPosition = trim((string) ($divisionPersonnel[0]['position'] ?? ''));
+        }
+
+        $sheet->mergeCells('H10:I10');
+        $sheet->setCellValue('H10', $requestDate);
+
+        $sheet->mergeCells('C12:J12');
+        $sheet->setCellValue('C12', $requestedBy);
+
+        $purposeLines = preg_split('/\r\n|\r|\n/', wordwrap($purpose !== '' ? $purpose : 'N/A', 85));
+        $basePurposeLines = 3;
+        $extraPurposeLines = max(0, count($purposeLines) - $basePurposeLines);
+        if ($extraPurposeLines > 0) {
+            $sheet->insertNewRowBefore(16, $extraPurposeLines);
+        }
+
+        $row = 13;
+        foreach ($purposeLines as $line) {
+            $sheet->mergeCells("C{$row}:J{$row}");
+            $sheet->setCellValue("C{$row}", $line);
+            $row++;
+        }
+
+        $destinationRow = 16 + $extraPurposeLines;
+        $dateTimeUsedRow = 17 + $extraPurposeLines;
+
+        $sheet->mergeCells("C{$destinationRow}:J{$destinationRow}");
+        $sheet->setCellValue("C{$destinationRow}", $destination !== '' ? $destination : 'N/A');
+
+        $sheet->mergeCells("C{$dateTimeUsedRow}:J{$dateTimeUsedRow}");
+        $sheet->setCellValue(
+            "C{$dateTimeUsedRow}",
+            trim((string) (($dateTimeFrom ?: 'N/A') . ' to ' . ($dateTimeTo ?: 'N/A')))
+        );
+
+        $requestingDivisionRow = 20 + $extraPurposeLines;
+        $sheet->mergeCells("C{$requestingDivisionRow}:F{$requestingDivisionRow}");
+        $sheet->setCellValue("C{$requestingDivisionRow}", $divisionName !== '' ? $divisionName : 'N/A');
+
+        $sheet->mergeCells("G{$requestingDivisionRow}:J{$requestingDivisionRow}");
+        $sheet->setCellValue("G{$requestingDivisionRow}", $divisionPosition !== '' ? $divisionPosition : 'N/A');
+
+        $vehicleInfoRow = 23 + $extraPurposeLines;
+        $sheet->mergeCells("E{$vehicleInfoRow}:F{$vehicleInfoRow}");
+        $sheet->setCellValue("E{$vehicleInfoRow}", (string) ($transportationRequest->vehicle_id ?: 'N/A'));
+
+        $sheet->mergeCells("H{$vehicleInfoRow}:J{$vehicleInfoRow}");
+        $sheet->setCellValue("H{$vehicleInfoRow}", (string) ($transportationRequest->driver_name ?: 'N/A'));
+
+        $divisionManagerRow = 28 + $extraPurposeLines;
+        $sheet->mergeCells("G{$divisionManagerRow}:I{$divisionManagerRow}");
+        $sheet->setCellValue("G{$divisionManagerRow}", self::DIVISION_MANAGER);
+
+        $outputDirectory = Storage::disk('public')->path('generated_forms');
+        if (!is_dir($outputDirectory)) {
+            mkdir($outputDirectory, 0755, true);
+        }
+
+        $safeFormId = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) ($transportationRequest->form_id ?: 'REQUEST')) ?: 'REQUEST';
+        $safeFileName = 'Transportation_Request_Form_' . $safeFormId . '_assigned_' . now()->format('Ymd_His_u') . '_' . Str::lower(Str::random(6)) . '.xlsx';
+        $relativePath = 'generated_forms/' . $safeFileName;
+        $absolutePath = Storage::disk('public')->path($relativePath);
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($absolutePath);
+
+        $transportationRequest->update([
+            'generated_filename' => $safeFileName,
+        ]);
+
+        $transportationRequest->upsertAttachment([
+            'file_name' => $safeFileName,
+            'file_path' => $relativePath,
+            'process' => 'transportation_request_form',
+            'process_key' => self::REQUEST_FORM_ATTACHMENT_KEY,
+            'source' => 'vehicle_assignment',
+        ]);
     }
 
     private function vehicleTypeLabel(string $type): string

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\TransportationRequestFormModel;
 use App\Support\TripLifecycleManager;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class onTripVehicleController extends Controller
 {
@@ -56,6 +57,9 @@ class onTripVehicleController extends Controller
                     'driverName' => (string) ($item->driver_name ?: 'N/A'),
                     'requestDate' => optional($item->request_date)->format('M d, Y') ?: 'N/A',
                     'dateTimeTo' => optional($item->date_time_to)->format('M d, Y h:i A') ?: 'N/A',
+                    'attachments' => is_array($item->attachment_links ?? null)
+                        ? $item->attachment_links
+                        : $this->buildAttachmentLinks($item),
                 ];
             }),
         ]);
@@ -94,11 +98,22 @@ class onTripVehicleController extends Controller
             });
 
         $onTripRequests = (clone $baseQuery)
+            ->with([
+                'dailyDriversTripTicket:id,transportation_request_form_id,attachment',
+                'fuelIssuanceRecords:id,transportation_request_form_id,attachment',
+            ])
             ->orderByDesc('date_time_from')
             ->orderByDesc('request_date')
             ->orderByDesc('id')
             ->paginate(10)
             ->withQueryString();
+
+        $onTripRequests->getCollection()->transform(function (TransportationRequestFormModel $item) {
+            $item->setAttribute('normalized_attachments', $item->normalizeAttachments());
+            $item->setAttribute('attachment_links', $this->buildAttachmentLinks($item));
+
+            return $item;
+        });
 
         $totalOnTrip = (clone $baseQuery)->count();
         $vehiclesDeployed = (clone $baseQuery)
@@ -119,5 +134,89 @@ class onTripVehicleController extends Controller
             'vehiclesDeployed' => $vehiclesDeployed,
             'driversAssigned' => $driversAssigned,
         ];
+    }
+
+    private function buildAttachmentLinks(TransportationRequestFormModel $transportationRequest): array
+    {
+        $attachments = is_array($transportationRequest->normalized_attachments ?? null)
+            ? $transportationRequest->normalized_attachments
+            : $transportationRequest->normalizeAttachments();
+
+        $baseLinks = collect($attachments)
+            ->map(function (array $attachment, int $index) use ($transportationRequest) {
+                $filePath = trim((string) ($attachment['file_path'] ?? ''));
+                if ($filePath === '' || !Storage::disk('public')->exists($filePath)) {
+                    return null;
+                }
+
+                $fileName = trim((string) ($attachment['file_name'] ?? basename($filePath)));
+
+                return [
+                    'name' => $fileName !== '' ? $fileName : basename($filePath),
+                    'url' => route('admin.transportation-request.attachment.view', [
+                        'transportationRequest' => $transportationRequest->id,
+                        'index' => $index,
+                    ]),
+                    'file_path' => $filePath,
+                ];
+            })
+            ->filter(function ($link) {
+                return is_array($link);
+            })
+            ->values();
+
+        $appendAttachmentLink = function (mixed $attachment) use (&$baseLinks): void {
+            if (is_string($attachment)) {
+                $filePath = trim($attachment);
+                $fileName = basename($filePath);
+            } elseif (is_array($attachment)) {
+                $filePath = trim((string) ($attachment['file_path'] ?? ''));
+                $fileName = trim((string) ($attachment['file_name'] ?? basename($filePath)));
+            } else {
+                return;
+            }
+
+            if ($filePath === '' || !Storage::disk('public')->exists($filePath)) {
+                return;
+            }
+
+            $alreadyExists = $baseLinks->contains(function (array $link) use ($filePath) {
+                return trim((string) ($link['file_path'] ?? '')) === $filePath;
+            });
+
+            if ($alreadyExists) {
+                return;
+            }
+
+            $baseLinks->push([
+                'name' => $fileName !== '' ? $fileName : basename($filePath),
+                'url' => asset('storage/' . ltrim($filePath, '/')),
+                'file_path' => $filePath,
+            ]);
+        };
+
+        $ticket = $transportationRequest->relationLoaded('dailyDriversTripTicket')
+            ? $transportationRequest->dailyDriversTripTicket
+            : $transportationRequest->dailyDriversTripTicket()->first();
+
+        $appendAttachmentLink($ticket?->attachment);
+
+        $fuelIssuanceRecords = $transportationRequest->relationLoaded('fuelIssuanceRecords')
+            ? $transportationRequest->fuelIssuanceRecords
+            : $transportationRequest->fuelIssuanceRecords()->get(['id', 'attachment']);
+
+        foreach ($fuelIssuanceRecords as $fuelIssuanceRecord) {
+            $appendAttachmentLink($fuelIssuanceRecord->attachment);
+        }
+
+        return $baseLinks
+            ->map(function (array $link) {
+                return [
+                    'name' => (string) ($link['name'] ?? 'Attachment'),
+                    'url' => (string) ($link['url'] ?? '#'),
+                ];
+            })
+            ->values()
+            ->all();
     }
 }

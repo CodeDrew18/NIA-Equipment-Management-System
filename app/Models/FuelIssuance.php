@@ -30,6 +30,7 @@ class FuelIssuance extends Model
         'v_power_price',
         'total_amount',
         'request_form_data',
+        'attachment',
         'dispatched_at',
     ];
 
@@ -45,6 +46,7 @@ class FuelIssuance extends Model
         'v_power_price' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'request_form_data' => 'array',
+        'attachment' => 'array',
         'dispatched_at' => 'datetime',
     ];
 

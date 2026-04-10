@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Storage;
 
 class TransportationRequestFormModel extends Model
 {
@@ -42,6 +43,132 @@ class TransportationRequestFormModel extends Model
         'division_personnel' => 'array',
         'attachments' => 'array',
     ];
+
+    public function normalizeAttachments(mixed $attachments = null): array
+    {
+        $source = $attachments ?? $this->attachments;
+
+        if (is_string($source) && trim($source) !== '') {
+            $decoded = json_decode($source, true);
+            if (is_array($decoded)) {
+                $source = $decoded;
+            }
+        }
+
+        if (!is_array($source)) {
+            return [];
+        }
+
+        return collect($source)
+            ->map(function ($attachment) {
+                if (is_string($attachment)) {
+                    $filePath = trim($attachment);
+
+                    return $filePath !== ''
+                        ? [
+                            'file_name' => basename($filePath),
+                            'file_path' => $filePath,
+                        ]
+                        : null;
+                }
+
+                if (!is_array($attachment)) {
+                    return null;
+                }
+
+                $filePath = trim((string) ($attachment['file_path'] ?? ''));
+                if ($filePath === '') {
+                    return null;
+                }
+
+                $fileName = trim((string) ($attachment['file_name'] ?? basename($filePath)));
+
+                return array_filter([
+                    'file_name' => $fileName !== '' ? $fileName : basename($filePath),
+                    'file_path' => $filePath,
+                    'process' => trim((string) ($attachment['process'] ?? '')),
+                    'process_key' => trim((string) ($attachment['process_key'] ?? '')),
+                    'source' => trim((string) ($attachment['source'] ?? '')),
+                    'copy_key' => trim((string) ($attachment['copy_key'] ?? '')),
+                    'stored_at' => trim((string) ($attachment['stored_at'] ?? '')),
+                ], function ($value, $key) {
+                    if (in_array($key, ['file_name', 'file_path'], true)) {
+                        return true;
+                    }
+
+                    return $value !== '';
+                }, ARRAY_FILTER_USE_BOTH);
+            })
+            ->filter(function ($attachment) {
+                return is_array($attachment) && !empty($attachment['file_path']);
+            })
+            ->values()
+            ->all();
+    }
+
+    public function upsertAttachment(array $attachment, bool $deletePreviousFile = true): array
+    {
+        $filePath = trim((string) ($attachment['file_path'] ?? ''));
+        if ($filePath === '') {
+            return $this->normalizeAttachments();
+        }
+
+        $fileName = trim((string) ($attachment['file_name'] ?? basename($filePath)));
+        $normalizedAttachment = [
+            'file_name' => $fileName !== '' ? $fileName : basename($filePath),
+            'file_path' => $filePath,
+            'process' => trim((string) ($attachment['process'] ?? '')),
+            'process_key' => trim((string) ($attachment['process_key'] ?? '')),
+            'source' => trim((string) ($attachment['source'] ?? '')),
+            'copy_key' => trim((string) ($attachment['copy_key'] ?? '')),
+            'stored_at' => trim((string) ($attachment['stored_at'] ?? now()->toDateTimeString())),
+        ];
+
+        $normalizedAttachment = array_filter($normalizedAttachment, function ($value, $key) {
+            if (in_array($key, ['file_name', 'file_path'], true)) {
+                return true;
+            }
+
+            return $value !== '';
+        }, ARRAY_FILTER_USE_BOTH);
+
+        $attachments = $this->normalizeAttachments();
+
+        $processKey = trim((string) ($normalizedAttachment['process_key'] ?? ''));
+        $existingIndex = collect($attachments)->search(function (array $existingAttachment) use ($processKey, $normalizedAttachment) {
+            if ($processKey !== '') {
+                return trim((string) ($existingAttachment['process_key'] ?? '')) === $processKey;
+            }
+
+            return trim((string) ($existingAttachment['file_path'] ?? '')) === (string) ($normalizedAttachment['file_path'] ?? '');
+        });
+
+        if ($existingIndex !== false) {
+            $existingAttachment = $attachments[$existingIndex] ?? [];
+            $previousPath = trim((string) ($existingAttachment['file_path'] ?? ''));
+            $nextPath = trim((string) ($normalizedAttachment['file_path'] ?? ''));
+
+            if (
+                $deletePreviousFile
+                && $previousPath !== ''
+                && $nextPath !== ''
+                && $previousPath !== $nextPath
+                && Storage::disk('public')->exists($previousPath)
+            ) {
+                Storage::disk('public')->delete($previousPath);
+            }
+
+            $attachments[$existingIndex] = array_merge($existingAttachment, $normalizedAttachment);
+        } else {
+            $attachments[] = $normalizedAttachment;
+        }
+
+        $this->forceFill([
+            'attachments' => array_values($attachments),
+        ])->save();
+
+        return $attachments;
+    }
 
     public function getRequestorNameAttribute(): string
     {

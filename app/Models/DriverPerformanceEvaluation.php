@@ -24,6 +24,7 @@ class DriverPerformanceEvaluation extends Model
         'compliance_score',
         'evaluator_name',
         'evaluation_payload',
+        'attachment',
         'comments',
         'evaluated_at',
     ];
@@ -35,6 +36,7 @@ class DriverPerformanceEvaluation extends Model
         'safety_score' => 'integer',
         'compliance_score' => 'integer',
         'evaluation_payload' => 'array',
+        'attachment' => 'array',
         'evaluated_at' => 'datetime',
     ];
 

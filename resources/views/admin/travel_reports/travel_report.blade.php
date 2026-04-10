@@ -206,6 +206,7 @@ Export Full Report
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Destination</th>
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Schedule</th>
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Equipment</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Attachments</th>
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline text-center">Status</th>
 </tr>
 </thead>
@@ -241,13 +242,34 @@ default => 'bg-surface-container-high text-outline',
 <td class="px-6 py-5 text-sm text-on-surface">{{ $item->destination ?: 'N/A' }}</td>
 <td class="px-6 py-5 text-sm text-on-surface">{{ optional($item->date_time_from)->format('M d, h:i A') ?: 'N/A' }}</td>
 <td class="px-6 py-5 text-sm text-on-surface">{{ $item->vehicle_id ?: $item->vehicle_type ?: 'N/A' }}</td>
+<td class="px-6 py-5 align-top">
+@php
+    $requestAttachmentLinks = is_array($item->attachment_links ?? null) ? $item->attachment_links : [];
+@endphp
+@if (count($requestAttachmentLinks) > 0)
+<div class="max-w-[280px] space-y-1">
+@foreach ($requestAttachmentLinks as $attachment)
+@php
+    $attachmentName = (string) ($attachment['name'] ?? 'Attachment');
+@endphp
+<a href="{{ $attachment['url'] ?? '#' }}" target="_blank" rel="noopener" class="group flex items-center gap-1.5 rounded-md border border-primary/10 bg-primary/5 px-2 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/10 hover:border-primary/20">
+<span class="material-symbols-outlined text-sm">attach_file</span>
+<span class="truncate" title="{{ $attachmentName }}">{{ $attachmentName }}</span>
+<span class="material-symbols-outlined ml-auto text-[13px] text-primary/60 transition-transform duration-200 group-hover:translate-x-0.5">open_in_new</span>
+</a>
+@endforeach
+</div>
+@else
+<span class="text-xs font-semibold text-outline">No attachment</span>
+@endif
+</td>
 <td class="px-6 py-5 text-center">
 <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase {{ $statusClass }}">{{ $status }}</span>
 </td>
 </tr>
 @empty
 <tr>
-<td colspan="6" class="px-6 py-8 text-center text-sm font-semibold text-outline">No transportation request records found for the selected filters.</td>
+<td colspan="7" class="px-6 py-8 text-center text-sm font-semibold text-outline">No transportation request records found for the selected filters.</td>
 </tr>
 @endforelse
 </tbody>
@@ -288,6 +310,7 @@ default => 'bg-surface-container-high text-outline',
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Vehicle</th>
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Distance (km)</th>
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Fuel Total (L)</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Attachments</th>
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline text-center">Request Status</th>
 </tr>
 </thead>
@@ -300,10 +323,31 @@ default => 'bg-surface-container-high text-outline',
 <td class="px-6 py-4 text-sm">{{ $ticket['vehicleId'] }}</td>
 <td class="px-6 py-4 text-sm">{{ $ticket['distance'] }}</td>
 <td class="px-6 py-4 text-sm">{{ $ticket['fuelTotal'] }}</td>
+<td class="px-6 py-4 align-top">
+@php
+    $ticketAttachmentLinks = is_array($ticket['attachments'] ?? null) ? $ticket['attachments'] : [];
+@endphp
+@if (count($ticketAttachmentLinks) > 0)
+<div class="max-w-[280px] space-y-1">
+@foreach ($ticketAttachmentLinks as $attachment)
+@php
+    $attachmentName = (string) ($attachment['name'] ?? 'Attachment');
+@endphp
+<a href="{{ $attachment['url'] ?? '#' }}" target="_blank" rel="noopener" class="group flex items-center gap-1.5 rounded-md border border-primary/10 bg-primary/5 px-2 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/10 hover:border-primary/20">
+<span class="material-symbols-outlined text-sm">attach_file</span>
+<span class="truncate" title="{{ $attachmentName }}">{{ $attachmentName }}</span>
+<span class="material-symbols-outlined ml-auto text-[13px] text-primary/60 transition-transform duration-200 group-hover:translate-x-0.5">open_in_new</span>
+</a>
+@endforeach
+</div>
+@else
+<span class="text-xs font-semibold text-outline">No attachment</span>
+@endif
+</td>
 <td class="px-6 py-4 text-center"><span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase bg-surface-container-high text-outline">{{ $ticket['status'] }}</span></td>
 </tr>
 @empty
-<tr><td colspan="7" class="px-6 py-8 text-center text-sm font-semibold text-outline">No trip tickets found for the selected filters.</td></tr>
+<tr><td colspan="8" class="px-6 py-8 text-center text-sm font-semibold text-outline">No trip tickets found for the selected filters.</td></tr>
 @endforelse
 </tbody>
 </table>
@@ -323,6 +367,7 @@ default => 'bg-surface-container-high text-outline',
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Dealer</th>
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Liters</th>
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Amount</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Attachments</th>
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline text-center">Request Status</th>
 </tr>
 </thead>
@@ -336,10 +381,31 @@ default => 'bg-surface-container-high text-outline',
 <td class="px-6 py-4 text-sm">{{ $issuance['dealer'] }}</td>
 <td class="px-6 py-4 text-sm">{{ $issuance['liters'] }} L</td>
 <td class="px-6 py-4 text-sm">PHP {{ $issuance['totalAmount'] }}</td>
+<td class="px-6 py-4 align-top">
+@php
+    $fuelAttachmentLinks = is_array($issuance['attachments'] ?? null) ? $issuance['attachments'] : [];
+@endphp
+@if (count($fuelAttachmentLinks) > 0)
+<div class="max-w-[280px] space-y-1">
+@foreach ($fuelAttachmentLinks as $attachment)
+@php
+    $attachmentName = (string) ($attachment['name'] ?? 'Attachment');
+@endphp
+<a href="{{ $attachment['url'] ?? '#' }}" target="_blank" rel="noopener" class="group flex items-center gap-1.5 rounded-md border border-primary/10 bg-primary/5 px-2 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/10 hover:border-primary/20">
+<span class="material-symbols-outlined text-sm">attach_file</span>
+<span class="truncate" title="{{ $attachmentName }}">{{ $attachmentName }}</span>
+<span class="material-symbols-outlined ml-auto text-[13px] text-primary/60 transition-transform duration-200 group-hover:translate-x-0.5">open_in_new</span>
+</a>
+@endforeach
+</div>
+@else
+<span class="text-xs font-semibold text-outline">No attachment</span>
+@endif
+</td>
 <td class="px-6 py-4 text-center"><span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase bg-surface-container-high text-outline">{{ $issuance['status'] }}</span></td>
 </tr>
 @empty
-<tr><td colspan="8" class="px-6 py-8 text-center text-sm font-semibold text-outline">No fuel issuance records found for the selected filters.</td></tr>
+<tr><td colspan="9" class="px-6 py-8 text-center text-sm font-semibold text-outline">No fuel issuance records found for the selected filters.</td></tr>
 @endforelse
 </tbody>
 </table>
@@ -358,7 +424,7 @@ default => 'bg-surface-container-high text-outline',
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Evaluation Status</th>
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Rating</th>
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Evaluated At</th>
-<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Comments</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline">Attachments</th>
 <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-outline text-center">Request Status</th>
 </tr>
 </thead>
@@ -371,7 +437,27 @@ default => 'bg-surface-container-high text-outline',
 <td class="px-6 py-4 text-sm"><span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase bg-secondary-container/30 text-on-secondary-container">{{ $evaluation['evaluationStatus'] }}</span></td>
 <td class="px-6 py-4 text-sm">{{ $evaluation['overallRating'] ? $evaluation['overallRating'] . ' / 5.00' : 'Not yet rated' }}</td>
 <td class="px-6 py-4 text-sm">{{ $evaluation['evaluatedAt'] }}</td>
-<td class="px-6 py-4 text-sm max-w-[260px] truncate" title="{{ $evaluation['comments'] }}">{{ $evaluation['comments'] }}</td>
+<td class="px-6 py-4 align-top">
+@php
+    $performanceAttachmentLinks = is_array($evaluation['attachments'] ?? null) ? $evaluation['attachments'] : [];
+@endphp
+@if (count($performanceAttachmentLinks) > 0)
+<div class="max-w-[280px] space-y-1">
+@foreach ($performanceAttachmentLinks as $attachment)
+@php
+    $attachmentName = (string) ($attachment['name'] ?? 'Attachment');
+@endphp
+<a href="{{ $attachment['url'] ?? '#' }}" target="_blank" rel="noopener" class="group flex items-center gap-1.5 rounded-md border border-primary/10 bg-primary/5 px-2 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/10 hover:border-primary/20">
+<span class="material-symbols-outlined text-sm">attach_file</span>
+<span class="truncate" title="{{ $attachmentName }}">{{ $attachmentName }}</span>
+<span class="material-symbols-outlined ml-auto text-[13px] text-primary/60 transition-transform duration-200 group-hover:translate-x-0.5">open_in_new</span>
+</a>
+@endforeach
+</div>
+@else
+<span class="text-xs font-semibold text-outline">No attachment</span>
+@endif
+</td>
 <td class="px-6 py-4 text-center"><span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase bg-surface-container-high text-outline">{{ $evaluation['requestStatus'] }}</span></td>
 </tr>
 @empty

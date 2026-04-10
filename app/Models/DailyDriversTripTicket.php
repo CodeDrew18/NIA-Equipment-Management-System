@@ -14,7 +14,9 @@ class DailyDriversTripTicket extends Model
 
     protected $fillable = [
         'transportation_request_form_id',
+        'assigned_driver_name',
         'request_form_data',
+        'attachment',
         'departure_time',
         'arrival_time_destination',
         'departure_time_destination',
@@ -37,6 +39,7 @@ class DailyDriversTripTicket extends Model
 
     protected $casts = [
         'request_form_data' => 'array',
+        'attachment' => 'array',
         'departure_time' => 'datetime',
         'arrival_time_destination' => 'datetime',
         'departure_time_destination' => 'datetime',

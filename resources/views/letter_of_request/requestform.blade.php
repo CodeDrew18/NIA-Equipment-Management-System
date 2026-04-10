@@ -205,10 +205,15 @@
 
 @php
   $availableVehicleTypes = $availableVehicleTypes ?? ['coaster' => true, 'van' => true, 'pickup' => true];
+  $availableVehicleCounts = $availableVehicleCounts ?? ['coaster' => 1, 'van' => 1, 'pickup' => 1];
 @endphp
 
 <div class="space-y-3">
   @if ($availableVehicleTypes['coaster'])
+  @php
+    $coasterMax = max(1, (int) ($availableVehicleCounts['coaster'] ?? 1));
+    $coasterQty = max(1, min((int) old('vehicle_requests.0.quantity', 1), $coasterMax));
+  @endphp
   <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row>
     <div class="flex items-center gap-2">
       <input id="vehicle-coaster" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[0][selected]" value="1" {{ old('vehicle_requests.0.selected') ? 'checked' : '' }} />
@@ -218,12 +223,17 @@
     </div>
     <div class="flex items-center gap-2">
       <label class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Qty</label>
-      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[0][quantity]" value="{{ old('vehicle_requests.0.quantity', 1) }}" min="1" max="99" {{ old('vehicle_requests.0.selected') ? '' : 'disabled' }} />
+      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[0][quantity]" value="{{ $coasterQty }}" min="1" max="{{ $coasterMax }}" {{ old('vehicle_requests.0.selected') ? '' : 'disabled' }} />
+      <span class="text-[10px] font-semibold text-slate-500">Max {{ $coasterMax }}</span>
     </div>
   </div>
   @endif
 
   @if ($availableVehicleTypes['van'])
+  @php
+    $vanMax = max(1, (int) ($availableVehicleCounts['van'] ?? 1));
+    $vanQty = max(1, min((int) old('vehicle_requests.1.quantity', 1), $vanMax));
+  @endphp
   <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row>
     <div class="flex items-center gap-2">
       <input id="vehicle-van" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[1][selected]" value="1" {{ old('vehicle_requests.1.selected') ? 'checked' : '' }} />
@@ -233,12 +243,17 @@
     </div>
     <div class="flex items-center gap-2">
       <label class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Qty</label>
-      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[1][quantity]" value="{{ old('vehicle_requests.1.quantity', 1) }}" min="1" max="99" {{ old('vehicle_requests.1.selected') ? '' : 'disabled' }} />
+      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[1][quantity]" value="{{ $vanQty }}" min="1" max="{{ $vanMax }}" {{ old('vehicle_requests.1.selected') ? '' : 'disabled' }} />
+      <span class="text-[10px] font-semibold text-slate-500">Max {{ $vanMax }}</span>
     </div>
   </div>
   @endif
 
   @if ($availableVehicleTypes['pickup'])
+  @php
+    $pickupMax = max(1, (int) ($availableVehicleCounts['pickup'] ?? 1));
+    $pickupQty = max(1, min((int) old('vehicle_requests.2.quantity', 1), $pickupMax));
+  @endphp
   <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row>
     <div class="flex items-center gap-2">
       <input id="vehicle-pickup" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[2][selected]" value="1" {{ old('vehicle_requests.2.selected') ? 'checked' : '' }} />
@@ -248,7 +263,8 @@
     </div>
     <div class="flex items-center gap-2">
       <label class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Qty</label>
-      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[2][quantity]" value="{{ old('vehicle_requests.2.quantity', 1) }}" min="1" max="99" {{ old('vehicle_requests.2.selected') ? '' : 'disabled' }} />
+      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[2][quantity]" value="{{ $pickupQty }}" min="1" max="{{ $pickupMax }}" {{ old('vehicle_requests.2.selected') ? '' : 'disabled' }} />
+      <span class="text-[10px] font-semibold text-slate-500">Max {{ $pickupMax }}</span>
     </div>
   </div>
   @endif
@@ -604,6 +620,21 @@ Remove
           return;
         }
 
+        function clampQuantityWithinBounds() {
+          const maxAllowed = Number(quantityInput.max || 1);
+          const minAllowed = Number(quantityInput.min || 1);
+          const maxValue = Number.isFinite(maxAllowed) && maxAllowed > 0 ? maxAllowed : 1;
+          const minValue = Number.isFinite(minAllowed) && minAllowed > 0 ? minAllowed : 1;
+          const rawValue = Number(quantityInput.value);
+
+          if (!Number.isFinite(rawValue)) {
+            quantityInput.value = String(minValue);
+            return;
+          }
+
+          quantityInput.value = String(Math.min(maxValue, Math.max(minValue, Math.floor(rawValue))));
+        }
+
         function applyState() {
           const isSelected = checkbox.checked;
           quantityInput.disabled = !isSelected;
@@ -612,10 +643,16 @@ Remove
             quantityInput.value = '1';
           }
 
+          if (isSelected) {
+            clampQuantityWithinBounds();
+          }
+
           row.classList.toggle('border-primary/50', isSelected);
           row.classList.toggle('bg-white', isSelected);
         }
 
+        quantityInput.addEventListener('input', clampQuantityWithinBounds);
+        quantityInput.addEventListener('blur', clampQuantityWithinBounds);
         checkbox.addEventListener('change', applyState);
         applyState();
       });

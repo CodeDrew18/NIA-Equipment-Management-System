@@ -213,11 +213,13 @@
 @endforeach
 
 @if ($auditLogs->hasMorePages())
-<a href="{{ $auditLogs->nextPageUrl() }}" class="p-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline">
+<a href="{{ $auditLogs->nextPageUrl() }}" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline text-xs font-semibold">
+<span>Next</span>
 <span class="material-symbols-outlined">chevron_right</span>
 </a>
 @else
-<button class="p-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline disabled:opacity-30" disabled="">
+<button class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline text-xs font-semibold disabled:opacity-30" disabled="">
+<span>Next</span>
 <span class="material-symbols-outlined">chevron_right</span>
 </button>
 @endif
