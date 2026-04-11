@@ -135,7 +135,7 @@
 </section>
 <!-- Key Features Section (Bento Grid) -->
 <section class="py-24 px-8 lg:px-24 bg-surface-container-low">
-<div class="max-w-7xl mx-auto">
+<div class="max-w-[1920px] mx-auto">
 <div class="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
 <div>
 <h2 class="text-4xl font-bold text-primary mb-4">Operations and Maintenance Management</h2>
@@ -208,7 +208,7 @@
 </section>
 <!-- How It Works Section (Asymmetric Editorial Style) -->
 <section class="py-24 px-8 lg:px-24">
-<div class="max-w-7xl mx-auto flex flex-col lg:flex-row gap-16 items-start">
+<div class="max-w-[1920px] mx-auto flex flex-col lg:flex-row gap-16 items-start">
 <div class="lg:w-1/3 sticky top-32">
 <h2 class="text-4xl font-bold text-primary mb-6 leading-tight">The Workflow of NIA Vehicle Operations</h2>
 <p class="text-on-surface-variant text-lg mb-8 leading-relaxed">How request processing, dispatch control, and maintenance planning keep government travel trips efficient and compliant.</p>
@@ -246,7 +246,7 @@
 </section>
 <!-- CTA / Secondary Hero -->
 <section class="mb-24 px-8 lg:px-24">
-<div class="max-w-7xl mx-auto bg-primary rounded-[2rem] overflow-hidden relative p-12 lg:p-24 text-center">
+<div class="max-w-[1920px] mx-auto bg-primary rounded-[2rem] overflow-hidden relative p-12 lg:p-24 text-center">
 <div class="absolute inset-0 opacity-10 pointer-events-none">
 <img class="w-full h-full object-cover" data-alt="Blueprint overlay of engineering machinery" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB6RWhFJapBSLa2fF8aaD1Ljx0dK2hNbV6ruJ2Q-O-DaHF2JKyc14rIbkMtAgBNemVVgdY91r8ccv3c1WJeMxVeE39lNCFeB_XKML6QR8LL8oL7TqnnH7hxMhgZvotco7PC_1xQTLkC-gzFmmUijbxd2dKX5WKbDg_K9QNPun3shgSBwB9BKilyctj0-MsiDi5ZW-T7LIUhjE2_t1s072G16jO4LSCZl_Klfyikok3YmzhZwKPLv-Nxs1cMbnKoPNnreO5rsEYfeppJ"/>
 </div>

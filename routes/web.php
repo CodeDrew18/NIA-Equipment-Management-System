@@ -83,6 +83,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/admin/fuel-issuance-slip/print', [App\Http\Controllers\admin\fuelIssuanceController::class, 'printOfficeCopy'])->name('admin.fuel_issuance_slip.print');
         Route::post('/admin/fuel-issuance-slip/{transportationRequest}/dispatch', [App\Http\Controllers\admin\fuelIssuanceController::class, 'dispatchVehicle'])->name('admin.fuel_issuance_slip.dispatch');
 
+        // Admin Fuel Partnerships
+        Route::get('/admin/fuel-partnerships', [App\Http\Controllers\admin\fuelPartnershipController::class, 'index'])->name('admin.fuel_partnerships');
+        Route::post('/admin/fuel-partnerships', [App\Http\Controllers\admin\fuelPartnershipController::class, 'store'])->name('admin.fuel_partnerships.store');
+        Route::post('/admin/fuel-partnerships/{fuelPartnership}/activate', [App\Http\Controllers\admin\fuelPartnershipController::class, 'activate'])->name('admin.fuel_partnerships.activate');
+        Route::put('/admin/fuel-partnerships/{fuelPartnership}', [App\Http\Controllers\admin\fuelPartnershipController::class, 'update'])->name('admin.fuel_partnerships.update');
+        Route::delete('/admin/fuel-partnerships/{fuelPartnership}', [App\Http\Controllers\admin\fuelPartnershipController::class, 'destroy'])->name('admin.fuel_partnerships.destroy');
+
         Route::get("/admin/on-trip-vehicle", [App\Http\Controllers\admin\onTripVehicleController::class, 'index'])->name('admin.on_trip_vehicles');
         Route::get('/admin/on-trip-vehicle/data', [App\Http\Controllers\admin\onTripVehicleController::class, 'data'])->name('admin.on_trip_vehicles.data');
 

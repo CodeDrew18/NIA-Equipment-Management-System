@@ -91,8 +91,8 @@
 <!-- TopAppBar -->
 @include('layouts.header')
 <!-- Main Content -->
-<main class="mt-16 p-8 pb-24">
-<div class="max-w-6xl mx-auto">
+<main class="mt-16 pb-24 w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12">
+<div class="max-w-[1920px] mx-auto">
 <!-- Header Section -->
 <div class="mb-10 flex flex-col md:flex-row md:justify-between md:items-end gap-6">
 <div>

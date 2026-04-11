@@ -73,7 +73,7 @@
 <body class="min-h-screen">
 @include('layouts.admin_header')
 
-<main class="w-full p-8 max-w-[1600px] mx-auto pt-24">
+<main class="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pt-24 pb-8">
 @if (session('admin_dtt_success'))
 <div class="mb-6 rounded-xl border border-secondary/30 bg-secondary-container p-4 text-on-secondary-container text-sm font-semibold">
 {{ session('admin_dtt_success') }}
@@ -145,10 +145,10 @@
 </div>
 </div>
 <div class="flex-none flex gap-2">
-<button type="submit" class="h-[42px] px-4 bg-tertiary-container text-on-tertiary-container font-bold rounded-lg hover:bg-tertiary transition-all flex items-center justify-center shadow-sm">
+<button type="submit" class="h-[42px] px-4 bg-tertiary-container text-on-tertiary-container font-bold rounded-lg hover:bg-tertiary flex items-center justify-center shadow-sm">
 <span class="material-symbols-outlined text-[20px]">filter_list</span>
 </button>
-<a href="{{ route('admin.daily-trip-ticket') }}" class="h-[42px] px-4 bg-surface-container-high text-on-surface font-bold rounded-lg hover:bg-surface-variant transition-all flex items-center justify-center shadow-sm text-xs uppercase">Clear</a>
+<a href="{{ route('admin.daily-trip-ticket') }}" class="h-[42px] px-4 bg-surface-container-high text-on-surface font-bold rounded-lg hover:bg-surface-variant flex items-center justify-center shadow-sm text-xs uppercase">Clear</a>
 </div>
 </form>
 </div>
@@ -169,7 +169,7 @@
 </thead>
 <tbody id="dtt-tbody" class="divide-y divide-surface-container">
 @forelse ($requests as $item)
-<tr class="hover:bg-surface-container-low transition-colors group cursor-pointer">
+<tr class="hover:bg-surface-container-low group cursor-pointer">
 <td class="px-6 py-5"><span class="font-bold text-primary">{{ $item->form_id }}</span></td>
 <td class="px-6 py-5"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-outline text-[18px]">airport_shuttle</span><span class="font-medium">{{ $item->vehicle_type }}</span></div></td>
 <td class="px-6 py-5"><div class="flex items-center gap-3"><div class="w-7 h-7 bg-primary-container text-white text-[10px] font-bold rounded-full flex items-center justify-center uppercase">{{ strtoupper(substr($item->requestor_name, 0, 2)) }}</div><span class="font-medium">{{ $item->requestor_name }}</span></div></td>
@@ -236,13 +236,25 @@
 <div class="flex flex-col items-end gap-2">
 @php
     $driverTargets = is_array($item->driver_targets ?? null) ? $item->driver_targets : [];
+    $downloadLabel = count($driverTargets) > 1 ? 'Download all DTTs' : 'Download DTTs';
+    $downloadUrls = collect($driverTargets)
+        ->map(function ($driverTarget) {
+            return trim((string) ($driverTarget['downloadUrl'] ?? ''));
+        })
+        ->filter(function (string $url) {
+            return $url !== '';
+        })
+        ->values()
+        ->all();
+    if (count($downloadUrls) === 0) {
+        $downloadUrls = [route('admin.daily-trip-ticket.download', $item)];
+    }
+    $primaryDownloadUrl = (string) ($downloadUrls[0] ?? route('admin.daily-trip-ticket.download', $item));
 @endphp
-@foreach ($driverTargets as $driverTarget)
-<a href="{{ (string) ($driverTarget['downloadUrl'] ?? '#') }}" class="dtt-download-link inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[10px] uppercase rounded-md hover:bg-primary hover:text-white transition-all shadow-sm max-w-[240px]" title="{{ (string) ($driverTarget['name'] ?? '') }}">
-<span class="material-symbols-outlined text-[14px]">print</span>
-<span class="truncate">Print {{ (string) ($driverTarget['name'] ?? 'DTT') }}</span>
+<a href="{{ $primaryDownloadUrl }}" data-download-urls='@json($downloadUrls)' class="dtt-download-link inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[11px] rounded-md shadow-sm max-w-[240px]" title="{{ $downloadLabel }}">
+<span class="material-symbols-outlined text-[14px]">download</span>
+<span class="truncate">{{ $downloadLabel }}</span>
 </a>
-@endforeach
 </div>
 </td>
 </tr>
@@ -263,7 +275,7 @@
 @if ($page == $requests->currentPage())
 <span class="w-8 h-8 rounded flex items-center justify-center bg-primary text-white font-bold text-xs shadow-sm">{{ $page }}</span>
 @else
-<button type="button" data-page="{{ $page }}" class="w-8 h-8 rounded flex items-center justify-center bg-white border border-outline-variant text-on-surface font-bold text-xs hover:bg-surface-container-high transition-colors shadow-sm">{{ $page }}</button>
+<button type="button" data-page="{{ $page }}" class="w-8 h-8 rounded flex items-center justify-center bg-white border border-outline-variant text-on-surface font-bold text-xs hover:bg-surface-container-high shadow-sm">{{ $page }}</button>
 @endif
 @endforeach
 @if ($requests->hasMorePages())
@@ -276,20 +288,7 @@
 </div>
 </main>
 
-<div id="dtt-download-success-message" class="fixed inset-x-0 top-24 z-[65] hidden px-4">
-<div class="mx-auto max-w-md border border-secondary/30 bg-secondary-container p-4 text-on-secondary-container shadow-2xl">
-<p class="text-sm font-semibold">Download started successfully.</p>
-</div>
-</div>
-
-<div id="dtt-download-loading-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/45 px-4">
-<div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center">
-<div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary"></div>
-<p class="text-sm font-semibold text-on-surface">Preparing your download...</p>
-</div>
-</div>
-
-<div id="dtt-confirm-download-modal" class="fixed inset-0 z-[62] hidden items-center justify-center bg-black/40 px-4">
+<div id="confirm-download-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4">
 <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
 <div class="mb-4 flex items-center gap-3 text-primary">
 <span class="material-symbols-outlined">help</span>
@@ -297,19 +296,26 @@
 </div>
 <p class="text-sm text-on-surface-variant">Are you sure you want to download?</p>
 <div class="mt-6 flex justify-end gap-3">
-<button id="dtt-confirm-download-no" type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50">No</button>
-<button id="dtt-confirm-download-yes" type="button" class="rounded-lg bg-secondary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-secondary/90">Yes</button>
+<button id="confirm-download-no" type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50">No</button>
+<button id="confirm-download-yes" type="button" class="rounded-lg bg-secondary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-secondary/90">Yes</button>
 </div>
 </div>
 </div>
 
-<div id="dtt-warning-modal" class="fixed inset-0 z-[63] hidden items-center justify-center bg-black/45 px-4">
-<div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-error/20">
+<div id="download-loading-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/45 px-4">
+<div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center">
+<div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary"></div>
+<p class="text-sm font-semibold text-on-surface">Preparing your download...</p>
+</div>
+</div>
+
+<div id="dtt-warning-modal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/50 px-4">
+<div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
 <div class="mb-4 flex items-center gap-3 text-error">
 <span class="material-symbols-outlined">warning</span>
 <h3 class="text-lg font-bold">Action Required</h3>
 </div>
-<p id="dtt-warning-modal-message" class="text-sm text-on-surface-variant">Please print the Daily Driver's Trip Ticket first before dispatching.</p>
+<p id="dtt-warning-modal-message" class="text-sm text-on-surface-variant leading-relaxed">Please print the Daily Driver's Trip Ticket first before dispatching.</p>
 <div class="mt-6 flex justify-end">
 <button id="dtt-warning-modal-close" type="button" class="rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-primary/90">OK</button>
 </div>
@@ -334,11 +340,10 @@ const dttEls = {
     coaster: document.getElementById('count-coaster'),
     van: document.getElementById('count-van'),
     pickup: document.getElementById('count-pickup'),
-    downloadSuccessMessage: document.getElementById('dtt-download-success-message'),
-    downloadLoadingModal: document.getElementById('dtt-download-loading-modal'),
-    confirmDownloadModal: document.getElementById('dtt-confirm-download-modal'),
-    confirmDownloadYes: document.getElementById('dtt-confirm-download-yes'),
-    confirmDownloadNo: document.getElementById('dtt-confirm-download-no'),
+    confirmDownloadModal: document.getElementById('confirm-download-modal'),
+    confirmDownloadYes: document.getElementById('confirm-download-yes'),
+    confirmDownloadNo: document.getElementById('confirm-download-no'),
+    downloadLoadingModal: document.getElementById('download-loading-modal'),
     warningModal: document.getElementById('dtt-warning-modal'),
     warningModalMessage: document.getElementById('dtt-warning-modal-message'),
     warningModalClose: document.getElementById('dtt-warning-modal-close'),
@@ -347,10 +352,8 @@ const dttEls = {
 const dttDataUrl = "{{ route('admin.daily-trip-ticket.data') }}";
 const dttCsrfToken = "{{ csrf_token() }}";
 let dttCurrentPage = {{ $requests->currentPage() }};
-let dttDownloadInProgress = false;
-let pendingDttDownload = null;
-const dttMetricAnimationFrames = new WeakMap();
-const dttPrefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let pendingDttDownloadAction = null;
+let dttIsDownloading = false;
 
 function esc(value) {
     return String(value ?? '')
@@ -380,46 +383,11 @@ function animateDttMetric(element, targetValue, options = {}) {
 
     const decimals = Number(options.decimals ?? 0);
     const suffix = String(options.suffix ?? '');
-    const duration = Number(options.duration ?? 700);
     const numericTarget = Number(targetValue);
     const target = Number.isFinite(numericTarget) ? numericTarget : 0;
 
-    const existingFrameId = dttMetricAnimationFrames.get(element);
-    if (existingFrameId) {
-        cancelAnimationFrame(existingFrameId);
-    }
-
-    const storedValue = Number(element.dataset.countValue);
-    const start = Number.isFinite(storedValue) ? storedValue : dttToNumber(element.textContent);
-
-    if (dttPrefersReducedMotion || duration <= 0 || Math.abs(start - target) < 0.001) {
-        element.textContent = `${dttFormatNumber(target, decimals)}${suffix}`;
-        element.dataset.countValue = String(target);
-        return;
-    }
-
-    const startedAt = performance.now();
-
-    function tick(now) {
-        const progress = Math.min(1, (now - startedAt) / duration);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        const current = start + ((target - start) * eased);
-
-        element.textContent = `${dttFormatNumber(current, decimals)}${suffix}`;
-
-        if (progress < 1) {
-            const frameId = requestAnimationFrame(tick);
-            dttMetricAnimationFrames.set(element, frameId);
-            return;
-        }
-
-        element.textContent = `${dttFormatNumber(target, decimals)}${suffix}`;
-        element.dataset.countValue = String(target);
-        dttMetricAnimationFrames.delete(element);
-    }
-
-    const frameId = requestAnimationFrame(tick);
-    dttMetricAnimationFrames.set(element, frameId);
+    element.textContent = `${dttFormatNumber(target, decimals)}${suffix}`;
+    element.dataset.countValue = String(target);
 }
 
 function animateDttInitialMetrics() {
@@ -436,8 +404,6 @@ function animateDttInitialMetrics() {
         }
 
         const target = dttToNumber(metricEl.textContent);
-        metricEl.dataset.countValue = '0';
-        metricEl.textContent = '0';
         animateDttMetric(metricEl, target);
     });
 }
@@ -476,15 +442,17 @@ function dttRow(item) {
         }).join('')}</div>`
         : '<span class="text-xs text-outline">No assigned driver</span>';
 
-    const driverButtonsHtml = driverTargets.length > 0
-        ? driverTargets.map((target) => {
-            const name = String(target?.name || 'DTT');
-            const downloadUrl = String(target?.downloadUrl || item.downloadUrl || '#');
-            return `<a href="${esc(downloadUrl)}" class="dtt-download-link inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[10px] uppercase rounded-md hover:bg-primary hover:text-white transition-all shadow-sm max-w-[240px]" title="${esc(name)}"><span class="material-symbols-outlined text-[14px]">print</span><span class="truncate">Print ${esc(name)}</span></a>`;
-        }).join('')
-        : `<a href="${esc(item.downloadUrl)}" class="dtt-download-link inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[10px] uppercase rounded-md hover:bg-primary hover:text-white transition-all shadow-sm"><span class="material-symbols-outlined text-[14px]">print</span>Print DTT</a>`;
+    const downloadLabel = driverTargets.length > 1 ? 'Download all DTTs' : 'Download DTTs';
+    const downloadUrls = driverTargets
+        .map((target) => String(target?.downloadUrl || '').trim())
+        .filter((url) => url !== '');
+    if (downloadUrls.length === 0 && item.downloadUrl) {
+        downloadUrls.push(String(item.downloadUrl));
+    }
+    const primaryDownloadUrl = String(downloadUrls[0] || item.downloadUrl || '#');
+    const driverButtonsHtml = `<a href="${esc(primaryDownloadUrl)}" data-download-urls='${esc(JSON.stringify(downloadUrls))}' class="dtt-download-link inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest text-primary font-bold text-[11px] rounded-md shadow-sm max-w-[240px]" title="${esc(downloadLabel)}"><span class="material-symbols-outlined text-[14px]">download</span><span class="truncate">${esc(downloadLabel)}</span></a>`;
 
-    return `<tr class="hover:bg-surface-container-low transition-colors group cursor-pointer">
+    return `<tr class="hover:bg-surface-container-low group cursor-pointer">
 <td class="px-6 py-5"><span class="font-bold text-primary">${esc(item.formId)}</span></td>
 <td class="px-6 py-5"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-outline text-[18px]">airport_shuttle</span><span class="font-medium">${esc(item.vehicleType)}</span></div></td>
 <td class="px-6 py-5"><div class="flex items-center gap-3"><div class="w-7 h-7 bg-primary-container text-white text-[10px] font-bold rounded-full flex items-center justify-center uppercase">${esc(item.requestorInitials)}</div><span class="font-medium">${esc(item.requestorName)}</span></div></td>
@@ -496,19 +464,8 @@ function dttRow(item) {
 </tr>`;
 }
 
-function showDttDownloadLoadingModal() {
-    if (!dttEls.downloadLoadingModal) {
-        return;
-    }
-    dttEls.downloadLoadingModal.classList.remove('hidden');
-    dttEls.downloadLoadingModal.classList.add('flex');
-}
-
-function showDttConfirmDownloadModal(downloadUrl, linkEl) {
-    pendingDttDownload = {
-        url: downloadUrl,
-        link: linkEl || null,
-    };
+function showDttConfirmDownloadModal(action) {
+    pendingDttDownloadAction = action;
 
     if (!dttEls.confirmDownloadModal) {
         return;
@@ -519,7 +476,7 @@ function showDttConfirmDownloadModal(downloadUrl, linkEl) {
 }
 
 function hideDttConfirmDownloadModal() {
-    pendingDttDownload = null;
+    pendingDttDownloadAction = null;
 
     if (!dttEls.confirmDownloadModal) {
         return;
@@ -529,15 +486,31 @@ function hideDttConfirmDownloadModal() {
     dttEls.confirmDownloadModal.classList.remove('flex');
 }
 
-function showDttWarningModal(message) {
-    if (!dttEls.warningModal) {
+function showDttDownloadLoadingModal() {
+    if (!dttEls.downloadLoadingModal) {
         return;
     }
 
-    if (dttEls.warningModalMessage) {
-        dttEls.warningModalMessage.textContent = message || 'Please print the Daily Driver\'s Trip Ticket first before dispatching.';
+    dttEls.downloadLoadingModal.classList.remove('hidden');
+    dttEls.downloadLoadingModal.classList.add('flex');
+}
+
+function hideDttDownloadLoadingModal() {
+    if (!dttEls.downloadLoadingModal) {
+        return;
     }
 
+    dttEls.downloadLoadingModal.classList.add('hidden');
+    dttEls.downloadLoadingModal.classList.remove('flex');
+}
+
+function showDttWarningModal(message) {
+    if (!dttEls.warningModal || !dttEls.warningModalMessage) {
+        window.alert(message || 'Please print the Daily Driver\'s Trip Ticket first before dispatching.');
+        return;
+    }
+
+    dttEls.warningModalMessage.textContent = message || 'Please print the Daily Driver\'s Trip Ticket first before dispatching.';
     dttEls.warningModal.classList.remove('hidden');
     dttEls.warningModal.classList.add('flex');
 }
@@ -551,27 +524,6 @@ function hideDttWarningModal() {
     dttEls.warningModal.classList.remove('flex');
 }
 
-function hideDttDownloadLoadingModal() {
-    if (!dttEls.downloadLoadingModal) {
-        return;
-    }
-    dttEls.downloadLoadingModal.classList.add('hidden');
-    dttEls.downloadLoadingModal.classList.remove('flex');
-}
-
-function showDttDownloadSuccessMessage() {
-    if (!dttEls.downloadSuccessMessage) {
-        return;
-    }
-
-    dttEls.downloadSuccessMessage.classList.remove('hidden');
-
-    clearTimeout(showDttDownloadSuccessMessage.timerId);
-    showDttDownloadSuccessMessage.timerId = setTimeout(function () {
-        dttEls.downloadSuccessMessage.classList.add('hidden');
-    }, 2500);
-}
-
 function setDttDownloadLinkBusy(linkEl, isBusy) {
     if (!linkEl) {
         return;
@@ -581,59 +533,89 @@ function setDttDownloadLinkBusy(linkEl, isBusy) {
     linkEl.classList.toggle('opacity-80', isBusy);
 }
 
-function startDttExcelDownload(url, linkEl) {
-    if (!url) {
-        return;
+function dttAppendDownloadNonce(url) {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}download_ts=${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+}
+
+function parseDttFileName(contentDisposition, index) {
+    const fallback = `DTT_${index + 1}.xlsx`;
+
+    if (!contentDisposition) {
+        return fallback;
     }
 
-    if (dttDownloadInProgress) {
-        return;
-    }
-
-    dttDownloadInProgress = true;
-    setDttDownloadLinkBusy(linkEl, true);
-
-    const iframeId = 'hidden-download-frame';
-    let frame = document.getElementById(iframeId);
-    let isCompleted = false;
-
-    function completeDownloadUI() {
-        if (isCompleted) {
-            return;
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match && utf8Match[1]) {
+        try {
+            return decodeURIComponent(utf8Match[1]).replace(/[\\/:*?"<>|]/g, '_');
+        } catch (error) {
+            return utf8Match[1].replace(/[\\/:*?"<>|]/g, '_');
         }
-
-        isCompleted = true;
-        dttDownloadInProgress = false;
-        setDttDownloadLinkBusy(linkEl, false);
-        hideDttDownloadLoadingModal();
-        showDttDownloadSuccessMessage();
-        window.removeEventListener('focus', handleWindowFocus);
     }
 
-    function handleWindowFocus() {
-        completeDownloadUI();
+    const simpleMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+    if (simpleMatch && simpleMatch[1]) {
+        return simpleMatch[1].replace(/[\\/:*?"<>|]/g, '_');
     }
 
-    if (!frame) {
-        frame = document.createElement('iframe');
-        frame.id = iframeId;
-        frame.style.display = 'none';
-        document.body.appendChild(frame);
+    return fallback;
+}
+
+async function triggerDttFileDownload(url, index) {
+    const response = await fetch(dttAppendDownloadNonce(url), {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,*/*',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        cache: 'no-store',
+        credentials: 'same-origin',
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to download one or more DTT files.');
     }
 
-    const separator = url.indexOf('?') === -1 ? '?' : '&';
+    const blob = await response.blob();
+    const contentDisposition = response.headers.get('Content-Disposition') || '';
+    const fileName = parseDttFileName(contentDisposition, index);
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
 
-    frame.onload = function () {
-        completeDownloadUI();
-    };
-
-    showDttDownloadLoadingModal();
-    window.addEventListener('focus', handleWindowFocus);
-    frame.src = url + separator + 'download_ts=' + Date.now();
+    link.href = objectUrl;
+    link.download = fileName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
 
     setTimeout(function () {
-        completeDownloadUI();
-    }, 2000);
+        window.URL.revokeObjectURL(objectUrl);
+    }, 1000);
+}
+
+async function downloadDttsSeparately(downloadUrls, linkEl) {
+    if (dttIsDownloading) {
+        return;
+    }
+
+    dttIsDownloading = true;
+    setDttDownloadLinkBusy(linkEl, true);
+    showDttDownloadLoadingModal();
+
+    try {
+        for (let index = 0; index < downloadUrls.length; index += 1) {
+            await triggerDttFileDownload(downloadUrls[index], index);
+        }
+    } catch (error) {
+        console.error('DTT multi-download failed', error);
+        showDttWarningModal(error.message || 'Failed to download one or more DTT files.');
+    } finally {
+        hideDttDownloadLoadingModal();
+        setDttDownloadLinkBusy(linkEl, false);
+        dttIsDownloading = false;
+    }
 }
 
 function syncStatusSelectOriginalValues() {
@@ -711,7 +693,7 @@ function renderPagination(pagination) {
         if (pageNum === pagination.currentPage) {
             html += `<span class="w-8 h-8 rounded flex items-center justify-center bg-primary text-white font-bold text-xs shadow-sm">${pageNum}</span>`;
         } else {
-            html += `<button type="button" data-page="${pageNum}" class="w-8 h-8 rounded flex items-center justify-center bg-white border border-outline-variant text-on-surface font-bold text-xs hover:bg-surface-container-high transition-colors shadow-sm">${pageNum}</button>`;
+            html += `<button type="button" data-page="${pageNum}" class="w-8 h-8 rounded flex items-center justify-center bg-white border border-outline-variant text-on-surface font-bold text-xs hover:bg-surface-container-high shadow-sm">${pageNum}</button>`;
         }
     });
 
@@ -758,7 +740,7 @@ async function refreshDtt(page = dttCurrentPage) {
         if (payload.requests.length > 0) {
             dttEls.tbody.innerHTML = payload.requests.map(dttRow).join('');
         } else {
-            dttEls.tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-8 text-center text-sm font-semibold text-outline">No DTT records found.</td></tr>';
+            dttEls.tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-8 text-center text-sm font-semibold text-outline">No DTT records found.</td></tr>';
         }
 
         syncStatusSelectOriginalValues();
@@ -802,13 +784,40 @@ dttEls.tbody.addEventListener('click', function (event) {
     }
 
     event.preventDefault();
-    showDttConfirmDownloadModal(downloadLink.getAttribute('href'), downloadLink);
+
+    const rawUrls = downloadLink.getAttribute('data-download-urls') || '[]';
+    const fallbackUrl = String(downloadLink.getAttribute('href') || '').trim();
+    let parsedUrls = [];
+
+    try {
+        parsedUrls = JSON.parse(rawUrls);
+    } catch (error) {
+        parsedUrls = [];
+    }
+
+    const downloadUrls = Array.isArray(parsedUrls)
+        ? parsedUrls.map((url) => String(url || '').trim()).filter((url) => url !== '')
+        : [];
+
+    if (downloadUrls.length === 0 && fallbackUrl !== '' && fallbackUrl !== '#') {
+        downloadUrls.push(fallbackUrl);
+    }
+
+    if (downloadUrls.length === 0) {
+        showDttWarningModal('Download link is unavailable for this request.');
+        return;
+    }
+
+    showDttConfirmDownloadModal({
+        type: 'download',
+        urls: downloadUrls,
+        link: downloadLink,
+    });
 });
 
 if (dttEls.confirmDownloadNo) {
     dttEls.confirmDownloadNo.addEventListener('click', function () {
         hideDttConfirmDownloadModal();
-        hideDttDownloadLoadingModal();
     });
 }
 
@@ -816,21 +825,26 @@ if (dttEls.confirmDownloadModal) {
     dttEls.confirmDownloadModal.addEventListener('click', function (event) {
         if (event.target === dttEls.confirmDownloadModal) {
             hideDttConfirmDownloadModal();
-            hideDttDownloadLoadingModal();
         }
     });
 }
 
 if (dttEls.confirmDownloadYes) {
-    dttEls.confirmDownloadYes.addEventListener('click', function () {
-        const payload = pendingDttDownload;
-        hideDttConfirmDownloadModal();
+    dttEls.confirmDownloadYes.addEventListener('click', async function () {
+        const action = pendingDttDownloadAction;
 
-        if (!payload || !payload.url) {
+        if (!action) {
+            hideDttConfirmDownloadModal();
             return;
         }
 
-        startDttExcelDownload(payload.url, payload.link || null);
+        if (action.type === 'download' && Array.isArray(action.urls) && action.urls.length > 0) {
+            hideDttConfirmDownloadModal();
+            await downloadDttsSeparately(action.urls, action.link || null);
+            return;
+        }
+
+        hideDttConfirmDownloadModal();
     });
 }
 
@@ -857,7 +871,7 @@ if (typeof window.emsLiveRefresh === 'function') {
     }, {
         intervalMs: 4000,
         shouldPause: function () {
-            return dttDownloadInProgress === true;
+            return dttIsDownloading;
         },
     });
 }

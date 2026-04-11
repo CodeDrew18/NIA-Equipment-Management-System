@@ -4,6 +4,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<title>Transportation Request Form</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,100..900;1,100..900&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
@@ -92,7 +93,7 @@
 
 
 <!-- Main Content Area -->
-<main class="pt-24 pb-20 px-4 md:px-8 max-w-7xl mx-auto flex-grow w-full">
+<main class="flex-grow w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pt-24 pb-20">
 <!-- Header Section -->
 <header class="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6 px-4">
 <div class="max-w-2xl">

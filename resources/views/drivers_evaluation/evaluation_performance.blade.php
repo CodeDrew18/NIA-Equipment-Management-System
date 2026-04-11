@@ -116,7 +116,7 @@
     $selectedEvaluationYear = optional($selectedEvaluation?->date_time_to)->format('Y') ?: now()->format('Y');
 @endphp
 
-<main class="max-w-5xl mx-auto px-6 pb-12 pt-28">
+<main class="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pb-12 pt-28">
 <!-- Header Section -->
 <header class="mb-12 flex flex-col md:flex-row justify-between items-end gap-6">
 <div class="max-w-2xl">
@@ -403,7 +403,7 @@ Fill Evaluation
 <span id="evaluation-final-rate-label" class="px-4 py-1 bg-tertiary-fixed text-on-tertiary-fixed font-bold rounded-full text-xs uppercase">Not Rated</span>
 </div>
 <div class="bg-surface-container-high p-8 rounded-xl flex flex-col items-center justify-end h-full">
-<span class="text-lg font-bold text-on-surface text-center">{{ $selectedDivisionPersonnelName !== '' ? $selectedDivisionPersonnelName : '____________________________' }}</span>
+<span class="text-lg font-bold text-on-surface text-center">{{ $selectedDivisionPersonnelName !== '' ? $selectedDivisionPersonnelName : '' }}</span>
 <div class="w-full border-b-2 border-primary mb-2"></div>
 <span class="text-label-md font-bold text-primary uppercase text-center mt-1">Official Passenger / Team Leader</span>
 <span class="text-xs text-on-surface-variant mt-1">Signature over Printed Name</span>
@@ -490,7 +490,7 @@ Fill Evaluation
                 }
             });
         });
-
+        
         function resolveLabel(score) {
             if (score <= 0) return 'Not Rated';
             if (score < 1.5) return 'Poor';

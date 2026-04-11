@@ -105,7 +105,7 @@ $activeTab = in_array((string) request('tab'), $validTabs, true)
     : 'transportation-requests';
 @endphp
 
-<main class="flex-grow w-full max-w-screen-2xl mx-auto px-8 pt-24 pb-10">
+<main class="flex-grow w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pt-24 pb-10">
 <div class="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
 <div>
 <p class="text-secondary font-bold tracking-widest text-xs uppercase mb-2">Fleet Management System</p>
@@ -123,7 +123,7 @@ Export Full Report
 </div>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+<div class="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-6 xl:gap-8 mb-12">
 <div class="bg-surface-container-lowest p-6 rounded-xl border-l-4 border-primary">
 <p class="text-outline text-xs font-bold uppercase tracking-widest mb-1">Active Requests</p>
 <div class="flex items-baseline gap-2">

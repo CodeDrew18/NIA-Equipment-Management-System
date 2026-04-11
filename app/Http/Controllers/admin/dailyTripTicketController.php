@@ -214,40 +214,48 @@ class dailyTripTicketController extends Controller
             abort(404, 'Driver DTT attachment not found.');
         }
 
-        // Generate DTT for each driver
-        foreach ($assignedDriverNames as $driverName) {
+        $downloadTargets = [];
+        $targetDrivers = !empty($assignedDriverNames) ? array_values($assignedDriverNames) : [null];
+
+        foreach ($targetDrivers as $driverName) {
             $this->generateDttForDriver(
                 $transportationRequest,
                 $templatePath,
                 $driverName,
                 $passengerNames
             );
-        }
 
-        // If no drivers assigned, generate one DTT
-        if (empty($assignedDriverNames)) {
-            $this->generateDttForDriver(
-                $transportationRequest,
-                $templatePath,
-                null,
-                $passengerNames
-            );
-        }
+            $ticketQuery = DailyDriversTripTicket::query()
+                ->where('transportation_request_form_id', $transportationRequest->id);
 
-        // Return the first DTT for download
-        $firstDtt = DailyDriversTripTicket::query()
-            ->where('transportation_request_form_id', $transportationRequest->id)
-            ->first();
-
-        if ($firstDtt && $firstDtt->attachment) {
-            $filePath = trim((string) data_get($firstDtt->attachment, 'file_path', ''));
-            if ($filePath !== '' && Storage::disk('public')->exists($filePath)) {
-                $fileName = basename($filePath);
-                return response()->download(Storage::disk('public')->path($filePath), $fileName);
+            if ($driverName === null) {
+                $ticketQuery->whereNull('assigned_driver_name');
+            } else {
+                $ticketQuery->where('assigned_driver_name', $driverName);
             }
+
+            $ticket = $ticketQuery->first();
+            $relativePath = trim((string) data_get($ticket?->attachment, 'file_path', ''));
+            $fileName = trim((string) data_get($ticket?->attachment, 'file_name', ''));
+
+            if ($relativePath === '' || !Storage::disk('public')->exists($relativePath)) {
+                continue;
+            }
+
+            $downloadTargets[] = [
+                'absolutePath' => Storage::disk('public')->path($relativePath),
+                'downloadName' => $fileName !== '' ? $fileName : basename($relativePath),
+            ];
         }
 
-        return response()->json(['message' => 'No DTT attachment found'], 404);
+        if (empty($downloadTargets)) {
+            return response()->json(['message' => 'No DTT attachment found'], 404);
+        }
+
+        return response()->download(
+            $downloadTargets[0]['absolutePath'],
+            $downloadTargets[0]['downloadName']
+        );
     }
 
     private function generateDttForDriver(
@@ -636,7 +644,8 @@ class dailyTripTicketController extends Controller
             ->map(function (string $driverName) use ($transportationRequest) {
                 return [
                     'name' => $driverName,
-                    'downloadUrl' => route('admin.daily-trip-ticket.download', $transportationRequest, [
+                    'downloadUrl' => route('admin.daily-trip-ticket.download', [
+                        'transportationRequest' => $transportationRequest,
                         'driver' => $driverName,
                     ]),
                 ];

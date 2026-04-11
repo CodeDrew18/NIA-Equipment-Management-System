@@ -91,7 +91,7 @@
 <body class="bg-background text-on-surface">
 <!-- TopAppBar Section -->
 @include('layouts.header')
-<main class="max-w-[1600px] mx-auto px-8 pb-12 pt-28">
+<main class="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pb-12 pt-28">
 <!-- Page Header -->
 <section class="mb-10">
 <h1 class="font-headline text-3xl font-extrabold text-primary tracking-tight mb-2">Audit Logs</h1>

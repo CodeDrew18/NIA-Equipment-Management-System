@@ -86,9 +86,9 @@
 <body class="bg-surface font-body text-on-surface antialiased min-h-screen flex flex-col">
 <!-- TopNavBar -->
 @include('layouts.header')
-<main class="mt-24 mb-16 px-4 md:px-12 flex-grow">
+<main class="mt-24 mb-16 flex-grow w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12">
 <!-- Page Header -->
-<div class="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-end gap-6">
+<div class="max-w-[1920px] mx-auto mb-8 flex flex-col md:flex-row justify-between items-end gap-6">
 <div class="asymmetric-header">
 <h1 class="text-primary font-headline text-3xl font-extrabold tracking-tight mb-2 uppercase">Monthly Official Travel Report</h1>
 <p class="text-secondary font-medium tracking-wide uppercase text-xs">Official Institutional Form for Each Motor Vehicle</p>
@@ -103,7 +103,7 @@
 </div>
 </div>
 <!-- Form Metadata Bento Grid -->
-<section class="max-w-7xl mx-auto mb-8 grid grid-cols-1 md:grid-cols-4 gap-6">
+<section class="max-w-[1920px] mx-auto mb-8 grid grid-cols-1 md:grid-cols-4 gap-6 xl:gap-8">
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
 <label class="block font-label text-[10px] font-bold text-outline uppercase tracking-widest mb-1">Month of Report</label>
 <input id="monthly-report-month" class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold" type="month" value="{{ $selectedMonth }}"/>
@@ -122,7 +122,7 @@
 </div>
 </section>
 <!-- Main Report Table -->
-<div class="max-w-7xl mx-auto bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/10">
+<div class="max-w-[1920px] mx-auto bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/10">
 <div class="overflow-x-auto">
 <table class="w-full text-left border-collapse">
 <thead class="bg-surface-container text-on-surface-variant font-label text-[10px] uppercase tracking-wider font-bold">
@@ -326,7 +326,7 @@
 </div>
 </div>
 <!-- Verification & Signatures -->
-<section class="max-w-7xl mx-auto mt-12 mb-12">
+<section class="max-w-[1920px] mx-auto mt-12 mb-12">
 <div class="bg-surface-container-low p-8 rounded-xl border border-primary/10">
 <p class="text-sm font-medium text-on-surface mb-10 italic border-l-4 border-primary pl-4">
                     "I hereby certify to the correctness of the above statement and that motor vehicle was used strictly official business only."

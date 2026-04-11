@@ -90,13 +90,31 @@
 <body class="bg-background text-on-surface font-body min-h-screen">
 <!-- TopNavBar -->
 @include('layouts.admin_header');
-<main class="pt-24 pb-12 px-4 md:px-8 max-w-7xl mx-auto">
+<main class="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pt-24 pb-12">
 @php
     $ctrlNumber = $selectedRequest
         ? 'FIS-' . optional($selectedRequest->request_date)->format('Y') . '-' . str_pad((string) $selectedRequest->id, 4, '0', STR_PAD_LEFT)
         : 'FIS-0000-0000';
     $dealerName = '____________________________';
     $divisionManagerName = 'ENGR. EMILIO M. DOMAGAS JR';
+    $activeFuelPartnership = $selectedFuelPartnership ?? [
+        'id' => null,
+        'name' => 'Petron Fuel',
+        'validFrom' => now()->toDateString(),
+        'validUntil' => now()->addYear()->toDateString(),
+        'validityLabel' => '1 year validity',
+        'gasolinePricePerLiter' => 0,
+        'dieselPricePerLiter' => 0,
+        'fuelSavePricePerLiter' => 0,
+        'vPowerPricePerLiter' => 0,
+    ];
+
+    $partnershipValidFromDisplay = !empty($activeFuelPartnership['validFrom'])
+        ? \Illuminate\Support\Carbon::parse((string) $activeFuelPartnership['validFrom'])->format('M d, Y')
+        : 'N/A';
+    $partnershipValidUntilDisplay = !empty($activeFuelPartnership['validUntil'])
+        ? \Illuminate\Support\Carbon::parse((string) $activeFuelPartnership['validUntil'])->format('M d, Y')
+        : 'N/A';
 
     $selectedPayload = [
         'id' => $selectedRequest?->id,
@@ -105,6 +123,7 @@
         'vehicleId' => (string) ($selectedRequest?->vehicle_id ?: '____________________________'),
         'driverName' => (string) ($selectedRequest?->driver_name ?: 'N/A'),
         'divisionManagerName' => $divisionManagerName,
+        'fuelPartnership' => $activeFuelPartnership,
         'copies' => $selectedCopies ?? [],
     ];
 @endphp
@@ -176,15 +195,27 @@
                 <td class="px-6 py-4">{{ $item->vehicle_id ?: 'N/A' }}</td>
                 <td class="px-6 py-4">{{ $item->driver_name ?: 'N/A' }}</td>
                 <td class="px-6 py-4 text-right">
-                    <div class="inline-flex items-center gap-2">
+                    <div class="flex flex-col items-end gap-1">
+                        <div class="inline-flex items-center gap-2">
                         <button type="button" data-request-id="{{ $item->id }}" class="fi-select-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-primary text-white text-[11px] font-bold uppercase tracking-wider hover:bg-primary-container transition-colors">
                             <span class="material-symbols-outlined text-sm">visibility</span>
                             View Copy
                         </button>
-                        <button type="button" data-dispatch-url="{{ route('admin.fuel_issuance_slip.dispatch', $item) }}" data-request-id="{{ $item->id }}" data-can-dispatch="{{ $canDispatchVehicle ? '1' : '0' }}" title="{{ $canDispatchVehicle ? 'Dispatch vehicle' : 'Print all fuel issuance copies first' }}" class="fi-dispatch-request inline-flex items-center gap-1 px-3 py-2 rounded-md text-[11px] font-bold uppercase tracking-wider transition-colors {{ $canDispatchVehicle ? 'bg-secondary text-white hover:bg-secondary/90' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest' }}">
+                        <button
+                            type="button"
+                            data-dispatch-url="{{ route('admin.fuel_issuance_slip.dispatch', $item) }}"
+                            data-request-id="{{ $item->id }}"
+                            data-can-dispatch="{{ $canDispatchVehicle ? '1' : '0' }}"
+                            @disabled(!$canDispatchVehicle)
+                            class="fi-dispatch-request inline-flex items-center gap-1 px-3 py-2 rounded-md text-[11px] font-bold uppercase tracking-wider {{ $canDispatchVehicle ? 'bg-secondary text-white hover:bg-secondary/90 transition-colors' : 'bg-surface-container-high text-outline cursor-not-allowed opacity-80' }}"
+                        >
                             <span class="material-symbols-outlined text-sm">local_shipping</span>
                             Dispatch Vehicle
                         </button>
+                        </div>
+                        @if (!$canDispatchVehicle)
+                        <p class="text-[10px] font-semibold text-outline">Print all copies first.</p>
+                        @endif
                     </div>
                 </td>
             </tr>
@@ -222,6 +253,39 @@
     </div>
 </div>
 
+<div class="mb-6 rounded-xl border border-outline-variant/20 bg-surface-container-lowest p-6 shadow-sm">
+    <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+            <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-outline">Fuel Partnership</p>
+            <h2 id="fi-partnership-name" class="mt-1 text-2xl font-black tracking-tight text-primary">{{ $activeFuelPartnership['name'] ?? 'Petron Fuel' }}</h2>
+            <p id="fi-partnership-validity-label" class="mt-1 text-xs font-bold uppercase tracking-wide text-secondary">{{ $activeFuelPartnership['validityLabel'] ?? '1 year validity' }}</p>
+            <p id="fi-partnership-validity-range" class="text-xs font-semibold text-on-surface-variant">{{ $partnershipValidFromDisplay }} - {{ $partnershipValidUntilDisplay }}</p>
+        </div>
+        <div class="inline-flex items-center gap-2 rounded-full border border-secondary/30 bg-secondary/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-secondary">
+            <span class="material-symbols-outlined text-sm">verified</span>
+            Active Partnership
+        </div>
+    </div>
+    <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-lg border border-outline-variant/25 bg-surface-container-low px-4 py-3">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-outline">Gasoline (Extra/Reg)</p>
+            <p id="fi-partnership-gasoline-price" class="mt-1 text-lg font-black text-on-surface">PHP {{ number_format((float) ($activeFuelPartnership['gasolinePricePerLiter'] ?? 0), 2) }}/ltr</p>
+        </div>
+        <div class="rounded-lg border border-outline-variant/25 bg-surface-container-low px-4 py-3">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-outline">Diesel Fuel</p>
+            <p id="fi-partnership-diesel-price" class="mt-1 text-lg font-black text-on-surface">PHP {{ number_format((float) ($activeFuelPartnership['dieselPricePerLiter'] ?? 0), 2) }}/ltr</p>
+        </div>
+        <div class="rounded-lg border border-outline-variant/25 bg-surface-container-low px-4 py-3">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-outline">Fuel Save</p>
+            <p id="fi-partnership-fuel-save-price" class="mt-1 text-lg font-black text-on-surface">PHP {{ number_format((float) ($activeFuelPartnership['fuelSavePricePerLiter'] ?? 0), 2) }}/ltr</p>
+        </div>
+        <div class="rounded-lg border border-outline-variant/25 bg-surface-container-low px-4 py-3">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-outline">V-Power</p>
+            <p id="fi-partnership-v-power-price" class="mt-1 text-lg font-black text-on-surface">PHP {{ number_format((float) ($activeFuelPartnership['vPowerPricePerLiter'] ?? 0), 2) }}/ltr</p>
+        </div>
+    </div>
+</div>
+
 <div id="fi-copies-container" class="space-y-6"></div>
 </main>
 
@@ -236,6 +300,20 @@
         </p>
         <div class="mt-6 flex justify-end">
             <button id="fi-warning-modal-close" type="button" class="rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-primary/90">Understood</button>
+        </div>
+    </div>
+</div>
+
+<div id="fi-confirm-dispatch-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4">
+    <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
+        <div class="mb-4 flex items-center gap-3 text-primary">
+            <span class="material-symbols-outlined">local_shipping</span>
+            <h3 class="text-lg font-bold">Confirm Dispatch</h3>
+        </div>
+        <p class="text-sm text-on-surface-variant">Are you sure you want to dispatch this vehicle to On Trip Vehicles?</p>
+        <div class="mt-6 flex justify-end gap-3">
+            <button id="fi-confirm-dispatch-no" type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50">No</button>
+            <button id="fi-confirm-dispatch-yes" type="button" class="rounded-lg bg-secondary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-secondary/90">Yes</button>
         </div>
     </div>
 </div>
@@ -272,11 +350,21 @@ const fiEls = {
     warningModal: document.getElementById('fi-warning-modal'),
     warningModalText: document.getElementById('fi-warning-modal-text'),
     warningModalClose: document.getElementById('fi-warning-modal-close'),
+    confirmDispatchModal: document.getElementById('fi-confirm-dispatch-modal'),
+    confirmDispatchNo: document.getElementById('fi-confirm-dispatch-no'),
+    confirmDispatchYes: document.getElementById('fi-confirm-dispatch-yes'),
     confirmPrintModal: document.getElementById('fi-confirm-print-modal'),
     confirmPrintNo: document.getElementById('fi-confirm-print-no'),
     confirmPrintYes: document.getElementById('fi-confirm-print-yes'),
     loadingModal: document.getElementById('fi-loading-modal'),
     loadingModalText: document.getElementById('fi-loading-modal-text'),
+    partnershipName: document.getElementById('fi-partnership-name'),
+    partnershipValidityLabel: document.getElementById('fi-partnership-validity-label'),
+    partnershipValidityRange: document.getElementById('fi-partnership-validity-range'),
+    partnershipGasolinePrice: document.getElementById('fi-partnership-gasoline-price'),
+    partnershipDieselPrice: document.getElementById('fi-partnership-diesel-price'),
+    partnershipFuelSavePrice: document.getElementById('fi-partnership-fuel-save-price'),
+    partnershipVPowerPrice: document.getElementById('fi-partnership-v-power-price'),
 };
 
 const fiDataUrl = "{{ route('admin.fuel_issuance_slip.data') }}";
@@ -284,12 +372,15 @@ const fiPrintUrl = "{{ route('admin.fuel_issuance_slip.print') }}";
 const fiDispatchUrlTemplate = "{{ route('admin.fuel_issuance_slip.dispatch', ['transportationRequest' => '__ID__']) }}";
 const fiCsrfToken = "{{ csrf_token() }}";
 const fiDefaultDivisionManager = "{{ $divisionManagerName }}";
+const fiInitialFuelPartnership = @json($activeFuelPartnership);
 let fiCurrentPage = {{ $dispatchedRequests->currentPage() }};
 let fiSelectedRequestId = {{ $selectedRequest?->id ?? 'null' }};
+let fiPendingDispatch = null;
 let fiPendingPrintCopyKey = null;
 let fiCurrentCopies = [];
 let fiCopyStateByKey = {};
 let fiSelectedPayload = @json($selectedPayload);
+let fiFuelPartnership = fiNormalizeFuelPartnership(fiSelectedPayload?.fuelPartnership || fiInitialFuelPartnership);
 const fiMetricAnimationFrames = new WeakMap();
 const fiPrefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const fiRequiredCopyFields = [
@@ -374,6 +465,75 @@ function fiAnimateMetric(element, targetValue, options = {}) {
     fiMetricAnimationFrames.set(element, frameId);
 }
 
+function fiNormalizeFuelPartnership(partnership) {
+    const source = partnership || {};
+    const defaultValidFrom = fiInitialFuelPartnership?.validFrom || '';
+    const defaultValidUntil = fiInitialFuelPartnership?.validUntil || '';
+
+    return {
+        id: source.id ?? null,
+        name: String(source.name || 'Petron Fuel'),
+        validFrom: String(source.validFrom || defaultValidFrom),
+        validUntil: String(source.validUntil || defaultValidUntil),
+        validityLabel: String(source.validityLabel || '1 year validity'),
+        gasolinePricePerLiter: fiToNumber(source.gasolinePricePerLiter),
+        dieselPricePerLiter: fiToNumber(source.dieselPricePerLiter),
+        fuelSavePricePerLiter: fiToNumber(source.fuelSavePricePerLiter),
+        vPowerPricePerLiter: fiToNumber(source.vPowerPricePerLiter),
+    };
+}
+
+function fiPriceInputValue(value) {
+    const numeric = fiToNumber(value);
+    return String(Math.round(numeric * 100) / 100);
+}
+
+function fiFormatDateForPartnership(dateValue) {
+    const value = String(dateValue || '').trim();
+    if (value === '') {
+        return 'N/A';
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+        return value;
+    }
+
+    return parsed.toLocaleDateString('en-US', {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric',
+    });
+}
+
+function fiRenderFuelPartnershipCard(partnership) {
+    const normalized = fiNormalizeFuelPartnership(partnership);
+
+    if (fiEls.partnershipName) {
+        fiEls.partnershipName.textContent = normalized.name;
+    }
+    if (fiEls.partnershipValidityLabel) {
+        fiEls.partnershipValidityLabel.textContent = normalized.validityLabel;
+    }
+    if (fiEls.partnershipValidityRange) {
+        fiEls.partnershipValidityRange.textContent = `${fiFormatDateForPartnership(normalized.validFrom)} - ${fiFormatDateForPartnership(normalized.validUntil)}`;
+    }
+    if (fiEls.partnershipGasolinePrice) {
+        fiEls.partnershipGasolinePrice.textContent = `PHP ${fiFormatCurrency(normalized.gasolinePricePerLiter)}/ltr`;
+    }
+    if (fiEls.partnershipDieselPrice) {
+        fiEls.partnershipDieselPrice.textContent = `PHP ${fiFormatCurrency(normalized.dieselPricePerLiter)}/ltr`;
+    }
+    if (fiEls.partnershipFuelSavePrice) {
+        fiEls.partnershipFuelSavePrice.textContent = `PHP ${fiFormatCurrency(normalized.fuelSavePricePerLiter)}/ltr`;
+    }
+    if (fiEls.partnershipVPowerPrice) {
+        fiEls.partnershipVPowerPrice.textContent = `PHP ${fiFormatCurrency(normalized.vPowerPricePerLiter)}/ltr`;
+    }
+
+    fiFuelPartnership = normalized;
+}
+
 function fiAnimateInitialMetrics() {
     const sourceCounter = fiEls.totalDispatchedTop || fiEls.totalDispatched;
     if (!sourceCounter) {
@@ -401,15 +561,15 @@ function fiAnimateDispatchedTotals(value) {
 
 function fiDefaultCopyState() {
     return {
-        dealer: '',
+        dealer: String(fiFuelPartnership?.name || ''),
         gasoline: '',
-        gasolinePrice: '',
+        gasolinePrice: fiPriceInputValue(fiFuelPartnership?.gasolinePricePerLiter),
         diesel: '',
-        dieselPrice: '',
+        dieselPrice: fiPriceInputValue(fiFuelPartnership?.dieselPricePerLiter),
         fuelSave: '',
-        fuelSavePrice: '',
+        fuelSavePrice: fiPriceInputValue(fiFuelPartnership?.fuelSavePricePerLiter),
         vpower: '',
-        vpowerPrice: '',
+        vpowerPrice: fiPriceInputValue(fiFuelPartnership?.vPowerPricePerLiter),
     };
 }
 
@@ -458,26 +618,6 @@ function fiCopyTotal(copyState) {
         + (fiToNumber(copyState.vpower) * fiToNumber(copyState.vpowerPrice));
 }
 
-function fiBuildDispatchCopiesPayload() {
-    return fiCurrentCopies.map(function (copy) {
-        const copyState = fiGetCopyState(copy.copyKey);
-
-        return {
-            copy_key: String(copy.copyKey),
-            dealer: String(copyState.dealer || '').trim(),
-            gasoline: String(copyState.gasoline ?? '').trim(),
-            gasoline_price: String(copyState.gasolinePrice ?? '').trim(),
-            diesel: String(copyState.diesel ?? '').trim(),
-            diesel_price: String(copyState.dieselPrice ?? '').trim(),
-            fuel_save: String(copyState.fuelSave ?? '').trim(),
-            fuel_save_price: String(copyState.fuelSavePrice ?? '').trim(),
-            v_power: String(copyState.vpower ?? '').trim(),
-            v_power_price: String(copyState.vpowerPrice ?? '').trim(),
-            total_amount: String(fiCopyTotal(copyState)),
-        };
-    });
-}
-
 function fiRenderCopyCard(copy, selectedMeta) {
     const copyKey = String(copy.copyKey);
     const copyState = fiGetCopyState(copyKey);
@@ -509,7 +649,7 @@ function fiRenderCopyCard(copy, selectedMeta) {
                 </div>
                 <div class="flex items-end gap-2 border-b border-outline-variant/40 pb-1">
                     <span class="whitespace-nowrap">Dealer:</span>
-                    <input type="text" placeholder="Enter dealer" class="w-full bg-transparent border-none p-0 text-sm font-semibold text-on-surface focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="dealer" value="${fiEsc(copyState.dealer)}" required/>
+                    <input type="text" placeholder="Enter dealer" class="w-full bg-transparent border-none p-0 text-sm font-semibold text-on-surface focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="dealer" value="${fiEsc(copyState.dealer)}" required readonly/>
                 </div>
                 <div class="md:col-span-2 flex items-end gap-2 border-b border-outline-variant/40 pb-1">
                     <span class="whitespace-nowrap">Plate No/Property No.:</span>
@@ -622,9 +762,13 @@ function fiRow(item) {
     const rowClass = isSelected ? 'bg-primary-fixed/40' : 'hover:bg-surface-container-low';
     const dispatchUrl = item.dispatchUrl || fiDispatchUrlTemplate.replace('__ID__', item.id);
     const canDispatchVehicle = Boolean(item.canDispatchVehicle);
-    const dispatchButtonClass = canDispatchVehicle
-        ? 'bg-secondary text-white hover:bg-secondary/90'
-        : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest';
+    const dispatchButtonClasses = canDispatchVehicle
+        ? 'fi-dispatch-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-secondary text-white text-[11px] font-bold uppercase tracking-wider hover:bg-secondary/90 transition-colors'
+        : 'fi-dispatch-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-surface-container-high text-outline text-[11px] font-bold uppercase tracking-wider cursor-not-allowed opacity-80';
+    const dispatchDisabledAttribute = canDispatchVehicle ? '' : ' disabled aria-disabled="true"';
+    const dispatchHint = canDispatchVehicle
+        ? ''
+        : '<p class="text-[10px] font-semibold text-outline text-right">Print all copies first.</p>';
 
     return `<tr data-request-row="${fiEsc(item.id)}" class="transition-colors ${rowClass}">
         <td class="px-6 py-4 font-bold text-primary">${fiEsc(item.formId)}</td>
@@ -633,15 +777,18 @@ function fiRow(item) {
         <td class="px-6 py-4">${fiEsc(item.vehicleId)}</td>
         <td class="px-6 py-4">${fiEsc(item.driverName)}</td>
         <td class="px-6 py-4 text-right">
-            <div class="inline-flex items-center gap-2">
-                <button type="button" data-request-id="${fiEsc(item.id)}" class="fi-select-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-primary text-white text-[11px] font-bold uppercase tracking-wider hover:bg-primary-container transition-colors">
-                    <span class="material-symbols-outlined text-sm">visibility</span>
-                    View Copy
-                </button>
-                <button type="button" data-dispatch-url="${fiEsc(dispatchUrl)}" data-request-id="${fiEsc(item.id)}" data-can-dispatch="${canDispatchVehicle ? '1' : '0'}" title="${canDispatchVehicle ? 'Dispatch vehicle' : 'Print all fuel issuance copies first'}" class="fi-dispatch-request inline-flex items-center gap-1 px-3 py-2 rounded-md text-[11px] font-bold uppercase tracking-wider transition-colors ${dispatchButtonClass}">
-                    <span class="material-symbols-outlined text-sm">local_shipping</span>
-                    Dispatch Vehicle
-                </button>
+            <div class="flex flex-col items-end gap-1">
+                <div class="inline-flex items-center gap-2">
+                    <button type="button" data-request-id="${fiEsc(item.id)}" class="fi-select-request inline-flex items-center gap-1 px-3 py-2 rounded-md bg-primary text-white text-[11px] font-bold uppercase tracking-wider hover:bg-primary-container transition-colors">
+                        <span class="material-symbols-outlined text-sm">visibility</span>
+                        View Copy
+                    </button>
+                    <button type="button" data-dispatch-url="${fiEsc(dispatchUrl)}" data-request-id="${fiEsc(item.id)}" data-can-dispatch="${canDispatchVehicle ? '1' : '0'}" class="${dispatchButtonClasses}"${dispatchDisabledAttribute}>
+                        <span class="material-symbols-outlined text-sm">local_shipping</span>
+                        Dispatch Vehicle
+                    </button>
+                </div>
+                ${dispatchHint}
             </div>
         </td>
     </tr>`;
@@ -664,6 +811,37 @@ function fiHideWarningModal() {
 
     fiEls.warningModal.classList.add('hidden');
     fiEls.warningModal.classList.remove('flex');
+}
+
+function fiShowConfirmDispatchModal(dispatchUrl, requestId, triggerButton, canDispatchVehicle = true) {
+    if (!fiEls.confirmDispatchModal || !dispatchUrl || !requestId) {
+        return;
+    }
+
+    if (!canDispatchVehicle) {
+        fiShowWarningModal('Please print all Fuel Issuance copies first before proceeding to dispatch vehicle.');
+        return;
+    }
+
+    fiPendingDispatch = {
+        dispatchUrl,
+        requestId,
+        triggerButton,
+        canDispatchVehicle,
+    };
+
+    fiEls.confirmDispatchModal.classList.remove('hidden');
+    fiEls.confirmDispatchModal.classList.add('flex');
+}
+
+function fiHideConfirmDispatchModal() {
+    fiPendingDispatch = null;
+    if (!fiEls.confirmDispatchModal) {
+        return;
+    }
+
+    fiEls.confirmDispatchModal.classList.add('hidden');
+    fiEls.confirmDispatchModal.classList.remove('flex');
 }
 
 function fiShowLoadingModal(message = 'Preparing your download...') {
@@ -717,6 +895,26 @@ function fiValidateCopyFields(copyKey) {
     return !hasError;
 }
 
+function fiValidateAllCopyFields(showWarning = false, warningMessage = 'Required to fill all fields before dispatch.') {
+    if (!fiCurrentCopies.length) {
+        if (showWarning) {
+            fiShowWarningModal('No transportation copies available for this request.');
+        }
+
+        return false;
+    }
+
+    const hasInvalid = fiCurrentCopies.some(function (copy) {
+        return !fiValidateCopyFields(copy.copyKey);
+    });
+
+    if (hasInvalid && showWarning) {
+        fiShowWarningModal(warningMessage);
+    }
+
+    return !hasInvalid;
+}
+
 function fiValidateSingleCopyFields(copyKey, showWarning = false, warningMessage = 'Dealer, all fuel quantities, and all fuel prices per liter are required.') {
     const isValid = fiValidateCopyFields(copyKey);
     if (!isValid && showWarning) {
@@ -753,8 +951,17 @@ function fiHandleCopyInputChange(event) {
     fiValidateCopyFields(copyKey);
 }
 
-async function fiDispatchRequest(dispatchUrl, requestId, triggerButton) {
+async function fiDispatchRequest(dispatchUrl, requestId, triggerButton, canDispatchVehicle = true) {
     if (!dispatchUrl || !requestId) {
+        return;
+    }
+
+    if (!canDispatchVehicle) {
+        fiShowWarningModal('Please print all Fuel Issuance copies first before proceeding to dispatch vehicle.');
+        return;
+    }
+
+    if (!fiValidateAllCopyFields(true, 'Required to fill all fields before dispatch.')) {
         return;
     }
 
@@ -773,9 +980,7 @@ async function fiDispatchRequest(dispatchUrl, requestId, triggerButton) {
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRF-TOKEN': fiCsrfToken,
             },
-            body: JSON.stringify({
-                fuel_issuance_copies: fiBuildDispatchCopiesPayload(),
-            }),
+            body: JSON.stringify({}),
         });
 
         const payload = await response.json().catch(function () {
@@ -934,8 +1139,6 @@ async function fiPrintOfficeCopy(copyKey) {
             printButton.disabled = false;
         }
         window.removeEventListener('focus', handleWindowFocus);
-
-        fiRefresh(fiCurrentPage);
     }
 
     function handleWindowFocus() {
@@ -1000,6 +1203,8 @@ async function fiRefresh(page = fiCurrentPage) {
         }
 
         fiSelectedPayload = selectedPayload;
+        fiFuelPartnership = fiNormalizeFuelPartnership(selectedPayload.fuelPartnership || fiInitialFuelPartnership);
+        fiRenderFuelPartnershipCard(fiFuelPartnership);
         fiRenderCopyCards(fiSelectedPayload);
     } catch (error) {
         console.error('Fuel issuance AJAX refresh failed', error);
@@ -1039,17 +1244,18 @@ fiEls.tbody.addEventListener('click', function (event) {
     }
 
     event.preventDefault();
+    const canDispatchVehicle = String(dispatchButton.getAttribute('data-can-dispatch') || '0') === '1';
 
-    const canDispatch = String(dispatchButton.getAttribute('data-can-dispatch') || '0') === '1';
-    if (!canDispatch) {
+    if (!canDispatchVehicle) {
         fiShowWarningModal('Please print all Fuel Issuance copies first before proceeding to dispatch vehicle.');
         return;
     }
 
-    fiDispatchRequest(
+    fiShowConfirmDispatchModal(
         dispatchButton.getAttribute('data-dispatch-url'),
         Number(dispatchButton.getAttribute('data-request-id')),
-        dispatchButton
+        dispatchButton,
+        canDispatchVehicle
     );
 });
 
@@ -1090,6 +1296,38 @@ if (fiEls.warningModal) {
     });
 }
 
+if (fiEls.confirmDispatchNo) {
+    fiEls.confirmDispatchNo.addEventListener('click', function () {
+        fiHideConfirmDispatchModal();
+    });
+}
+
+if (fiEls.confirmDispatchYes) {
+    fiEls.confirmDispatchYes.addEventListener('click', function () {
+        const pendingDispatch = fiPendingDispatch;
+        fiHideConfirmDispatchModal();
+
+        if (!pendingDispatch) {
+            return;
+        }
+
+        fiDispatchRequest(
+            pendingDispatch.dispatchUrl,
+            pendingDispatch.requestId,
+            pendingDispatch.triggerButton,
+            pendingDispatch.canDispatchVehicle
+        );
+    });
+}
+
+if (fiEls.confirmDispatchModal) {
+    fiEls.confirmDispatchModal.addEventListener('click', function (event) {
+        if (event.target === fiEls.confirmDispatchModal) {
+            fiHideConfirmDispatchModal();
+        }
+    });
+}
+
 fiEls.confirmPrintNo.addEventListener('click', function () {
     fiHideConfirmPrintModal();
 });
@@ -1112,21 +1350,8 @@ fiEls.confirmPrintModal.addEventListener('click', function (event) {
         fiHideConfirmPrintModal();
     }
 });
+fiRenderFuelPartnershipCard(fiFuelPartnership);
 fiRenderCopyCards(fiSelectedPayload || {});
 fiAnimateInitialMetrics();
-
-if (typeof window.emsLiveRefresh === 'function') {
-    window.emsLiveRefresh(function () {
-        return fiRefresh(fiCurrentPage);
-    }, {
-        intervalMs: 4000,
-        shouldPause: function () {
-            const isPrintModalOpen = Boolean(fiEls.confirmPrintModal) && !fiEls.confirmPrintModal.classList.contains('hidden');
-            const isLoadingModalOpen = Boolean(fiEls.loadingModal) && !fiEls.loadingModal.classList.contains('hidden');
-
-            return isPrintModalOpen || isLoadingModalOpen;
-        },
-    });
-}
 </script>
 </body></html>

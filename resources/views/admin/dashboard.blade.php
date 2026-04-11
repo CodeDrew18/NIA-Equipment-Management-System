@@ -83,7 +83,7 @@
 <body class="bg-background text-on-surface min-h-screen flex flex-col">
 <!-- TopNavBar -->
 @include('layouts.admin_header')
-<main class="flex-grow pt-24 pb-12 px-8 max-w-[1440px] mx-auto w-full">
+<main class="flex-grow w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pt-24 pb-12">
 @if (session('admin_dashboard_success'))
 <div class="mb-6 rounded-lg border border-secondary/30 bg-secondary/10 px-4 py-3 text-sm font-semibold text-secondary">
   {{ session('admin_dashboard_success') }}

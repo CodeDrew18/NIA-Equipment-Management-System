@@ -231,6 +231,10 @@
 	$onTripVehiclesActive = request()->routeIs('admin.on_trip_vehicles');
 	$auditLogActive = request()->routeIs('audit-log');
 @endphp
+@php
+	$fuelPartnershipsActive = request()->routeIs('admin.fuel_partnerships');
+	$operationsActive = $operationsActive || $fuelPartnershipsActive;
+@endphp
 <div class="flex justify-between items-center w-full px-8 py-4 max-w-full h-20">
 <div class="flex items-center gap-8">
 <span class="text-xl font-bold text-blue-900 dark:text-white tracking-tight">EMS</span>
@@ -247,6 +251,7 @@
 		<a class="nav-dropdown-item {{ $dailyTripTicketActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.daily-trip-ticket') }}" role="menuitem">Daily Driver's Trip Ticket</a>
             {{-- <a class="nav-dropdown-item" href="#" role="menuitem">Daily Equipment Utilization Report</a> --}}
 	            <a class="nav-dropdown-item {{ $fuelIssuanceActive ? $dropdownActiveClass : '' }}	" href="{{ route('admin.fuel_issuance_slip') }}" role="menuitem">Fuel Issuance Slips</a>
+		<a class="nav-dropdown-item {{ $fuelPartnershipsActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.fuel_partnerships') }}" role="menuitem">Fuel Partnerships</a>
 	</div>
 </div>
 <a class="nav-link {{ $onTripVehiclesActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('admin.on_trip_vehicles') }}">On Trip Vehicles</a>
@@ -297,6 +302,7 @@
 				<a class="mobile-nav-subitem {{ request()->routeIs('admin.vehicle_assignment') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.vehicle_assignment') }}">Vehicle Assignment</a>
 				<a class="mobile-nav-subitem {{ request()->routeIs('admin.daily-trip-ticket') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.daily-trip-ticket') }}">Daily Driver's Trip Ticket</a>
 				<a class="mobile-nav-subitem {{ request()->routeIs('admin.fuel_issuance_slip') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.fuel_issuance_slip') }}">Fuel Issuance Slips</a>
+				<a class="mobile-nav-subitem {{ request()->routeIs('admin.fuel_partnerships') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.fuel_partnerships') }}">Fuel Partnerships</a>
 			</div>
 		</details>
 

@@ -75,7 +75,7 @@ body { font-family: 'Public Sans', sans-serif; }
 <body class="bg-background text-on-surface flex flex-col min-h-screen antialiased">
 @include('layouts.header')
 
-<main class="flex-grow px-8 pb-8 pt-28 md:pt-32 max-w-7xl mx-auto w-full">
+<main class="flex-grow w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pb-8 pt-28 md:pt-32">
 <section class="mb-10 flex flex-col md:flex-row justify-between md:items-end gap-6">
 <div class="max-w-2xl">
 <h1 class="text-4xl font-extrabold text-primary mb-2 tracking-tight">Vehicle Availability</h1>

@@ -80,7 +80,7 @@
 </head>
 <body class="bg-background text-on-background min-h-screen flex flex-col">
 @include('layouts.admin_header')
-<main class="flex-grow max-w-screen-2xl w-full mx-auto px-8 py-10 pt-24">
+<main class="flex-grow w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pt-24 pb-10">
 <div class="flex flex-col lg:flex-row justify-between items-start lg:items-end mb-12 gap-8">
 <div>
 <span class="font-label text-xs uppercase tracking-widest font-semibold text-secondary mb-2 block">Central Management System</span>

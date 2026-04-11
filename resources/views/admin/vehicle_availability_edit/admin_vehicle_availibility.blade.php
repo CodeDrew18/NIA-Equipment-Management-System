@@ -75,7 +75,7 @@ body { font-family: 'Public Sans', sans-serif; }
 <body class="bg-background text-on-surface flex flex-col min-h-screen antialiased">
 @include('layouts.admin_header')
 
-<main class="flex-grow px-8 pb-8 pt-28 md:pt-32 max-w-7xl mx-auto w-full">
+<main class="flex-grow w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pb-8 pt-28 md:pt-32">
 @if (session('admin_vehicle_success'))
 <div class="mb-6 rounded-lg border border-secondary/30 bg-secondary/10 px-4 py-3 text-sm font-semibold text-secondary">
     {{ session('admin_vehicle_success') }}

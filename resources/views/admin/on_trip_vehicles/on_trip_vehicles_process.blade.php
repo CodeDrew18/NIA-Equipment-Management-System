@@ -90,8 +90,8 @@
 @include('layouts.admin_header')
 <div class="flex pt-[72px]">
 <!-- Main Content -->
-<main class="w-full p-8 bg-background min-h-screen">
-<div class="max-w-[1440px] mx-auto">
+<main class="w-full bg-background min-h-screen px-4 sm:px-6 lg:px-10 xl:px-12 py-8">
+<div class="max-w-[1920px] mx-auto">
 <header class="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
 <div>
 <h1 class="text-3xl font-black text-primary tracking-tight mb-2">Active Trips</h1>

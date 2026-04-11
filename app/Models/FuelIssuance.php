@@ -14,6 +14,7 @@ class FuelIssuance extends Model
 
     protected $fillable = [
         'transportation_request_form_id',
+        'fuel_issuance_partnership_id',
         'copy_key',
         'copy_number',
         'ctrl_number',
@@ -35,6 +36,7 @@ class FuelIssuance extends Model
     ];
 
     protected $casts = [
+        'fuel_issuance_partnership_id' => 'integer',
         'copy_number' => 'integer',
         'gasoline_quantity' => 'decimal:2',
         'gasoline_price' => 'decimal:2',
@@ -53,5 +55,10 @@ class FuelIssuance extends Model
     public function transportationRequestForm(): BelongsTo
     {
         return $this->belongsTo(TransportationRequestFormModel::class, 'transportation_request_form_id');
+    }
+
+    public function fuelIssuancePartnership(): BelongsTo
+    {
+        return $this->belongsTo(FuelIssuancePartnership::class, 'fuel_issuance_partnership_id');
     }
 }

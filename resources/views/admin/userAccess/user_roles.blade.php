@@ -82,7 +82,7 @@
 <body class="bg-background text-on-surface min-h-screen flex flex-col">
 <!-- TopNavBar -->
 @include('layouts.admin_header');
-<main class="flex-grow container mx-auto px-8 pb-12 pt-28 max-w-7xl">
+<main class="flex-grow w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pb-12 pt-28">
 @php
   $roleBadgeClasses = [
     'admin' => 'bg-secondary-container text-on-secondary-container',

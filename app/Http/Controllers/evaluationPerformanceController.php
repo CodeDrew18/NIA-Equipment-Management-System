@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\DriverPerformanceEvaluation;
 use App\Models\TransportationRequestFormModel;
+use App\Services\FcmPushService;
 use App\Models\User;
-use App\Notifications\DriverPerformanceEvaluationSubmittedNotification;
 use App\Support\TripLifecycleManager;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -132,7 +133,7 @@ class evaluationPerformanceController extends Controller
         ]);
     }
 
-    public function submit(Request $request): RedirectResponse
+    public function submit(Request $request, FcmPushService $fcmPushService): RedirectResponse
     {
         $validationRules = [
             'evaluation_id' => ['required', 'integer', 'exists:driver_performance_evaluations,id'],
@@ -213,7 +214,8 @@ class evaluationPerformanceController extends Controller
             $evaluationDateTime,
             &$driverNotifiedCount,
             &$evaluationAttachmentUrl,
-            $validated
+            $validated,
+            $fcmPushService
         ) {
             $attachmentPayload = $this->generateEvaluationDocumentAttachment(
                 $evaluation,
@@ -260,14 +262,14 @@ class evaluationPerformanceController extends Controller
                 ]);
             }
 
-            $driverNotifiedCount = $this->notifyAssignedDrivers($transportationRequest, $evaluation);
+            $driverNotifiedCount = $this->notifyAssignedDrivers($transportationRequest, $evaluation, $fcmPushService);
         });
 
         $flashMessage = 'Driver performance evaluation submitted successfully.';
         if ($driverNotifiedCount > 0) {
             $flashMessage .= ' ' . $driverNotifiedCount . ' assigned driver' . ($driverNotifiedCount === 1 ? '' : 's') . ' notified.';
         } else {
-            $flashMessage .= ' No matching driver account was found to notify.';
+            $flashMessage .= ' No push sent (missing FCM token or unmatched driver account name).';
         }
 
         return redirect()
@@ -626,8 +628,11 @@ class evaluationPerformanceController extends Controller
         return 'Excellent';
     }
 
-    private function notifyAssignedDrivers(TransportationRequestFormModel $transportationRequest, DriverPerformanceEvaluation $evaluation): int
-    {
+    private function notifyAssignedDrivers(
+        TransportationRequestFormModel $transportationRequest,
+        DriverPerformanceEvaluation $evaluation,
+        FcmPushService $fcmPushService
+    ): int {
         $driverNames = $this->parseDriverNames((string) ($evaluation->driver_name ?? ''));
         if (empty($driverNames)) {
             $driverNames = $this->parseDriverNames((string) ($transportationRequest->driver_name ?? ''));
@@ -639,7 +644,7 @@ class evaluationPerformanceController extends Controller
 
         $normalizedDriverNames = collect($driverNames)
             ->map(function (string $name) {
-                return strtolower(trim($name));
+                return $this->normalizePersonName($name);
             })
             ->filter()
             ->unique()
@@ -651,23 +656,99 @@ class evaluationPerformanceController extends Controller
         }
 
         $matchedDriverUsers = User::query()
-            ->select(['id', 'name'])
+            ->select(['id', 'name', 'fcm_token'])
             ->get()
             ->filter(function (User $user) use ($normalizedDriverNames) {
-                $normalizedUserName = strtolower(trim((string) ($user->name ?? '')));
+                $normalizedUserName = $this->normalizePersonName((string) ($user->name ?? ''));
 
                 return in_array($normalizedUserName, $normalizedDriverNames, true);
             })
             ->values();
 
-        $notificationCount = 0;
+        if ($matchedDriverUsers->isEmpty()) {
+            Log::warning('Evaluation push skipped because no matching user account names were found.', [
+                'transportation_request_form_id' => $transportationRequest->id,
+                'driver_names' => $driverNames,
+            ]);
 
-        foreach ($matchedDriverUsers as $driverUser) {
-            $driverUser->notify(new DriverPerformanceEvaluationSubmittedNotification($transportationRequest, $evaluation));
-            $notificationCount += 1;
+            return 0;
+        }
+
+        $driverUsers = $matchedDriverUsers
+            ->filter(function (User $user) {
+                return trim((string) ($user->fcm_token ?? '')) !== '';
+            })
+            ->values();
+
+        if ($driverUsers->isEmpty()) {
+            Log::warning('Evaluation push skipped because matched drivers have no registered FCM tokens.', [
+                'transportation_request_form_id' => $transportationRequest->id,
+                'matched_driver_user_ids' => $matchedDriverUsers->pluck('id')->values()->all(),
+            ]);
+
+            return 0;
+        }
+
+        $notificationCount = 0;
+        $formId = (string) ($transportationRequest->form_id ?? 'N/A');
+        $destination = $this->normalizeInlineText((string) ($transportationRequest->destination ?? 'N/A'));
+        $overallRating = $evaluation->overall_rating !== null
+            ? number_format((float) $evaluation->overall_rating, 2)
+            : null;
+        $evaluatedAt = optional($evaluation->evaluated_at)->format('M d, Y h:i A')
+            ?: now()->format('M d, Y h:i A');
+
+        $notificationTitle = 'Driver Evaluation Submitted';
+        $notificationBody = 'Your trip performance evaluation for ' . $formId . ' was submitted.';
+        if ($overallRating !== null) {
+            $notificationBody .= "\nOverall rating: " . $overallRating . '/5.00';
+        }
+        $notificationBody .= "\nDestination: " . ($destination !== '' ? $destination : 'N/A');
+        $notificationBody .= "\nEvaluated at: " . $evaluatedAt;
+
+        foreach ($driverUsers as $driverUser) {
+            try {
+                $isSent = $fcmPushService->sendToToken(
+                    (string) $driverUser->fcm_token,
+                    $notificationTitle,
+                    $notificationBody,
+                    [
+                        'type' => 'driver_performance_evaluation',
+                        'transportation_request_form_id' => (string) $transportationRequest->id,
+                        'evaluation_id' => (string) $evaluation->id,
+                        'form_id' => $formId,
+                        'destination' => (string) ($destination !== '' ? $destination : 'N/A'),
+                        'driver_name' => (string) ($evaluation->driver_name ?? ''),
+                        'evaluator_name' => (string) ($evaluation->evaluator_name ?? 'N/A'),
+                        'overall_rating' => (string) ($overallRating ?? ''),
+                        'evaluated_at' => $evaluatedAt,
+                    ]
+                );
+
+                if ($isSent) {
+                    $notificationCount += 1;
+                }
+            } catch (\Throwable $exception) {
+                Log::warning('Failed sending evaluation push notification.', [
+                    'transportation_request_form_id' => $transportationRequest->id,
+                    'evaluation_id' => $evaluation->id,
+                    'driver_user_id' => $driverUser->id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
         }
 
         return $notificationCount;
+    }
+
+    private function normalizePersonName(string $name): string
+    {
+        return strtolower(trim(preg_replace('/\s+/', ' ', $name) ?? ''));
+    }
+
+    private function normalizeInlineText(string $value): string
+    {
+        return trim(preg_replace('/\s+/', ' ', $value) ?? '');
     }
 
     private function parseDriverNames(mixed $value): array

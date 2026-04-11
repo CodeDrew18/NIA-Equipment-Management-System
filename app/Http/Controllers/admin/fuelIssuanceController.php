@@ -5,8 +5,10 @@ namespace App\Http\Controllers\admin;
 use App\Http\Controllers\Controller;
 use App\Models\AdminVehicleAvailability;
 use App\Models\FuelIssuance;
+use App\Models\FuelIssuancePartnership;
 use App\Models\TransportationRequestFormModel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -28,6 +30,7 @@ class fuelIssuanceController extends Controller
             'selectedRequest' => $payload['selectedRequest'],
             'selectedCtrlNumber' => $payload['selectedCtrlNumber'],
             'selectedCopies' => $payload['selectedCopies'],
+            'selectedFuelPartnership' => $payload['selectedFuelPartnership'],
             'search' => $payload['search'],
         ]);
     }
@@ -71,6 +74,7 @@ class fuelIssuanceController extends Controller
                 'driverName' => (string) ($selectedRequest?->driver_name ?: 'N/A'),
                 'requestorName' => (string) ($selectedRequest?->requestor_name ?: '________________'),
                 'divisionManagerName' => self::DIVISION_MANAGER,
+                'fuelPartnership' => $payload['selectedFuelPartnership'],
                 'canDispatchVehicle' => (bool) ($selectedRequest?->can_dispatch_vehicle ?? false),
                 'copies' => $payload['selectedCopies'],
             ],
@@ -143,7 +147,9 @@ class fuelIssuanceController extends Controller
             }
         }
 
-        DB::transaction(function () use ($transportationRequest, $expectedCopies, $submittedCopies) {
+        $activePartnership = $this->resolveActiveFuelPartnership();
+
+        DB::transaction(function () use ($transportationRequest, $expectedCopies, $submittedCopies, $activePartnership) {
             $requestSnapshot = $this->buildRequestFormDataSnapshot($transportationRequest);
             $existingByCopyKey = FuelIssuance::query()
                 ->where('transportation_request_form_id', $transportationRequest->id)
@@ -155,13 +161,13 @@ class fuelIssuanceController extends Controller
                 $existingRecord = $existingByCopyKey->get((string) $copyKey);
 
                 $gasolineQuantity = $this->resolveNumericValue($copyPayload['gasoline'] ?? null, (float) ($existingRecord?->gasoline_quantity ?? 0));
-                $gasolinePrice = $this->resolveNumericValue($copyPayload['gasoline_price'] ?? null, (float) ($existingRecord?->gasoline_price ?? 0));
+                $gasolinePrice = $this->resolveNumericValue($copyPayload['gasoline_price'] ?? null, (float) ($existingRecord?->gasoline_price ?? (float) ($activePartnership?->gasoline_price_per_liter ?? 0)));
                 $dieselQuantity = $this->resolveNumericValue($copyPayload['diesel'] ?? null, (float) ($existingRecord?->diesel_quantity ?? 0));
-                $dieselPrice = $this->resolveNumericValue($copyPayload['diesel_price'] ?? null, (float) ($existingRecord?->diesel_price ?? 0));
+                $dieselPrice = $this->resolveNumericValue($copyPayload['diesel_price'] ?? null, (float) ($existingRecord?->diesel_price ?? (float) ($activePartnership?->diesel_price_per_liter ?? 0)));
                 $fuelSaveQuantity = $this->resolveNumericValue($copyPayload['fuel_save'] ?? null, (float) ($existingRecord?->fuel_save_quantity ?? 0));
-                $fuelSavePrice = $this->resolveNumericValue($copyPayload['fuel_save_price'] ?? null, (float) ($existingRecord?->fuel_save_price ?? 0));
+                $fuelSavePrice = $this->resolveNumericValue($copyPayload['fuel_save_price'] ?? null, (float) ($existingRecord?->fuel_save_price ?? (float) ($activePartnership?->fuel_save_price_per_liter ?? 0)));
                 $vPowerQuantity = $this->resolveNumericValue($copyPayload['v_power'] ?? null, (float) ($existingRecord?->v_power_quantity ?? 0));
-                $vPowerPrice = $this->resolveNumericValue($copyPayload['v_power_price'] ?? null, (float) ($existingRecord?->v_power_price ?? 0));
+                $vPowerPrice = $this->resolveNumericValue($copyPayload['v_power_price'] ?? null, (float) ($existingRecord?->v_power_price ?? (float) ($activePartnership?->v_power_price_per_liter ?? 0)));
 
                 $dealer = trim((string) ($copyPayload['dealer'] ?? ''));
                 if ($dealer === '') {
@@ -182,6 +188,7 @@ class fuelIssuanceController extends Controller
                         'copy_key' => (string) $copyKey,
                     ],
                     [
+                        'fuel_issuance_partnership_id' => $activePartnership?->id,
                         'copy_number' => (int) ($expectedCopy['copyNumber'] ?? 1),
                         'ctrl_number' => (string) ($expectedCopy['ctrlNumber'] ?? ''),
                         'vehicle_id' => (string) ($expectedCopy['vehicleId'] ?? ''),
@@ -220,25 +227,6 @@ class fuelIssuanceController extends Controller
         return redirect()
             ->route('admin.fuel_issuance_slip')
             ->with('admin_fuel_issuance_success', $message);
-    }
-
-    private function buildRequestFormDataSnapshot(TransportationRequestFormModel $transportationRequest): array
-    {
-        return [
-            'id' => $transportationRequest->id,
-            'form_id' => (string) ($transportationRequest->form_id ?? ''),
-            'request_date' => optional($transportationRequest->request_date)->toDateString(),
-            'requested_by' => (string) ($transportationRequest->requested_by ?? ''),
-            'destination' => (string) ($transportationRequest->destination ?? ''),
-            'date_time_from' => optional($transportationRequest->date_time_from)->toDateTimeString(),
-            'date_time_to' => optional($transportationRequest->date_time_to)->toDateTimeString(),
-            'purpose' => (string) ($transportationRequest->purpose ?? ''),
-            'vehicle_type' => (string) ($transportationRequest->vehicle_type ?? ''),
-            'vehicle_quantity' => (int) ($transportationRequest->vehicle_quantity ?? 0),
-            'vehicle_id' => (string) ($transportationRequest->vehicle_id ?? ''),
-            'driver_name' => (string) ($transportationRequest->driver_name ?? ''),
-            'status' => (string) ($transportationRequest->status ?? ''),
-        ];
     }
 
     public function printOfficeCopy(Request $request)
@@ -358,7 +346,7 @@ class fuelIssuanceController extends Controller
         $sheet->mergeCells('K32:M32');
         $sheet->setCellValue('K32', self::DIVISION_MANAGER);
 
-        $outputDirectory = Storage::disk('public')->path('generated_forms');
+        $outputDirectory = storage_path('app/public/generated_forms');
         if (!is_dir($outputDirectory)) {
             mkdir($outputDirectory, 0755, true);
         }
@@ -367,26 +355,43 @@ class fuelIssuanceController extends Controller
         $safeFormId = preg_replace('/[^A-Za-z0-9._-]/', '_', $baseFormId) ?: 'REQUEST';
         $copyNumber = (int) ($selectedCopy['copyNumber'] ?? 1);
         $safeFileName = 'Fuel_Issuance_Office_Copy_' . $safeFormId . '_copy_' . $copyNumber . '_' . now()->format('Ymd_His_u') . '_' . Str::lower(Str::random(6)) . '.xlsx';
-        $relativePath = 'generated_forms/' . $safeFileName;
-        $outputPath = Storage::disk('public')->path($relativePath);
+        $outputPath = $outputDirectory . DIRECTORY_SEPARATOR . $safeFileName;
 
         $writer = new Xlsx($spreadsheet);
         $writer->save($outputPath);
 
-        $copyKey = (string) ($selectedCopy['copyKey'] ?? '');
         $attachmentPayload = [
             'file_name' => $safeFileName,
-            'file_path' => $relativePath,
+            'file_path' => 'generated_forms/' . $safeFileName,
             'process' => 'fuel_issuance',
-            'process_key' => self::FUEL_ATTACHMENT_KEY_PREFIX . ($copyKey !== '' ? $copyKey : 'default'),
+            'process_key' => self::FUEL_ATTACHMENT_KEY_PREFIX . ((string) ($selectedCopy['copyKey'] ?? 'default')),
             'source' => 'fuel_issuance_print',
-            'copy_key' => $copyKey,
+            'copy_key' => (string) ($selectedCopy['copyKey'] ?? ''),
         ];
 
         $this->persistFuelIssuanceAttachment($selectedRequest, $selectedCopy, $validated, $attachmentPayload);
         $selectedRequest->upsertAttachment($attachmentPayload);
 
-        return response()->download($outputPath, $safeFileName);
+        return response()->download($outputPath, $safeFileName)->deleteFileAfterSend(true);
+    }
+
+    private function buildRequestFormDataSnapshot(TransportationRequestFormModel $transportationRequest): array
+    {
+        return [
+            'id' => $transportationRequest->id,
+            'form_id' => (string) ($transportationRequest->form_id ?? ''),
+            'request_date' => optional($transportationRequest->request_date)->toDateString(),
+            'requested_by' => (string) ($transportationRequest->requested_by ?? ''),
+            'destination' => (string) ($transportationRequest->destination ?? ''),
+            'date_time_from' => optional($transportationRequest->date_time_from)->toDateTimeString(),
+            'date_time_to' => optional($transportationRequest->date_time_to)->toDateTimeString(),
+            'purpose' => (string) ($transportationRequest->purpose ?? ''),
+            'vehicle_type' => (string) ($transportationRequest->vehicle_type ?? ''),
+            'vehicle_quantity' => (int) ($transportationRequest->vehicle_quantity ?? 0),
+            'vehicle_id' => (string) ($transportationRequest->vehicle_id ?? ''),
+            'driver_name' => (string) ($transportationRequest->driver_name ?? ''),
+            'status' => (string) ($transportationRequest->status ?? ''),
+        ];
     }
 
     private function persistFuelIssuanceAttachment(
@@ -400,6 +405,8 @@ class fuelIssuanceController extends Controller
             return;
         }
 
+        $activePartnership = $this->resolveActiveFuelPartnership();
+
         $fuelIssuance = FuelIssuance::query()->firstOrNew([
             'transportation_request_form_id' => $transportationRequest->id,
             'copy_key' => $copyKey,
@@ -407,15 +414,20 @@ class fuelIssuanceController extends Controller
 
         if (!$fuelIssuance->exists) {
             $fuelIssuance->fill([
+                'fuel_issuance_partnership_id' => $activePartnership?->id,
                 'copy_number' => (int) ($selectedCopy['copyNumber'] ?? 1),
                 'ctrl_number' => (string) ($selectedCopy['ctrlNumber'] ?? ''),
                 'vehicle_id' => (string) ($selectedCopy['vehicleId'] ?? ''),
                 'driver_name' => (string) ($selectedCopy['driverName'] ?? 'N/A'),
                 'dealer' => trim((string) ($validated['dealer'] ?? '')),
                 'gasoline_quantity' => round((float) ($validated['gasoline'] ?? 0), 2),
+                'gasoline_price' => round((float) ($activePartnership?->gasoline_price_per_liter ?? 0), 2),
                 'diesel_quantity' => round((float) ($validated['diesel'] ?? 0), 2),
+                'diesel_price' => round((float) ($activePartnership?->diesel_price_per_liter ?? 0), 2),
                 'fuel_save_quantity' => round((float) ($validated['fuel_save'] ?? 0), 2),
+                'fuel_save_price' => round((float) ($activePartnership?->fuel_save_price_per_liter ?? 0), 2),
                 'v_power_quantity' => round((float) ($validated['v_power'] ?? 0), 2),
+                'v_power_price' => round((float) ($activePartnership?->v_power_price_per_liter ?? 0), 2),
                 'total_amount' => round((float) ($validated['total_amount'] ?? 0), 2),
                 'request_form_data' => $this->buildRequestFormDataSnapshot($transportationRequest),
             ]);
@@ -510,6 +522,8 @@ class fuelIssuanceController extends Controller
             ? 'FIS-' . optional($selectedRequest->request_date)->format('Y') . '-' . str_pad((string) $selectedRequest->id, 4, '0', STR_PAD_LEFT)
             : 'FIS-0000-0000';
 
+        $selectedFuelPartnership = $this->resolveSelectedFuelPartnership($selectedRequest);
+
         $selectedCopies = collect($this->buildFuelIssuanceCopies($selectedRequest))
             ->map(function (array $copy) use ($selectedPrintedCopyKeys) {
                 $copyKey = (string) ($copy['copyKey'] ?? '');
@@ -525,65 +539,77 @@ class fuelIssuanceController extends Controller
             'selectedRequest' => $selectedRequest,
             'selectedCtrlNumber' => $selectedCtrlNumber,
             'selectedCopies' => $selectedCopies,
+            'selectedFuelPartnership' => $selectedFuelPartnership,
             'search' => $search,
         ];
     }
 
-    private function buildFuelIssuanceCopies(?TransportationRequestFormModel $transportationRequest): array
+    private function resolveSelectedFuelPartnership(?TransportationRequestFormModel $transportationRequest): array
     {
-        if (!$transportationRequest) {
-            return [];
+        $partnershipRecord = null;
+
+        if ($transportationRequest) {
+            $partnershipRecord = FuelIssuance::query()
+                ->where('transportation_request_form_id', $transportationRequest->id)
+                ->whereNotNull('fuel_issuance_partnership_id')
+                ->with('fuelIssuancePartnership')
+                ->orderByDesc('id')
+                ->first()?->fuelIssuancePartnership;
         }
 
-        $baseCtrlNumber = 'FIS-' . optional($transportationRequest->request_date)->format('Y') . '-' . str_pad((string) $transportationRequest->id, 4, '0', STR_PAD_LEFT);
-        $vehicleCodes = $this->extractVehicleCodes((string) $transportationRequest->vehicle_id);
-        $driverNames = $this->extractNameTokens((string) $transportationRequest->driver_name);
-
-        if (empty($vehicleCodes)) {
-            $fallbackVehicle = trim((string) ($transportationRequest->vehicle_id ?: '____________________________'));
-            $fallbackDriver = trim((string) ($driverNames[0] ?? $transportationRequest->driver_name ?? 'N/A'));
-
-            return [[
-                'copyKey' => substr(md5($transportationRequest->id . '|fallback|' . $fallbackVehicle . '|0'), 0, 32),
-                'copyNumber' => 1,
-                'ctrlNumber' => $baseCtrlNumber,
-                'vehicleId' => $fallbackVehicle,
-                'driverName' => $fallbackDriver !== '' ? $fallbackDriver : 'N/A',
-            ]];
+        if (!$partnershipRecord) {
+            $partnershipRecord = $this->resolveActiveFuelPartnership();
         }
 
-        $vehiclesByCode = AdminVehicleAvailability::query()
-            ->whereIn('vehicle_code', $vehicleCodes)
-            ->get(['vehicle_code', 'driver_name'])
-            ->keyBy('vehicle_code');
+        if (!$partnershipRecord) {
+            $today = now()->toDateString();
 
-        $hasMultipleCopies = count($vehicleCodes) > 1;
+            return [
+                'id' => null,
+                'name' => 'Petron Fuel',
+                'validFrom' => $today,
+                'validUntil' => now()->addYear()->toDateString(),
+                'validityLabel' => '1 year validity',
+                'gasolinePricePerLiter' => 0,
+                'dieselPricePerLiter' => 0,
+                'fuelSavePricePerLiter' => 0,
+                'vPowerPricePerLiter' => 0,
+            ];
+        }
 
-        return collect($vehicleCodes)
-            ->values()
-            ->map(function (string $vehicleCode, int $index) use ($transportationRequest, $vehiclesByCode, $driverNames, $baseCtrlNumber, $hasMultipleCopies) {
-                $resolvedDriver = trim((string) optional($vehiclesByCode->get($vehicleCode))->driver_name);
-                if ($resolvedDriver === '') {
-                    $resolvedDriver = trim((string) ($driverNames[$index] ?? ''));
-                }
-                if ($resolvedDriver === '') {
-                    $resolvedDriver = trim((string) ($driverNames[0] ?? ''));
-                }
+        $validFrom = optional($partnershipRecord->valid_from)->toDateString();
+        $validUntil = optional($partnershipRecord->valid_until)->toDateString();
+        $validityLabel = '1 year validity';
 
-                $copyNumber = $index + 1;
-                $ctrlNumber = $hasMultipleCopies
-                    ? $baseCtrlNumber . '-' . str_pad((string) $copyNumber, 2, '0', STR_PAD_LEFT)
-                    : $baseCtrlNumber;
+        if ($validFrom && $validUntil) {
+            $days = Carbon::parse($validFrom)->diffInDays(Carbon::parse($validUntil)) + 1;
+            if ($days > 0) {
+                $validityLabel = $days >= 365
+                    ? '1 year validity'
+                    : $days . ' day validity';
+            }
+        }
 
-                return [
-                    'copyKey' => substr(md5($transportationRequest->id . '|' . $vehicleCode . '|' . $index), 0, 32),
-                    'copyNumber' => $copyNumber,
-                    'ctrlNumber' => $ctrlNumber,
-                    'vehicleId' => $vehicleCode,
-                    'driverName' => $resolvedDriver !== '' ? $resolvedDriver : 'N/A',
-                ];
-            })
-            ->all();
+        return [
+            'id' => $partnershipRecord->id,
+            'name' => (string) ($partnershipRecord->partnership_name ?? 'Petron Fuel'),
+            'validFrom' => $validFrom ?: now()->toDateString(),
+            'validUntil' => $validUntil ?: now()->addYear()->toDateString(),
+            'validityLabel' => $validityLabel,
+            'gasolinePricePerLiter' => round((float) ($partnershipRecord->gasoline_price_per_liter ?? 0), 2),
+            'dieselPricePerLiter' => round((float) ($partnershipRecord->diesel_price_per_liter ?? 0), 2),
+            'fuelSavePricePerLiter' => round((float) ($partnershipRecord->fuel_save_price_per_liter ?? 0), 2),
+            'vPowerPricePerLiter' => round((float) ($partnershipRecord->v_power_price_per_liter ?? 0), 2),
+        ];
+    }
+
+    private function resolveActiveFuelPartnership(): ?FuelIssuancePartnership
+    {
+        return FuelIssuancePartnership::query()
+            ->where('is_active', true)
+            ->orderByDesc('valid_until')
+            ->orderByDesc('id')
+            ->first();
     }
 
     private function resolvePrintedCopyKeysByRequestIds(array $requestIds): array
@@ -679,6 +705,63 @@ class fuelIssuanceController extends Controller
         }
 
         return round((float) $incomingValue, 2);
+    }
+
+    private function buildFuelIssuanceCopies(?TransportationRequestFormModel $transportationRequest): array
+    {
+        if (!$transportationRequest) {
+            return [];
+        }
+
+        $baseCtrlNumber = 'FIS-' . optional($transportationRequest->request_date)->format('Y') . '-' . str_pad((string) $transportationRequest->id, 4, '0', STR_PAD_LEFT);
+        $vehicleCodes = $this->extractVehicleCodes((string) $transportationRequest->vehicle_id);
+        $driverNames = $this->extractNameTokens((string) $transportationRequest->driver_name);
+
+        if (empty($vehicleCodes)) {
+            $fallbackVehicle = trim((string) ($transportationRequest->vehicle_id ?: '____________________________'));
+            $fallbackDriver = trim((string) ($driverNames[0] ?? $transportationRequest->driver_name ?? 'N/A'));
+
+            return [[
+                'copyKey' => substr(md5($transportationRequest->id . '|fallback|' . $fallbackVehicle . '|0'), 0, 32),
+                'copyNumber' => 1,
+                'ctrlNumber' => $baseCtrlNumber,
+                'vehicleId' => $fallbackVehicle,
+                'driverName' => $fallbackDriver !== '' ? $fallbackDriver : 'N/A',
+            ]];
+        }
+
+        $vehiclesByCode = AdminVehicleAvailability::query()
+            ->whereIn('vehicle_code', $vehicleCodes)
+            ->get(['vehicle_code', 'driver_name'])
+            ->keyBy('vehicle_code');
+
+        $hasMultipleCopies = count($vehicleCodes) > 1;
+
+        return collect($vehicleCodes)
+            ->values()
+            ->map(function (string $vehicleCode, int $index) use ($transportationRequest, $vehiclesByCode, $driverNames, $baseCtrlNumber, $hasMultipleCopies) {
+                $resolvedDriver = trim((string) optional($vehiclesByCode->get($vehicleCode))->driver_name);
+                if ($resolvedDriver === '') {
+                    $resolvedDriver = trim((string) ($driverNames[$index] ?? ''));
+                }
+                if ($resolvedDriver === '') {
+                    $resolvedDriver = trim((string) ($driverNames[0] ?? ''));
+                }
+
+                $copyNumber = $index + 1;
+                $ctrlNumber = $hasMultipleCopies
+                    ? $baseCtrlNumber . '-' . str_pad((string) $copyNumber, 2, '0', STR_PAD_LEFT)
+                    : $baseCtrlNumber;
+
+                return [
+                    'copyKey' => substr(md5($transportationRequest->id . '|' . $vehicleCode . '|' . $index), 0, 32),
+                    'copyNumber' => $copyNumber,
+                    'ctrlNumber' => $ctrlNumber,
+                    'vehicleId' => $vehicleCode,
+                    'driverName' => $resolvedDriver !== '' ? $resolvedDriver : 'N/A',
+                ];
+            })
+            ->all();
     }
 
     private function extractVehicleCodes(string $vehicleIds): array
