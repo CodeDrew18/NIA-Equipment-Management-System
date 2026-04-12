@@ -216,12 +216,40 @@
 </a>
 @endif
 
-@foreach ($auditLogs->getUrlRange(1, $auditLogs->lastPage()) as $page => $url)
-@if ($page == $auditLogs->currentPage())
+@php
+  $lastPage = $auditLogs->lastPage();
+  $currentPage = $auditLogs->currentPage();
+  $window = 2;
+  $visiblePages = [];
+
+  for ($page = max(1, $currentPage - $window); $page <= min($lastPage, $currentPage + $window); $page++) {
+      $visiblePages[] = $page;
+  }
+
+  $visiblePages[] = 1;
+  if ($lastPage > 1) {
+      $visiblePages[] = $lastPage;
+  }
+
+  $visiblePages = array_values(array_unique($visiblePages));
+  sort($visiblePages);
+  $previousVisiblePage = null;
+@endphp
+
+@foreach ($visiblePages as $page)
+@if ($previousVisiblePage !== null && ($page - $previousVisiblePage) > 1)
+<span class="h-8 px-2 rounded-lg text-xs font-bold text-outline inline-flex items-center justify-center">...</span>
+@endif
+
+@if ($page == $currentPage)
 <span class="h-8 w-8 rounded-lg bg-primary text-on-primary text-xs font-bold inline-flex items-center justify-center">{{ $page }}</span>
 @else
-<a href="{{ $url }}" class="h-8 w-8 rounded-lg hover:bg-surface-container-high text-xs font-bold text-on-surface inline-flex items-center justify-center">{{ $page }}</a>
+<a href="{{ $auditLogs->url($page) }}" class="h-8 w-8 rounded-lg hover:bg-surface-container-high text-xs font-bold text-on-surface inline-flex items-center justify-center">{{ $page }}</a>
 @endif
+
+@php
+  $previousVisiblePage = $page;
+@endphp
 @endforeach
 
 @if ($auditLogs->hasMorePages())
@@ -445,19 +473,44 @@
     const currentPage = Number(pagination.currentPage || 1);
     const onFirstPage = Boolean(pagination.onFirstPage);
     const hasMorePages = Boolean(pagination.hasMorePages);
-    const pageUrls = pagination.pageUrls || {};
+    const lastPage = Number(pagination.lastPage || currentPage || 1);
+
+    function buildVisiblePages(current, last, windowSize = 2) {
+      const pages = new Set();
+      pages.add(1);
+      pages.add(last);
+
+      const start = Math.max(1, current - windowSize);
+      const end = Math.min(last, current + windowSize);
+      for (let page = start; page <= end; page += 1) {
+        pages.add(page);
+      }
+
+      return Array.from(pages)
+        .filter(function (page) {
+          return Number.isFinite(page) && page >= 1;
+        })
+        .sort(function (a, b) {
+          return a - b;
+        });
+    }
 
     const prevButton = onFirstPage
       ? '<button class="p-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline disabled:opacity-30" disabled><span class="material-symbols-outlined">chevron_left</span></button>'
       : `<button type="button" data-audit-page="${currentPage - 1}" class="p-2 rounded-lg hover:bg-surface-container-high transition-colors text-outline"><span class="material-symbols-outlined">chevron_left</span></button>`;
 
-    const pageButtons = Object.keys(pageUrls).map(function (pageKey) {
-      const page = Number(pageKey);
+    const visiblePages = buildVisiblePages(currentPage, Math.max(1, lastPage));
+    const pageButtons = visiblePages.map(function (page, index) {
+      const previous = index > 0 ? visiblePages[index - 1] : null;
+      const ellipsis = previous !== null && (page - previous) > 1
+        ? '<span class="h-8 px-2 rounded-lg text-xs font-bold text-outline inline-flex items-center justify-center">...</span>'
+        : '';
+
       if (page === currentPage) {
-        return `<span class="h-8 w-8 rounded-lg bg-primary text-on-primary text-xs font-bold inline-flex items-center justify-center">${page}</span>`;
+        return `${ellipsis}<span class="h-8 w-8 rounded-lg bg-primary text-on-primary text-xs font-bold inline-flex items-center justify-center">${page}</span>`;
       }
 
-      return `<button type="button" data-audit-page="${page}" class="h-8 w-8 rounded-lg hover:bg-surface-container-high text-xs font-bold text-on-surface inline-flex items-center justify-center">${page}</button>`;
+      return `${ellipsis}<button type="button" data-audit-page="${page}" class="h-8 w-8 rounded-lg hover:bg-surface-container-high text-xs font-bold text-on-surface inline-flex items-center justify-center">${page}</button>`;
     }).join('');
 
     const nextButton = hasMorePages

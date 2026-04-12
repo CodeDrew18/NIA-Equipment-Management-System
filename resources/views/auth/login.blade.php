@@ -55,7 +55,7 @@
 <div class="absolute inset-0 bg-black/40"></div>
 </div>
 <!-- Main Container (Matching layout style of IMAGE_4) -->
-<main class="relative z-10 w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 py-12 flex-1 flex items-center">
+<main class="relative z-10 w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 py-12 flex-1 flex items-center justify-center">
 <div class="glass-card rounded-[2rem] overflow-hidden flex flex-col md:flex-row shadow-2xl min-h-[600px]">
 <!-- Left Section (Text placement similar to IMAGE_4) -->
 <div class="w-full md:w-1/2 p-12 md:p-16 flex flex-col justify-start">

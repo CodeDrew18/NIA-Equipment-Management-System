@@ -101,7 +101,7 @@
 <p class="text-on-surface-variant font-medium opacity-80 uppercase tracking-widest text-xs">Operational Oversight &amp; Logistics Summary</p>
 </div>
 <!-- Date Range Picker -->
-<form method="GET" action="{{ route('admin.dashboard') }}" class="flex items-center gap-3 bg-surface-container-lowest p-2 rounded-xl border border-outline-variant/15 shadow-sm">
+<form id="dashboard-filter-form" method="GET" action="{{ route('admin.dashboard') }}" class="flex items-center gap-3 bg-surface-container-lowest p-2 rounded-xl border border-outline-variant/15 shadow-sm">
 <div class="flex flex-col px-3">
 <span class="text-[10px] uppercase font-bold text-outline tracking-wider">From</span>
 <input class="bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 text-primary" type="date" name="from" value="{{ $fromDate }}"/>
@@ -114,9 +114,7 @@
 <button type="submit" class="bg-primary text-on-primary p-2.5 rounded-lg flex items-center justify-center hover:bg-primary-container transition-all" title="Apply filter">
 <span class="material-symbols-outlined text-[20px]" data-icon="filter_list">filter_list</span>
 </button>
-@if ($fromDate || $toDate)
-<a href="{{ route('admin.dashboard') }}" class="px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-primary hover:bg-primary/5 transition-all">Clear</a>
-@endif
+<a id="dashboard-filter-clear" href="{{ route('admin.dashboard') }}" class="px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-primary hover:bg-primary/5 transition-all {{ ($fromDate || $toDate) ? '' : 'hidden' }}">Clear</a>
 </form>
 </header>
 <!-- Primary Metrics Bento Grid -->
@@ -170,146 +168,45 @@
 <p class="text-xs text-on-primary/70 leading-relaxed">All active vehicles are currently within geo-fence protocols for the selected date range.</p>
 </div>
 </div>
-<!-- Data List Section -->
-<section class="bg-surface-container-lowest rounded-xl shadow-[0px_12px_32px_rgba(25,28,30,0.04)] overflow-hidden border border-outline-variant/10">
-<div class="px-8 py-6 border-b border-outline-variant/10 flex items-center justify-between bg-surface-container-low/30">
-<h2 class="text-lg font-extrabold text-primary tracking-tight">Recent Transportation Requests</h2>
-<div class="flex gap-2">
-{{-- <button class="px-4 py-2 text-xs font-bold uppercase tracking-widest text-primary hover:bg-primary/5 rounded-lg transition-all">Export Report</button>
-<button class="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-primary text-on-primary rounded-lg shadow-sm hover:shadow-md transition-all">View All</button> --}}
-</div>
-</div>
-<div class="overflow-x-auto">
-<table class="w-full text-left border-collapse">
-<thead>
-<tr class="bg-surface-container-low/50">
-<th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-outline">Date</th>
-<th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-outline">Requestor</th>
-<th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-outline">Vehicle Type</th>
-<th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-outline">Vehicle Total</th>
-<th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-outline">Attachments</th>
-<th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-outline">Status</th>
-<th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-outline text-right">Actions</th>
-</tr>
-</thead>
-<tbody id="dashboard-requests-body" class="divide-y divide-outline-variant/10">
-@forelse ($pendingRequests as $transportationRequest)
-<tr class="hover:bg-surface-container-low/20 transition-colors">
-<td class="px-8 py-5 text-sm font-semibold text-on-surface">{{ optional($transportationRequest->request_date)->format('M d, Y') ?? 'N/A' }}</td>
-<td class="px-8 py-5">
-<div class="flex items-center gap-3">
-<div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-  {{ strtoupper(substr($transportationRequest->requestor_name, 0, 2)) }}
-</div>
+<!-- All Admin Process Summary -->
+<section class="mb-10">
+<div class="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
 <div>
-<p class="text-sm font-bold text-on-surface">{{ $transportationRequest->requestor_name }}</p>
-<p class="text-[10px] text-outline uppercase font-medium">{{ $transportationRequest->requestor_position }}</p>
+<h2 class="text-xl font-extrabold tracking-tight text-primary">All Admin Process Summary</h2>
+<p class="text-xs font-semibold uppercase tracking-wider text-outline">Live totals across every admin process page</p>
 </div>
 </div>
-</td>
-<td class="px-8 py-5">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-slate-400 text-[18px]" data-icon="minor_crash">minor_crash</span>
-<span class="text-sm font-medium text-on-surface-variant">{{ $transportationRequest->vehicle_type }}</span>
+<div id="dashboard-module-summary-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+@foreach ($moduleSummaries as $summary)
+<article class="rounded-xl border border-outline-variant/15 bg-surface-container-lowest p-5 shadow-[0px_8px_24px_rgba(25,28,30,0.04)]">
+<div class="flex items-start justify-between gap-3">
+<p class="text-[11px] font-bold uppercase tracking-widest text-outline">{{ $summary['label'] }}</p>
+<span class="material-symbols-outlined text-primary/70 text-[20px]" data-icon="{{ $summary['icon'] }}">{{ $summary['icon'] }}</span>
 </div>
-</td>
-
-<td class="px-8 py-5">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-slate-400 text-[18px]" data-icon="minor_crash">minor_crash</span>
-<span class="text-sm font-medium text-on-surface-variant">{{ $transportationRequest->vehicle_quantity }}</span>
-</div>
-</td>
-<td class="px-8 py-5">
-@php
-  $dashboardAttachments = is_array($transportationRequest->attachments) ? $transportationRequest->attachments : [];
-@endphp
-@if (count($dashboardAttachments) > 0)
-  <div class="space-y-1">
-    @foreach ($dashboardAttachments as $attachmentIndex => $attachment)
-      <a href="{{ route('admin.transportation-request.attachment.view', ['transportationRequest' => $transportationRequest->id, 'index' => $attachmentIndex]) }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-container hover:underline">
-        <span class="material-symbols-outlined text-sm">attach_file</span>
-        {{ $attachment['file_name'] ?? 'Attachment' }}
-      </a>
-    @endforeach
-  </div>
-@else
-  <span class="text-xs text-outline">No attachment</span>
-@endif
-</td>
-<td class="px-8 py-5">
-<span @class([
-  'inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider',
-  'bg-tertiary-fixed text-on-tertiary-fixed-variant' => $transportationRequest->status === 'Pending',
-  'bg-secondary-container text-on-secondary-container' => $transportationRequest->status === 'Signed',
-  'bg-error-container text-on-error-container' => $transportationRequest->status === 'Rejected',
-  'bg-primary-fixed text-on-primary-fixed-variant' => $transportationRequest->status === 'To be Signed',
-])>
-  {{ $transportationRequest->status }}
-</span>
-</td>
-<td class="px-8 py-5 text-right">
-<div class="flex items-center justify-end gap-2">
-  <form action="{{ route('admin.dashboard.requests.update-status', $transportationRequest) }}" method="POST" class="inline">
-    @csrf
-    <input type="hidden" name="status" value="Signed">
-    <button type="submit" class="rounded-md bg-secondary px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white hover:opacity-90">
-      Approve
-    </button>
-  </form>
-  <form action="{{ route('admin.dashboard.requests.update-status', $transportationRequest) }}" method="POST" class="inline dashboard-reject-form">
-    <button
-      type="button"
-      class="dashboard-open-reject-modal rounded-md bg-error px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white hover:opacity-90"
-      data-action="{{ route('admin.dashboard.requests.update-status', $transportationRequest) }}"
-      data-form-id="{{ $transportationRequest->form_id }}"
-    >
-      Reject
-    </button>
-  </form>
-</div>
-</td>
-</tr>
-@empty
-<tr>
-<td colspan="8" class="px-8 py-8 text-center text-sm font-semibold text-outline">No to be signed transportation requests found.</td>
-</tr>
-@endforelse
-</tbody>
-</table>
-</div>
-<div class="px-8 py-4 bg-surface-container-low/30 border-t border-outline-variant/10 flex items-center justify-between">
-<p id="dashboard-summary-text" class="text-[10px] font-bold uppercase text-outline tracking-wider">
-  Showing {{ $pendingRequests->count() }} of {{ $pendingRequests->total() }} to be signed entries
-</p>
-<div id="dashboard-pagination" class="flex gap-1">
-@if ($pendingRequests->onFirstPage())
-<span class="w-8 h-8 rounded flex items-center justify-center text-outline bg-surface-container-lowest border border-outline-variant/20 opacity-60">
-  <span class="material-symbols-outlined text-sm" data-icon="chevron_left">chevron_left</span>
-</span>
-@else
-<a href="{{ $pendingRequests->previousPageUrl() }}" class="w-8 h-8 rounded flex items-center justify-center text-primary bg-surface-container-lowest border border-outline-variant/20 hover:bg-surface-container-high transition-colors">
-  <span class="material-symbols-outlined text-sm" data-icon="chevron_left">chevron_left</span>
-</a>
-@endif
-
-@foreach ($pendingRequests->getUrlRange(1, $pendingRequests->lastPage()) as $page => $url)
-@if ($page == $pendingRequests->currentPage())
-<span class="w-8 h-8 rounded flex items-center justify-center bg-primary text-on-primary font-bold text-xs">{{ $page }}</span>
-@else
-<a href="{{ $url }}" class="w-8 h-8 rounded flex items-center justify-center text-primary font-bold text-xs hover:bg-surface-container-high">{{ $page }}</a>
-@endif
+<p class="mt-4 text-3xl font-black tracking-tight text-primary">{{ number_format((int) ($summary['value'] ?? 0)) }}</p>
+<p class="mt-2 text-xs font-semibold text-on-surface-variant">{{ $summary['description'] }}</p>
+</article>
 @endforeach
-
-@if ($pendingRequests->hasMorePages())
-<a href="{{ $pendingRequests->nextPageUrl() }}" class="w-8 h-8 rounded flex items-center justify-center text-primary bg-surface-container-lowest border border-outline-variant/20 hover:bg-surface-container-high transition-colors">
-  <span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span>
-</a>
-@else
-<span class="w-8 h-8 rounded flex items-center justify-center text-outline bg-surface-container-lowest border border-outline-variant/20 opacity-60">
-  <span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span>
-</span>
-@endif
+</div>
+</section>
+<!-- Analytics Graphs -->
+<section class="mb-12 grid grid-cols-1 xl:grid-cols-12 gap-6">
+<div class="xl:col-span-7 rounded-xl border border-outline-variant/15 bg-surface-container-lowest p-6 shadow-[0px_10px_28px_rgba(25,28,30,0.04)]">
+<h3 class="text-sm font-extrabold uppercase tracking-wider text-primary mb-4">Request Lifecycle Graph</h3>
+<div class="h-[300px]">
+<canvas id="dashboard-process-chart"></canvas>
+</div>
+</div>
+<div class="xl:col-span-5 rounded-xl border border-outline-variant/15 bg-surface-container-lowest p-6 shadow-[0px_10px_28px_rgba(25,28,30,0.04)]">
+<h3 class="text-sm font-extrabold uppercase tracking-wider text-primary mb-4">Vehicle Status Graph</h3>
+<div class="h-[300px]">
+<canvas id="dashboard-vehicle-chart"></canvas>
+</div>
+</div>
+<div class="xl:col-span-12 rounded-xl border border-outline-variant/15 bg-surface-container-lowest p-6 shadow-[0px_10px_28px_rgba(25,28,30,0.04)]">
+<h3 class="text-sm font-extrabold uppercase tracking-wider text-primary mb-4">Request Volume Graph</h3>
+<div class="h-[280px]">
+<canvas id="dashboard-volume-chart"></canvas>
 </div>
 </div>
 </section>
@@ -336,10 +233,14 @@
 </div>
 
 @include('layouts.admin_footer')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
   const dashboardDataUrl = "{{ route('admin.dashboard.data') }}";
   const dashboardStatusUpdateUrlTemplate = "{{ route('admin.dashboard.requests.update-status', ['transportationRequest' => '__ID__']) }}";
   const dashboardCsrfToken = "{{ csrf_token() }}";
+  const dashboardInitialModuleSummaries = @json($moduleSummaries);
+  const dashboardInitialCharts = @json($charts);
+  const dashboardChartPalette = ['#1a4b84', '#2563eb', '#0ea5e9', '#3a6843', '#f59e0b', '#ef4444', '#6b7280'];
 
   const dashboardEls = {
     totalPending: document.getElementById('dashboard-total-pending'),
@@ -349,6 +250,12 @@
     trendWrap: document.getElementById('dashboard-trend-wrap'),
     trendIcon: document.getElementById('dashboard-trend-icon'),
     trendValue: document.getElementById('dashboard-trend-value'),
+    moduleSummaryGrid: document.getElementById('dashboard-module-summary-grid'),
+    processChartCanvas: document.getElementById('dashboard-process-chart'),
+    vehicleChartCanvas: document.getElementById('dashboard-vehicle-chart'),
+    volumeChartCanvas: document.getElementById('dashboard-volume-chart'),
+    filterForm: document.getElementById('dashboard-filter-form'),
+    filterClear: document.getElementById('dashboard-filter-clear'),
     tbody: document.getElementById('dashboard-requests-body'),
     summary: document.getElementById('dashboard-summary-text'),
     pagination: document.getElementById('dashboard-pagination'),
@@ -357,6 +264,12 @@
   const dashboardFilterFrom = document.querySelector('input[name="from"]');
   const dashboardFilterTo = document.querySelector('input[name="to"]');
   let dashboardCurrentPage = {{ $pendingRequests->currentPage() }};
+  const dashboardCharts = {
+    process: null,
+    vehicle: null,
+    volume: null,
+  };
+  const dashboardModuleSummaryValues = {};
   const dashboardCountAnimationFrames = new WeakMap();
   const dashboardPrefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -471,6 +384,240 @@
     }
   }
 
+  function dashboardColorAt(index) {
+    return dashboardChartPalette[index % dashboardChartPalette.length];
+  }
+
+  function renderDashboardModuleSummaries(moduleSummaries) {
+    if (!dashboardEls.moduleSummaryGrid || !Array.isArray(moduleSummaries)) {
+      return;
+    }
+
+    const previousValues = { ...dashboardModuleSummaryValues };
+
+    dashboardEls.moduleSummaryGrid.innerHTML = moduleSummaries.map(function (summary, index) {
+      const numericValue = Number(summary?.value);
+      const safeValue = Number.isFinite(numericValue) ? numericValue : 0;
+      const summaryKey = String(summary?.key || `summary_${index}`);
+      const previousValueRaw = Number(previousValues[summaryKey]);
+      const previousValue = Number.isFinite(previousValueRaw) ? previousValueRaw : 0;
+      const label = escapeHtml(summary?.label || 'Summary');
+      const icon = escapeHtml(summary?.icon || 'monitoring');
+      const description = escapeHtml(summary?.description || '');
+
+      return `<article class="rounded-xl border border-outline-variant/15 bg-surface-container-lowest p-5 shadow-[0px_8px_24px_rgba(25,28,30,0.04)]">
+<div class="flex items-start justify-between gap-3">
+<p class="text-[11px] font-bold uppercase tracking-widest text-outline">${label}</p>
+<span class="material-symbols-outlined text-primary/70 text-[20px]" data-icon="${icon}">${icon}</span>
+</div>
+<p class="dashboard-module-summary-value mt-4 text-3xl font-black tracking-tight text-primary" data-summary-index="${index}" data-count-value="${previousValue}">${dashboardFormatNumber(previousValue)}</p>
+<p class="mt-2 text-xs font-semibold text-on-surface-variant">${description}</p>
+</article>`;
+    }).join('');
+
+    moduleSummaries.forEach(function (summary, index) {
+      const summaryKey = String(summary?.key || `summary_${index}`);
+      const numericValue = Number(summary?.value);
+      const safeValue = Number.isFinite(numericValue) ? numericValue : 0;
+      dashboardModuleSummaryValues[summaryKey] = safeValue;
+
+      const valueElement = dashboardEls.moduleSummaryGrid.querySelector(`.dashboard-module-summary-value[data-summary-index="${index}"]`);
+      animateDashboardMetric(valueElement, safeValue);
+    });
+  }
+
+  function normalizeDashboardSeries(series) {
+    const labels = Array.isArray(series?.labels) ? series.labels : [];
+    const values = Array.isArray(series?.values)
+      ? series.values.map(function (value) {
+          const numericValue = Number(value);
+          return Number.isFinite(numericValue) ? numericValue : 0;
+        })
+      : [];
+
+    return { labels, values };
+  }
+
+  function upsertDashboardProcessChart(series) {
+    if (!dashboardEls.processChartCanvas || typeof Chart === 'undefined') {
+      return;
+    }
+
+    const normalizedSeries = normalizeDashboardSeries(series);
+    const backgroundColors = normalizedSeries.values.map(function (_, index) {
+      return dashboardColorAt(index);
+    });
+
+    if (!dashboardCharts.process) {
+      dashboardCharts.process = new Chart(dashboardEls.processChartCanvas, {
+        type: 'bar',
+        data: {
+          labels: normalizedSeries.labels,
+          datasets: [{
+            label: 'Requests',
+            data: normalizedSeries.values,
+            borderRadius: 6,
+            borderSkipped: false,
+            backgroundColor: backgroundColors,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: {
+            duration: dashboardPrefersReducedMotion ? 0 : 500,
+          },
+          plugins: {
+            legend: { display: false },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0,
+              },
+              grid: {
+                color: 'rgba(115, 119, 129, 0.18)',
+              },
+            },
+            x: {
+              grid: {
+                display: false,
+              },
+            },
+          },
+        },
+      });
+
+      return;
+    }
+
+    dashboardCharts.process.data.labels = normalizedSeries.labels;
+    dashboardCharts.process.data.datasets[0].data = normalizedSeries.values;
+    dashboardCharts.process.data.datasets[0].backgroundColor = backgroundColors;
+    dashboardCharts.process.update();
+  }
+
+  function upsertDashboardVehicleChart(series) {
+    if (!dashboardEls.vehicleChartCanvas || typeof Chart === 'undefined') {
+      return;
+    }
+
+    const normalizedSeries = normalizeDashboardSeries(series);
+    const backgroundColors = normalizedSeries.values.map(function (_, index) {
+      return dashboardColorAt(index);
+    });
+
+    if (!dashboardCharts.vehicle) {
+      dashboardCharts.vehicle = new Chart(dashboardEls.vehicleChartCanvas, {
+        type: 'doughnut',
+        data: {
+          labels: normalizedSeries.labels,
+          datasets: [{
+            data: normalizedSeries.values,
+            backgroundColor: backgroundColors,
+            borderColor: '#ffffff',
+            borderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: {
+            duration: dashboardPrefersReducedMotion ? 0 : 500,
+          },
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                usePointStyle: true,
+                boxWidth: 8,
+              },
+            },
+          },
+        },
+      });
+
+      return;
+    }
+
+    dashboardCharts.vehicle.data.labels = normalizedSeries.labels;
+    dashboardCharts.vehicle.data.datasets[0].data = normalizedSeries.values;
+    dashboardCharts.vehicle.data.datasets[0].backgroundColor = backgroundColors;
+    dashboardCharts.vehicle.update();
+  }
+
+  function upsertDashboardVolumeChart(series) {
+    if (!dashboardEls.volumeChartCanvas || typeof Chart === 'undefined') {
+      return;
+    }
+
+    const normalizedSeries = normalizeDashboardSeries(series);
+
+    if (!dashboardCharts.volume) {
+      dashboardCharts.volume = new Chart(dashboardEls.volumeChartCanvas, {
+        type: 'line',
+        data: {
+          labels: normalizedSeries.labels,
+          datasets: [{
+            label: 'Request Volume',
+            data: normalizedSeries.values,
+            borderColor: '#1a4b84',
+            backgroundColor: 'rgba(26, 75, 132, 0.18)',
+            fill: true,
+            tension: 0.32,
+            pointRadius: 3,
+            pointHoverRadius: 4,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: {
+            duration: dashboardPrefersReducedMotion ? 0 : 500,
+          },
+          plugins: {
+            legend: {
+              display: false,
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0,
+              },
+              grid: {
+                color: 'rgba(115, 119, 129, 0.18)',
+              },
+            },
+            x: {
+              grid: {
+                display: false,
+              },
+            },
+          },
+        },
+      });
+
+      return;
+    }
+
+    dashboardCharts.volume.data.labels = normalizedSeries.labels;
+    dashboardCharts.volume.data.datasets[0].data = normalizedSeries.values;
+    dashboardCharts.volume.update();
+  }
+
+  function renderDashboardCharts(chartsPayload) {
+    if (!chartsPayload) {
+      return;
+    }
+
+    upsertDashboardProcessChart(chartsPayload.requestLifecycle);
+    upsertDashboardVehicleChart(chartsPayload.vehicleStatus);
+    upsertDashboardVolumeChart(chartsPayload.requestVolume);
+  }
+
   function requestStatusClass(status) {
     if (status === 'Pending') return 'bg-tertiary-fixed text-on-tertiary-fixed-variant';
     if (status === 'Signed') return 'bg-secondary-container text-on-secondary-container';
@@ -535,6 +682,10 @@
   }
 
   function renderDashboardPagination(pagination) {
+    if (!dashboardEls.pagination) {
+      return;
+    }
+
     const pageUrls = pagination.pageUrls || {};
     let html = '';
 
@@ -560,6 +711,15 @@
     }
 
     dashboardEls.pagination.innerHTML = html;
+  }
+
+  function updateDashboardFilterClearVisibility() {
+    if (!dashboardEls.filterClear) {
+      return;
+    }
+
+    const hasFilterValue = Boolean(dashboardFilterFrom?.value) || Boolean(dashboardFilterTo?.value);
+    dashboardEls.filterClear.classList.toggle('hidden', !hasFilterValue);
   }
 
   async function refreshDashboard(page = dashboardCurrentPage) {
@@ -603,30 +763,76 @@
       dashboardEls.trendWrap.classList.remove('text-secondary', 'text-error');
       dashboardEls.trendWrap.classList.add(payload.trendIsPositive ? 'text-secondary' : 'text-error');
 
+      if (Array.isArray(payload.moduleSummaries)) {
+        renderDashboardModuleSummaries(payload.moduleSummaries);
+      }
+
+      renderDashboardCharts(payload.charts);
+
       if (Array.isArray(payload.requests) && payload.requests.length > 0) {
-        dashboardEls.tbody.innerHTML = payload.requests.map(dashboardRequestRow).join('');
-      } else {
+        if (dashboardEls.tbody) {
+          dashboardEls.tbody.innerHTML = payload.requests.map(dashboardRequestRow).join('');
+        }
+      } else if (dashboardEls.tbody) {
         dashboardEls.tbody.innerHTML = dashboardNoRows();
       }
 
-      dashboardEls.summary.textContent = payload.summaryText;
+      if (dashboardEls.summary) {
+        dashboardEls.summary.textContent = payload.summaryText;
+      }
       renderDashboardPagination(payload.pagination);
     } catch (error) {
       console.error('Dashboard AJAX refresh failed', error);
     }
   }
 
-  dashboardEls.pagination.addEventListener('click', function (event) {
-    const pageButton = event.target.closest('[data-page]');
-    if (!pageButton) {
-      return;
-    }
-    event.preventDefault();
-    const page = Number(pageButton.getAttribute('data-page'));
-    if (page > 0) {
-      refreshDashboard(page);
-    }
-  });
+  if (dashboardEls.pagination) {
+    dashboardEls.pagination.addEventListener('click', function (event) {
+      const pageButton = event.target.closest('[data-page]');
+      if (!pageButton) {
+        return;
+      }
+      event.preventDefault();
+      const page = Number(pageButton.getAttribute('data-page'));
+      if (page > 0) {
+        refreshDashboard(page);
+      }
+    });
+  }
+
+  if (dashboardEls.filterForm) {
+    dashboardEls.filterForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      updateDashboardFilterClearVisibility();
+      dashboardCurrentPage = 1;
+      refreshDashboard(1);
+    });
+  }
+
+  if (dashboardEls.filterClear) {
+    dashboardEls.filterClear.addEventListener('click', function (event) {
+      event.preventDefault();
+
+      if (dashboardFilterFrom) {
+        dashboardFilterFrom.value = '';
+      }
+      if (dashboardFilterTo) {
+        dashboardFilterTo.value = '';
+      }
+
+      updateDashboardFilterClearVisibility();
+      dashboardCurrentPage = 1;
+      refreshDashboard(1);
+    });
+  }
+
+  if (dashboardFilterFrom) {
+    dashboardFilterFrom.addEventListener('change', updateDashboardFilterClearVisibility);
+  }
+
+  if (dashboardFilterTo) {
+    dashboardFilterTo.addEventListener('change', updateDashboardFilterClearVisibility);
+  }
 
   const dashboardRejectModal = document.getElementById('dashboard-reject-modal');
   const dashboardRejectForm = document.getElementById('dashboard-reject-form');
@@ -689,7 +895,17 @@
     }
   });
 
+  renderDashboardModuleSummaries(dashboardInitialModuleSummaries);
+  renderDashboardCharts(dashboardInitialCharts);
   animateDashboardInitialMetrics();
+  updateDashboardFilterClearVisibility();
+  refreshDashboard(dashboardCurrentPage);
+
+  const dashboardShouldPausePolling = function () {
+    const modalIsOpen = Boolean(dashboardRejectModal) && !dashboardRejectModal.classList.contains('hidden');
+
+    return document.hidden || modalIsOpen;
+  };
 
   if (typeof window.emsLiveRefresh === 'function') {
     window.emsLiveRefresh(function () {
@@ -697,9 +913,17 @@
     }, {
       intervalMs: 4000,
       shouldPause: function () {
-        return Boolean(dashboardRejectModal) && !dashboardRejectModal.classList.contains('hidden');
+        return dashboardShouldPausePolling();
       },
     });
+  } else {
+    window.setInterval(function () {
+      if (dashboardShouldPausePolling()) {
+        return;
+      }
+
+      refreshDashboard(dashboardCurrentPage);
+    }, 4000);
   }
 </script>
 </body></html>
