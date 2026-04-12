@@ -219,7 +219,7 @@
 </style>
 @php
 	$operationsActive = request()->routeIs('admin.transportation-request') || request()->routeIs('admin.vehicle-availability') || request()->routeIs('admin.daily-trip-ticket') || request()->routeIs('admin.fuel_issuance_slip') || request()->routeIs('admin.vehicle_assignment');
-	$reportsActive = request()->routeIs('admin.travel-reports') || request()->routeIs('admin.travel-reports.export') || request()->routeIs('daily-equipment-utilization-report');
+	$reportsActive = request()->routeIs('admin.travel-reports') || request()->routeIs('admin.travel-reports.export') || request()->routeIs('admin.fuel-consumption-report') || request()->routeIs('daily-equipment-utilization-report');
 	$evaluationsActive = request()->routeIs('evaluations');
 	$dropdownActiveClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200';
 	$vehicleAvailabilityActive = request()->routeIs('admin.vehicle-availability');
@@ -228,6 +228,8 @@
 	$fuelIssuanceActive = request()->routeIs('admin.fuel_issuance_slip');
 	$dailyTripTicketActive = request()->routeIs('admin.daily-trip-ticket');
 	$travelReportsActive = request()->routeIs('admin.travel-reports') || request()->routeIs('admin.travel-reports.export');
+	$fuelConsumptionReportActive = request()->routeIs('admin.fuel-consumption-report');
+	$dailyEquipmentUtilizationReportActive = request()->routeIs('daily-equipment-utilization-report');
 	$onTripVehiclesActive = request()->routeIs('admin.on_trip_vehicles');
 	$auditLogActive = request()->routeIs('audit-log');
 @endphp
@@ -261,6 +263,8 @@
 	</button>
 	<div class="nav-dropdown-menu" role="menu" aria-label="Reports menu">
 		<a class="nav-dropdown-item {{ $travelReportsActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.travel-reports') }}" role="menuitem">Travel Reports</a>
+		<a class="nav-dropdown-item {{ $dailyEquipmentUtilizationReportActive ? $dropdownActiveClass : '' }}" href="{{ route('daily-equipment-utilization-report') }}" role="menuitem">Daily Equipment Utilization Report</a>
+		<a class="nav-dropdown-item {{ $fuelConsumptionReportActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.fuel-consumption-report') }}" role="menuitem">Monthly Fuel Consumption Report</a>
 	</div>
 </div>
 <a class="nav-link {{ $auditLogActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('audit-log') }}">Audit Logs</a>
@@ -315,8 +319,8 @@
 			</summary>
 			<div class="pt-1 pb-1 space-y-1">
 				<a class="mobile-nav-subitem {{ $travelReportsActive ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.travel-reports') }}">Travel Reports</a>
+				<a class="mobile-nav-subitem {{ $fuelConsumptionReportActive ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.fuel-consumption-report') }}">Monthly Fuel Consumption Report</a>
 				<a class="mobile-nav-subitem {{ request()->routeIs('daily-equipment-utilization-report') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('daily-equipment-utilization-report') }}">Daily Equipment Utilization Report</a>
-				<a class="mobile-nav-subitem" href="#">Monhtly Fuel Consumption Report (Service Vehicle)</a>
 			</div>
 		</details>
 

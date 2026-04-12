@@ -89,9 +89,9 @@
 </head>
 <body class="bg-background font-body text-on-surface min-h-screen">
 <!-- TopAppBar -->
-@include('layouts.header')
+@include('layouts.admin_header')
 <!-- Main Content -->
-<main class="mt-16 pb-24 w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12">
+<main class="pt-24 pb-24 w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12">
 <div class="max-w-[1920px] mx-auto">
 <!-- Header Section -->
 <div class="mb-10 flex flex-col md:flex-row md:justify-between md:items-end gap-6">
@@ -294,7 +294,7 @@
 </div>
 </main>
 <!-- Footer -->
-@include('layouts.footer')
+@include('layouts.admin_footer')
 <script>
   (function () {
     function toNumber(value) {

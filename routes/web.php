@@ -34,7 +34,7 @@ Route::middleware('auth')->group(function () {
 
         Route::get("/evaluation-performance", [evaluationPerformanceController::class, 'index'])->name('evaluation-performance');
         Route::post('/evaluation-performance/submit', [evaluationPerformanceController::class, 'submit'])->name('evaluation-performance.submit');
-        Route::get("/daily-equipment-utilization-report", [App\Http\Controllers\dailyUtilizationReportController::class, 'index'])->name('daily-equipment-utilization-report');
+       
 
         Route::get("/monthly-official-travel-report", [App\Http\Controllers\monthlyTravelReportController::class, 'index'])->name('monthly-official-travel-report');
     });
@@ -96,8 +96,11 @@ Route::middleware('auth')->group(function () {
 
         Route::get("/admin/audit-log", [App\Http\Controllers\admin\auditLogController::class, 'index'])->name('audit-log');
 
+         Route::get("/admin/daily-equipment-utilization-report", [App\Http\Controllers\dailyUtilizationReportController::class, 'index'])->name('daily-equipment-utilization-report');
+
         Route::get('/admin/reports/travel', [App\Http\Controllers\admin\travelReportController::class, 'index'])->name('admin.travel-reports');
         Route::get('/admin/reports/travel/export', [App\Http\Controllers\admin\travelReportController::class, 'export'])->name('admin.travel-reports.export');
+        Route::get('/admin/reports/fuel-consumption', [App\Http\Controllers\admin\fuelConsumptionReportController::class, 'index'])->name('admin.fuel-consumption-report');
 
         //  Route::get("/audit-log", [App\Http\Controllers\admin\auditLogController::class, 'index'])->name('audit-log');
     });
