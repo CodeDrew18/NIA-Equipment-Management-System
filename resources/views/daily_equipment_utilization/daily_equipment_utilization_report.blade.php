@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+{{-- <!DOCTYPE html>
 
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
@@ -374,4 +374,4 @@
     updateServiceMeterComputation();
   })();
 </script>
-</body></html>
+</body></html> --}}

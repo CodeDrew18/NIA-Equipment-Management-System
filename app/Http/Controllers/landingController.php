@@ -19,12 +19,12 @@ class landingController extends Controller
 
             $adminRoles = collect(['admin', 'chief_of_motorpool_section']);
             $hasAdminRole = $roles->intersect($adminRoles)->isNotEmpty();
-            $hasNonAdminRole = $roles->diff($adminRoles)->isNotEmpty();
 
-            // Restrict landing only for admin-only accounts.
-            if ($hasAdminRole && !$hasNonAdminRole) {
+            if ($hasAdminRole) {
                 return redirect()->route('admin.dashboard');
             }
+
+            return redirect()->route('user.dashboard');
         }
 
         return view('landing');

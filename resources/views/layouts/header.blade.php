@@ -218,6 +218,7 @@
 	}
 </style>
 @php
+	$dashboardActive = request()->routeIs('user.dashboard');
 	$operationsActive = request()->routeIs('request-form') || request()->routeIs('vehicle-available');
 	$reportsActive = request()->routeIs('reports') || request()->routeIs('monthly-official-travel-report');
 	$evaluationsActive = request()->routeIs('evaluation-performance');
@@ -230,7 +231,7 @@
 <div class="flex items-center gap-8">
 <span class="text-xl font-bold text-blue-900 dark:text-white tracking-tight">EMS</span>
 <nav class="hidden lg:flex items-center gap-6">
-<a class="nav-link {{ request()->routeIs('landing-page') ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('landing-page') }}">Dashboard</a>
+<a class="nav-link {{ $dashboardActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('user.dashboard') }}">Dashboard</a>
 <div class="nav-dropdown">
 	<button type="button" class="nav-link {{ $operationsActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" aria-haspopup="true" aria-expanded="false">
 		Operations <span class="nav-caret">&#9662;</span>
@@ -274,7 +275,7 @@
 </div>
 <div id="mobile-nav-panel" class="lg:hidden hidden px-8 pb-5">
 	<div class="mt-1 rounded-xl border border-slate-200/70 dark:border-slate-700/70 bg-white/90 dark:bg-slate-800/90 p-3 shadow-sm space-y-1">
-		<a class="mobile-nav-link {{ request()->routeIs('landing-page') ? 'mobile-nav-link-active' : '' }}" href="{{ route('landing-page') }}">Dashboard</a>
+		<a class="mobile-nav-link {{ $dashboardActive ? 'mobile-nav-link-active' : '' }}" href="{{ route('user.dashboard') }}">Dashboard</a>
 
 		<details class="mobile-nav-group" {{ $operationsActive ? 'open' : '' }}>
 			<summary class="mobile-nav-link {{ $operationsActive ? 'mobile-nav-link-active' : '' }} flex items-center justify-between cursor-pointer">

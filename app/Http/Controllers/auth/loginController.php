@@ -85,6 +85,6 @@ class loginController extends Controller
             return redirect()->route('admin.dashboard');
         }
 
-        return redirect()->route('landing-page');
+        return redirect()->route('user.dashboard');
     }
 }
