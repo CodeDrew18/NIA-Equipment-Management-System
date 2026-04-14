@@ -85,12 +85,12 @@
       }
     </script>
 </head>
-<body class="bg-background text-on-background antialiased font-body">
+    <body class="bg-background text-on-background antialiased font-body min-h-screen flex flex-col">
 <!-- TopNavBar -->
 @include('layouts.admin_header')
-<div class="flex pt-[72px]">
+    <div class="flex flex-grow pt-[72px]">
 <!-- Main Content -->
-<main class="w-full bg-background min-h-screen px-4 sm:px-6 lg:px-10 xl:px-12 py-8">
+    <main class="w-full bg-background flex-grow px-4 sm:px-6 lg:px-10 xl:px-12 py-8">
 <div class="max-w-[1920px] mx-auto">
 <header class="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
 <div>

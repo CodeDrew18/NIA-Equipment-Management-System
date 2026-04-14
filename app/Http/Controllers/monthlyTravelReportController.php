@@ -7,17 +7,102 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class monthlyTravelReportController extends Controller
 {
     public function index(Request $request)
+    {
+        return view('monthly_official_travel_report.monthly_travel_report', $this->buildReportData($request));
+    }
+
+    public function download(Request $request): StreamedResponse
+    {
+        $reportData = $this->buildReportData($request);
+        $selectedMonth = (string) ($reportData['selectedMonth'] ?? now()->format('Y-m'));
+        $monthLabel = Carbon::createFromFormat('Y-m', $selectedMonth)->format('F Y');
+        $driverName = (string) ($reportData['primaryDriver'] ?? 'N/A');
+        $reportRows = collect($reportData['reportRows'] ?? []);
+
+        $driverSlug = Str::slug($driverName);
+        if ($driverSlug === '') {
+            $driverSlug = 'driver';
+        }
+
+        $fileName = 'monthly_official_travel_report_' . $driverSlug . '_' . $selectedMonth . '.csv';
+
+        return response()->streamDownload(function () use ($reportData, $monthLabel, $driverName, $reportRows) {
+            $handle = fopen('php://output', 'w');
+
+            fwrite($handle, "\xEF\xBB\xBF");
+
+            fputcsv($handle, ['Monthly Official Travel Report']);
+            fputcsv($handle, ['Month', $monthLabel]);
+            fputcsv($handle, ['Driver', $driverName]);
+            fputcsv($handle, ['Vehicle Plate', (string) ($reportData['vehiclePlate'] ?? 'N/A')]);
+            fputcsv($handle, ['Property Number', (string) ($reportData['propertyNumber'] ?? 'N/A')]);
+            fputcsv($handle, []);
+
+            fputcsv($handle, [
+                'Date',
+                'Distance (Kms/Hrs)',
+                'Diesel (Ltrs)',
+                'Gasoline (Ltrs)',
+                'E.O (Ltrs)',
+                'G.O (Ltrs)',
+                'BF (Ltrs)',
+                'Grease (Kgs)',
+                'Purchased/Issued',
+                'Passenger',
+                'Destination/Place',
+            ]);
+
+            foreach ($reportRows as $row) {
+                fputcsv($handle, [
+                    (string) ($row['day'] ?? '—'),
+                    $this->formatMetricForExport($row['distance'] ?? null),
+                    $this->formatMetricForExport($row['diesel'] ?? null),
+                    $this->formatMetricForExport($row['gasoline'] ?? null),
+                    $this->formatMetricForExport($row['engineOil'] ?? null),
+                    $this->formatMetricForExport($row['gearOil'] ?? null),
+                    $this->formatMetricForExport($row['brakeFluid'] ?? null),
+                    $this->formatMetricForExport($row['grease'] ?? null),
+                    (string) ($row['purchasedIssued'] ?? '—'),
+                    (string) ($row['passenger'] ?? '—'),
+                    (string) ($row['destination'] ?? '—'),
+                ]);
+            }
+
+            fputcsv($handle, []);
+            fputcsv($handle, [
+                'Total',
+                $this->formatMetricForExport($reportData['totalDistance'] ?? null),
+                $this->formatMetricForExport($reportData['totalDiesel'] ?? null),
+                $this->formatMetricForExport($reportData['totalGasoline'] ?? null),
+                $this->formatMetricForExport($reportData['totalEngineOil'] ?? null),
+                $this->formatMetricForExport($reportData['totalGearOil'] ?? null),
+                $this->formatMetricForExport($reportData['totalBrakeFluid'] ?? null),
+                $this->formatMetricForExport($reportData['totalGrease'] ?? null),
+                '',
+                '',
+                'Consolidated Equipment Metrics',
+            ]);
+
+            fclose($handle);
+        }, $fileName, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    private function buildReportData(Request $request): array
     {
         $validated = $request->validate([
             'month' => ['nullable', 'date_format:Y-m'],
         ]);
 
         $selectedMonth = (string) ($validated['month'] ?? now()->format('Y-m'));
-        $loggedInUserName = trim((string) (Auth::user()?->name ?? ''));
+        $loggedInUserName = trim((string) ($request->user()?->name ?? Auth::user()?->name ?? ''));
         $monthStart = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
         $monthEnd = (clone $monthStart)->endOfMonth();
 
@@ -164,7 +249,7 @@ class monthlyTravelReportController extends Controller
             return is_numeric($distance) ? (float) $distance : 0.0;
         });
 
-        return view('monthly_official_travel_report.monthly_travel_report', [
+        return [
             'selectedMonth' => $selectedMonth,
             'vehiclePlate' => $vehiclePlate,
             'assignedDriver' => $assignedDriver,
@@ -173,7 +258,33 @@ class monthlyTravelReportController extends Controller
             'propertyNumber' => $propertyNumber,
             'reportRows' => $reportRows,
             'totalDistance' => round($totalDistance, 1),
-        ]);
+            'totalDiesel' => $this->sumReportRowsMetric($reportRows, 'diesel'),
+            'totalGasoline' => $this->sumReportRowsMetric($reportRows, 'gasoline'),
+            'totalEngineOil' => $this->sumReportRowsMetric($reportRows, 'engineOil'),
+            'totalGearOil' => $this->sumReportRowsMetric($reportRows, 'gearOil'),
+            'totalBrakeFluid' => $this->sumReportRowsMetric($reportRows, 'brakeFluid'),
+            'totalGrease' => $this->sumReportRowsMetric($reportRows, 'grease'),
+        ];
+    }
+
+    private function sumReportRowsMetric(Collection $rows, string $key): float
+    {
+        $total = $rows->sum(function (array $row) use ($key): float {
+            $metric = $row[$key] ?? null;
+
+            return is_numeric($metric) ? (float) $metric : 0.0;
+        });
+
+        return round((float) $total, 1);
+    }
+
+    private function formatMetricForExport(mixed $metric): string
+    {
+        if (!is_numeric($metric)) {
+            return '—';
+        }
+
+        return number_format((float) $metric, 1, '.', '');
     }
 
     private function resolveDurationHours(TransportationRequestFormModel $item): ?float

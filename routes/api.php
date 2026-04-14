@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DailyTripTicketController;
 use App\Http\Controllers\Api\DriverPerformanceEvaluationController;
+use App\Http\Controllers\monthlyTravelReportController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -17,4 +18,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/daily-trip-tickets/{id}', [DailyTripTicketController::class, 'show'])->whereNumber('id');
     Route::get('/driver-performance-evaluations', [DriverPerformanceEvaluationController::class, 'index']);
     Route::get('/driver-performance-evaluations/{id}', [DriverPerformanceEvaluationController::class, 'show'])->whereNumber('id');
+    Route::get('/monthly-official-travel-report/download', [monthlyTravelReportController::class, 'download']);
 });

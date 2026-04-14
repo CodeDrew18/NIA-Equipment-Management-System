@@ -218,10 +218,12 @@
 	}
 </style>
 @php
+	$authUser = auth()->user();
 	$dashboardActive = request()->routeIs('user.dashboard');
 	$operationsActive = request()->routeIs('request-form') || request()->routeIs('vehicle-available');
 	$requestOverviewActive = request()->routeIs('user.request-overview');
 	$evaluationsActive = request()->routeIs('evaluation-performance');
+	$profileManagementActive = request()->routeIs('profile-management');
 	$dropdownActiveClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200';
 	$vehicleAvailabilityActive = request()->routeIs('vehicle-available');
 	$requestFormActive = request()->routeIs('request-form');
@@ -248,10 +250,27 @@
 
 <div class="flex items-center gap-3">
 	@auth
-	<form action="{{ route('logout') }}" method="POST" class="hidden lg:inline">
-		@csrf
-		<button type="submit" class="px-4 py-2 rounded-lg font-semibold text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-300 hover:bg-slate-200/70 dark:hover:bg-slate-700/60 transition-colors">Logout</button>
-	</form>
+	<div class="hidden lg:block nav-dropdown">
+		<button type="button" class="inline-flex items-center gap-3 rounded-xl border border-slate-200/70 dark:border-slate-700/70 bg-white/80 dark:bg-slate-800/70 px-3 py-2 hover:bg-slate-100/80 dark:hover:bg-slate-700/70 transition-colors" aria-haspopup="true" aria-expanded="false">
+			@if (!empty($authUser?->resolved_profile_image_url))
+				<img src="{{ $authUser->resolved_profile_image_url }}" alt="Profile" class="h-9 w-9 rounded-full object-cover border border-slate-200 dark:border-slate-600"/>
+			@else
+				<span class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-white text-xs font-black tracking-wide">{{ $authUser?->profile_initials ?? 'U' }}</span>
+			@endif
+			<span class="text-left leading-tight">
+				<span class="block text-sm font-bold text-slate-700 dark:text-slate-200 max-w-[150px] truncate">{{ $authUser?->name ?? 'User' }}</span>
+				<span class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 max-w-[150px] truncate">{{ $authUser?->role_display ?? 'User' }}</span>
+			</span>
+			<span class="nav-caret">&#9662;</span>
+		</button>
+		<div class="nav-dropdown-menu right-0 left-auto min-w-[16rem]" role="menu" aria-label="Profile menu">
+			<a class="nav-dropdown-item {{ $profileManagementActive ? $dropdownActiveClass : '' }}" href="{{ route('profile-management') }}" role="menuitem">Profile Management</a>
+			<form action="{{ route('logout') }}" method="POST" class="mt-1">
+				@csrf
+				<button type="submit" class="w-full text-left nav-dropdown-item text-red-700 dark:text-red-300" role="menuitem">Logout</button>
+			</form>
+		</div>
+	</div>
 	@endauth
 	<button
 	type="button"
@@ -284,6 +303,22 @@
 		<a class="mobile-nav-link {{ $requestOverviewActive ? 'mobile-nav-link-active' : '' }}" href="{{ route('user.request-overview') }}">Request Overview</a>
 
 		<a class="mobile-nav-link {{ $evaluationsActive ? 'mobile-nav-link-active' : '' }}" href="{{ route('evaluation-performance') }}">Evaluations</a>
+		<a class="mobile-nav-link {{ $profileManagementActive ? 'mobile-nav-link-active' : '' }}" href="{{ route('profile-management') }}">Profile Management</a>
+
+		@auth
+		<div class="px-3 py-2 rounded-lg border border-slate-200/70 dark:border-slate-700/70 bg-slate-50/80 dark:bg-slate-700/40 flex items-center gap-3">
+			@if (!empty($authUser?->resolved_profile_image_url))
+				<img src="{{ $authUser->resolved_profile_image_url }}" alt="Profile" class="h-9 w-9 rounded-full object-cover border border-slate-200 dark:border-slate-600"/>
+			@else
+				<span class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-white text-xs font-black tracking-wide">{{ $authUser?->profile_initials ?? 'U' }}</span>
+			@endif
+			<div class="min-w-0">
+				<p class="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{{ $authUser?->name ?? 'User' }}</p>
+				<p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">{{ $authUser?->role_display ?? 'User' }}</p>
+			</div>
+		</div>
+		@endauth
+
 		@auth
 		<form action="{{ route('logout') }}" method="POST">
 			@csrf

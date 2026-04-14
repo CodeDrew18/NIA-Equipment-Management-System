@@ -83,7 +83,7 @@
         }
     </style>
 </head>
-<body class="bg-background font-body text-on-surface selection:bg-primary-fixed selection:text-on-primary-fixed">
+<body class="bg-background font-body text-on-surface selection:bg-primary-fixed selection:text-on-primary-fixed min-h-screen flex flex-col">
 <!-- TopNavBar -->
 
 @include('layouts.header');
@@ -116,7 +116,7 @@
     $selectedEvaluationYear = optional($selectedEvaluation?->date_time_to)->format('Y') ?: now()->format('Y');
 @endphp
 
-<main class="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pb-12 pt-28">
+<main class="flex-grow w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pb-12 pt-28">
 <!-- Header Section -->
 <header class="mb-12 flex flex-col md:flex-row justify-between items-end gap-6">
 <div class="max-w-2xl">

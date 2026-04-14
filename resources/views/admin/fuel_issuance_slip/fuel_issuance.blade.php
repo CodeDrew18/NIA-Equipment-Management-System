@@ -87,10 +87,10 @@
         }
     </style>
 </head>
-<body class="bg-background text-on-surface font-body min-h-screen">
+    <body class="bg-background text-on-surface font-body min-h-screen flex flex-col">
 <!-- TopNavBar -->
 @include('layouts.admin_header');
-<main class="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pt-24 pb-12">
+    <main class="flex-grow w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pt-24 pb-12">
 @php
     $ctrlNumber = $selectedRequest
         ? 'FIS-' . optional($selectedRequest->request_date)->format('Y') . '-' . str_pad((string) $selectedRequest->id, 4, '0', STR_PAD_LEFT)

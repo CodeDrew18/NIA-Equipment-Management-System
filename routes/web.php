@@ -3,6 +3,7 @@
 use App\Http\Controllers\evaluationPerformanceController;
 use App\Http\Controllers\landingController;
 use App\Http\Controllers\NotificationModalController;
+use App\Http\Controllers\ProfileManagementController;
 use App\Http\Controllers\requestFormController;
 use App\Http\Controllers\UserDashboardController;
 use App\Http\Controllers\vehicleAvailabilityController;
@@ -20,6 +21,7 @@ Route::get("/login", [App\Http\Controllers\auth\loginController::class, 'index']
 Route::post("/login", [App\Http\Controllers\auth\loginController::class, 'authenticate'])->name('login.authenticate');
 Route::middleware('auth')->group(function () {
     Route::post("/logout", [App\Http\Controllers\auth\loginController::class, 'logout'])->name('logout');
+    Route::get('/profile-management', [ProfileManagementController::class, 'index'])->name('profile-management');
 
     Route::middleware('role.page:user-area')->group(function () {
         Route::get('/dashboard', [UserDashboardController::class, 'index'])->name('user.dashboard');

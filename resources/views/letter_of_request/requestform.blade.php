@@ -88,6 +88,8 @@
   appearance: none; /* general */
 }
     </style>
+</head>
+<body class="bg-background text-on-surface min-h-screen flex flex-col">
 
 @include('layouts.header')
 

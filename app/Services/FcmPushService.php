@@ -68,6 +68,7 @@ class FcmPushService
             'data' => array_merge([
                 'title' => $title,
                 'body' => $body,
+                'long_text' => $body,
             ], $normalizedData),
         ];
 

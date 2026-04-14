@@ -88,10 +88,10 @@
         }
     </style>
 </head>
-<body class="bg-background text-on-surface">
+<body class="bg-background text-on-surface min-h-screen flex flex-col">
 <!-- TopAppBar Section -->
 @include('layouts.admin_header')
-<main class="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pb-12 pt-28">
+<main class="flex-grow w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pb-12 pt-28">
 <!-- Page Header -->
 <section class="mb-10">
 <h1 class="font-headline text-3xl font-extrabold text-primary tracking-tight mb-2">Audit Logs</h1>
