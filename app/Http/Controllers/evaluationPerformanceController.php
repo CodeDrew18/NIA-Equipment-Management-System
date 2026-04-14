@@ -201,7 +201,6 @@ class evaluationPerformanceController extends Controller
             ->setTimeFromTimeString(now()->format('H:i:s'));
 
         $driverNotifiedCount = 0;
-        $evaluationAttachmentUrl = null;
 
         DB::transaction(function () use (
             $transportationRequest,
@@ -213,7 +212,6 @@ class evaluationPerformanceController extends Controller
             $complianceScore,
             $evaluationDateTime,
             &$driverNotifiedCount,
-            &$evaluationAttachmentUrl,
             $validated,
             $fcmPushService
         ) {
@@ -244,12 +242,7 @@ class evaluationPerformanceController extends Controller
             ]);
             $evaluation->save();
 
-            $savedAttachments = $transportationRequest->upsertAttachment($attachmentPayload);
-            $evaluationAttachmentUrl = $this->resolveEvaluationAttachmentUrl(
-                $transportationRequest,
-                $savedAttachments,
-                $attachmentPayload
-            );
+            $transportationRequest->upsertAttachment($attachmentPayload);
 
             $hasPendingEvaluations = DriverPerformanceEvaluation::query()
                 ->where('transportation_request_form_id', (int) $transportationRequest->id)
@@ -274,9 +267,7 @@ class evaluationPerformanceController extends Controller
 
         return redirect()
             ->route('evaluation-performance', ['evaluation_id' => $evaluation->id])
-            ->with('evaluation_submit_success', $flashMessage)
-            ->with('auto_open_evaluation_docx', $evaluationAttachmentUrl !== null)
-            ->with('evaluation_attachment_url', $evaluationAttachmentUrl);
+            ->with('evaluation_submit_success', $flashMessage);
     }
 
     private function generateEvaluationDocumentAttachment(
@@ -442,39 +433,6 @@ class evaluationPerformanceController extends Controller
             'source' => 'evaluation_performance_submit',
             'copy_key' => (string) ($evaluation->copy_key ?? ''),
         ];
-    }
-
-    private function resolveEvaluationAttachmentUrl(
-        TransportationRequestFormModel $transportationRequest,
-        array $attachments,
-        array $attachmentPayload
-    ): ?string {
-        $processKey = trim((string) ($attachmentPayload['process_key'] ?? ''));
-        $filePath = trim((string) ($attachmentPayload['file_path'] ?? ''));
-
-        $index = collect($attachments)->search(function ($attachment) use ($processKey, $filePath) {
-            if (!is_array($attachment)) {
-                return false;
-            }
-
-            $attachmentProcessKey = trim((string) ($attachment['process_key'] ?? ''));
-            $attachmentFilePath = trim((string) ($attachment['file_path'] ?? ''));
-
-            if ($processKey !== '' && $attachmentProcessKey === $processKey) {
-                return true;
-            }
-
-            return $filePath !== '' && $attachmentFilePath === $filePath;
-        });
-
-        if ($index === false) {
-            return null;
-        }
-
-        return route('request-form.attachment.view', [
-            'transportationRequest' => $transportationRequest->id,
-            'index' => (int) $index,
-        ]);
     }
 
     private function resolveEvaluationTemplatePath(): string

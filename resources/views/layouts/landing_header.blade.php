@@ -1,4 +1,4 @@
-<!-- Landing TopAppBar -->
+
 <header data-landing-header="true" class="fixed top-0 z-50 w-full bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md shadow-sm">
 <style>
     .nav-link {

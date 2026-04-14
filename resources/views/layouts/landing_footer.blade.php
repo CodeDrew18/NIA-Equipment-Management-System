@@ -1,4 +1,4 @@
-<!-- Landing Footer -->
+
 <footer class="bg-slate-100 dark:bg-slate-950 w-full mt-auto border-t border-slate-200 dark:border-slate-800">
     <div class="flex flex-col md:flex-row justify-between items-center px-12 py-10 w-full gap-6">
         <div class="flex flex-col items-center md:items-start gap-2">

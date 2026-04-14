@@ -23,6 +23,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role.page:user-area')->group(function () {
         Route::get('/dashboard', [UserDashboardController::class, 'index'])->name('user.dashboard');
         Route::get('/dashboard/data', [UserDashboardController::class, 'data'])->name('user.dashboard.data');
+        Route::get('/dashboard/request-overview', [UserDashboardController::class, 'requestOverview'])->name('user.request-overview');
 
         // Request Form
         Route::get("/request-form", [requestFormController::class, 'requestForm'])->name('request-form');

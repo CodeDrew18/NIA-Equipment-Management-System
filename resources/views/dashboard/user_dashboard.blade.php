@@ -142,7 +142,7 @@
         <div class="lg:col-span-8 bg-surface-container-lowest rounded-xl border border-outline-variant/10 shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-outline-variant/20 flex items-center justify-between">
                 <h2 class="text-lg font-bold text-primary">Recent Requests</h2>
-                <a href="{{ route('request-form') }}" class="text-sm font-semibold text-primary hover:underline">Go to Requests</a>
+                <a href="{{ route('user.request-overview') }}" class="text-sm font-semibold text-primary hover:underline">Go to Request Overview</a>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
@@ -194,8 +194,8 @@
             <h2 class="text-lg font-bold text-primary mb-4">Quick Access</h2>
             <div class="space-y-3">
                 <a href="{{ route('request-form') }}" class="block w-full px-4 py-3 rounded-lg bg-primary text-on-primary font-semibold text-sm hover:opacity-90 transition-all">Transportation Request</a>
+                <a href="{{ route('user.request-overview') }}" class="block w-full px-4 py-3 rounded-lg bg-surface-container-low border border-outline-variant/40 text-on-surface font-semibold text-sm hover:bg-surface-container transition-all">Request Overview</a>
                 <a href="{{ route('vehicle-available') }}" class="block w-full px-4 py-3 rounded-lg bg-surface-container-low border border-outline-variant/40 text-on-surface font-semibold text-sm hover:bg-surface-container transition-all">Vehicle Availability</a>
-                <a href="{{ route('monthly-official-travel-report') }}" class="block w-full px-4 py-3 rounded-lg bg-surface-container-low border border-outline-variant/40 text-on-surface font-semibold text-sm hover:bg-surface-container transition-all">Monthly Travel Report</a>
                 <a href="{{ route('evaluation-performance') }}" class="block w-full px-4 py-3 rounded-lg bg-surface-container-low border border-outline-variant/40 text-on-surface font-semibold text-sm hover:bg-surface-container transition-all">Evaluation Performance</a>
             </div>
         </div>

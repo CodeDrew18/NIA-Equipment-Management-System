@@ -27,6 +27,36 @@ class UserDashboardController extends Controller
         return response()->json($this->buildDashboardPayload($personnelId));
     }
 
+    public function requestOverview(Request $request): View
+    {
+        $personnelId = (string) ($request->user()?->personnel_id ?? '');
+        $search = trim((string) $request->query('search', ''));
+
+        $requests = TransportationRequestFormModel::query()
+            ->where('form_creator_id', $personnelId)
+            ->when($search !== '', function (Builder $query) use ($search) {
+                $query->where(function (Builder $searchQuery) use ($search) {
+                    $searchTerm = '%' . $search . '%';
+
+                    $searchQuery
+                        ->where('form_id', 'like', $searchTerm)
+                        ->orWhere('requested_by', 'like', $searchTerm)
+                        ->orWhere('destination', 'like', $searchTerm)
+                        ->orWhere('purpose', 'like', $searchTerm)
+                        ->orWhere('status', 'like', $searchTerm);
+                });
+            })
+            ->orderByDesc('request_date')
+            ->orderByDesc('id')
+            ->paginate(12)
+            ->withQueryString();
+
+        return view('dashboard.request_overview', [
+            'requests' => $requests,
+            'search' => $search,
+        ]);
+    }
+
     /**
      * @return array<string, mixed>
      */

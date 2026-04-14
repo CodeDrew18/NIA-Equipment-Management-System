@@ -271,3 +271,5 @@ if (typeof window.emsLiveRefresh !== 'function') {
     });
 }
 </script>
+
+@include('layouts.partials.date_picker_enhancer')

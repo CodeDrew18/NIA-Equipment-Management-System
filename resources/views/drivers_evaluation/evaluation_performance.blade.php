@@ -315,7 +315,7 @@ Fill Evaluation
 <span class="material-symbols-outlined text-secondary">fact_check</span>
                 Performance Rating Criteria
             </h2>
-<div class="flex items-center gap-4 bg-surface-container-high px-4 py-2 rounded-full text-xs font-bold text-on-surface-variant">
+<div class="hidden lg:flex items-center gap-4 bg-surface-container-high px-4 py-2 rounded-full text-xs font-bold text-on-surface-variant">
 <span>1-POOR</span>
 <span class="h-3 w-px bg-outline-variant"></span>
 <span>2-FAIR</span>
@@ -326,6 +326,18 @@ Fill Evaluation
 <span class="h-3 w-px bg-outline-variant"></span>
 <span class="text-primary">5-EXCELLENT</span>
 </div>
+</div>
+
+<div class="mb-8 rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-4">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <p class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Quick Rate All Criteria</p>
+        <div class="flex flex-wrap gap-2">
+            <button type="button" data-bulk-rating-value="1" class="bulk-rating-button rounded-full border border-rose-300 bg-rose-50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-rose-700 transition-colors hover:bg-rose-100 hover:border-rose-400 dark:border-rose-500/50 dark:bg-rose-900/30 dark:text-rose-200 disabled:cursor-not-allowed disabled:opacity-50" {{ $canSubmitEvaluation ? '' : 'disabled' }}>Mark All Poor</button>
+            <button type="button" data-bulk-rating-value="2" class="bulk-rating-button rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-amber-700 transition-colors hover:bg-amber-100 hover:border-amber-400 dark:border-amber-500/50 dark:bg-amber-900/30 dark:text-amber-200 disabled:cursor-not-allowed disabled:opacity-50" {{ $canSubmitEvaluation ? '' : 'disabled' }}>Mark All Fair</button>
+            <button type="button" data-bulk-rating-value="4" class="bulk-rating-button rounded-full border border-blue-300 bg-blue-50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-blue-700 transition-colors hover:bg-blue-100 hover:border-blue-400 dark:border-blue-500/50 dark:bg-blue-900/30 dark:text-blue-200 disabled:cursor-not-allowed disabled:opacity-50" {{ $canSubmitEvaluation ? '' : 'disabled' }}>Mark All Very Good</button>
+            <button type="button" data-bulk-rating-value="5" class="bulk-rating-button rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-100 hover:border-emerald-400 dark:border-emerald-500/50 dark:bg-emerald-900/30 dark:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-50" {{ $canSubmitEvaluation ? '' : 'disabled' }}>Mark All Excellent</button>
+        </div>
+    </div>
 </div>
 
 @php
@@ -415,8 +427,8 @@ Fill Evaluation
 <div class="mt-16 flex flex-col md:flex-row justify-end gap-4 print:hidden">
 @if ($canSubmitEvaluation)
 <button id="evaluation-submit-trigger" type="button" class="px-8 py-3 bg-primary text-on-primary rounded-lg font-bold shadow-lg hover:shadow-primary/20 transition-all flex items-center gap-2">
-<span class="material-symbols-outlined">print</span>
-                Submit &amp; Print Evaluation
+<span class="material-symbols-outlined">task_alt</span>
+                Submit Evaluation
             </button>
 @elseif ($selectedEvaluation)
 <button type="button" disabled class="px-8 py-3 bg-surface-container-high text-on-surface-variant rounded-lg font-bold flex items-center gap-2 cursor-not-allowed">
@@ -442,7 +454,7 @@ Fill Evaluation
             <span class="material-symbols-outlined">warning</span>
             <h3 class="text-lg font-bold">Submit Evaluation</h3>
         </div>
-        <p class="text-sm text-on-surface-variant leading-relaxed">Are you sure you want to submit and print this evaluation? You will no longer be able to edit it after submission.</p>
+        <p class="text-sm text-on-surface-variant leading-relaxed">Are you sure you want to submit this evaluation? You will no longer be able to edit it after submission.</p>
         <div class="mt-6 flex justify-end gap-3">
             <button id="evaluation-submit-confirm-no" type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50">No</button>
             <button id="evaluation-submit-confirm-yes" type="button" class="rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-primary/90">Yes</button>
@@ -453,7 +465,7 @@ Fill Evaluation
 <div id="evaluation-submit-loading-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/45 px-4">
     <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center">
         <div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary"></div>
-        <p class="text-sm font-semibold text-on-surface">Submitting evaluation and preparing Form 15 document...</p>
+        <p class="text-sm font-semibold text-on-surface">Submitting evaluation...</p>
     </div>
 </div>
 
@@ -469,8 +481,6 @@ Fill Evaluation
         const confirmNoButton = document.getElementById('evaluation-submit-confirm-no');
         const confirmYesButton = document.getElementById('evaluation-submit-confirm-yes');
         const loadingModal = document.getElementById('evaluation-submit-loading-modal');
-        const shouldAutoOpenEvaluationDocx = @json((bool) session('auto_open_evaluation_docx'));
-        const evaluationAttachmentUrl = @json((string) session('evaluation_attachment_url', ''));
 
         if (!finalRateEl || !finalRateLabelEl) {
             return;
@@ -478,6 +488,7 @@ Fill Evaluation
 
         const ratingNames = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8'];
         const ratingInputs = Array.from(document.querySelectorAll('input[type="radio"][name^="r"]'));
+        const bulkRatingButtons = Array.from(document.querySelectorAll('.bulk-rating-button[data-bulk-rating-value]'));
 
         // Ensure each row maps left-to-right as 1..5 even if value attributes are missing.
         ratingNames.forEach(function (name) {
@@ -522,6 +533,24 @@ Fill Evaluation
             const average = selectedCount > 0 ? (total / selectedCount) : 0;
             finalRateEl.textContent = average.toFixed(1);
             finalRateLabelEl.textContent = resolveLabel(average);
+        }
+
+        function applyBulkRating(scoreValue) {
+            const nextScore = Number(scoreValue);
+            if (!Number.isFinite(nextScore) || nextScore < 1 || nextScore > 5) {
+                return;
+            }
+
+            ratingNames.forEach(function (name) {
+                const targetInput = document.querySelector(`input[type="radio"][name="${name}"][value="${nextScore}"]`);
+                if (!targetInput || targetInput.disabled) {
+                    return;
+                }
+
+                targetInput.checked = true;
+            });
+
+            refreshFinalRate();
         }
 
         function showConfirmModal() {
@@ -570,6 +599,12 @@ Fill Evaluation
             input.addEventListener('change', refreshFinalRate);
         });
 
+        bulkRatingButtons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                applyBulkRating(button.dataset.bulkRatingValue);
+            });
+        });
+
         if (submitTrigger && evaluationForm) {
             submitTrigger.addEventListener('click', function () {
                 if (!hasCompleteRatings()) {
@@ -603,15 +638,6 @@ Fill Evaluation
                 showLoadingModal();
                 evaluationForm.requestSubmit();
             });
-        }
-
-        if (shouldAutoOpenEvaluationDocx && evaluationAttachmentUrl !== '') {
-            window.setTimeout(function () {
-                const generatedDocWindow = window.open(evaluationAttachmentUrl, '_blank', 'noopener');
-                if (!generatedDocWindow) {
-                    window.location.href = evaluationAttachmentUrl;
-                }
-            }, 450);
         }
 
         refreshFinalRate();

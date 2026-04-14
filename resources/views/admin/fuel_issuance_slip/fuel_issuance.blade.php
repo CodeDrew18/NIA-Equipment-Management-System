@@ -286,6 +286,13 @@
     </div>
 </div>
 
+<div class="no-print mb-4 flex justify-end">
+    <button id="fi-print-all-button" type="button" class="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-primary-container disabled:cursor-not-allowed disabled:opacity-60">
+        <span class="material-symbols-outlined text-[20px]">print</span>
+        Print
+    </button>
+</div>
+
 <div id="fi-copies-container" class="space-y-6"></div>
 </main>
 
@@ -321,7 +328,7 @@
 <div id="fi-confirm-print-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4">
     <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center space-y-4">
         <h3 class="text-lg font-bold">Confirm Print</h3>
-        <p class="text-sm text-on-surface-variant">Are you sure you want to print?</p>
+        <p id="fi-confirm-print-message" class="text-sm text-on-surface-variant">Are you sure you want to print?</p>
         <div class="flex justify-center gap-3 pt-2">
             <button id="fi-confirm-print-no" type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50">No</button>
             <button id="fi-confirm-print-yes" type="button" class="rounded-lg bg-secondary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-secondary/90">Yes</button>
@@ -358,6 +365,8 @@ const fiEls = {
     confirmPrintYes: document.getElementById('fi-confirm-print-yes'),
     loadingModal: document.getElementById('fi-loading-modal'),
     loadingModalText: document.getElementById('fi-loading-modal-text'),
+    printAllButton: document.getElementById('fi-print-all-button'),
+    confirmPrintMessage: document.getElementById('fi-confirm-print-message'),
     partnershipName: document.getElementById('fi-partnership-name'),
     partnershipValidityLabel: document.getElementById('fi-partnership-validity-label'),
     partnershipValidityRange: document.getElementById('fi-partnership-validity-range'),
@@ -376,7 +385,7 @@ const fiInitialFuelPartnership = @json($activeFuelPartnership);
 let fiCurrentPage = {{ $dispatchedRequests->currentPage() }};
 let fiSelectedRequestId = {{ $selectedRequest?->id ?? 'null' }};
 let fiPendingDispatch = null;
-let fiPendingPrintCopyKey = null;
+let fiPendingPrintAction = null;
 let fiCurrentCopies = [];
 let fiCopyStateByKey = {};
 let fiSelectedPayload = @json($selectedPayload);
@@ -618,12 +627,15 @@ function fiCopyTotal(copyState) {
         + (fiToNumber(copyState.vpower) * fiToNumber(copyState.vpowerPrice));
 }
 
-function fiRenderCopyCard(copy, selectedMeta) {
+function fiRenderCopyCard(copy, selectedMeta, isSingleCopy = false) {
     const copyKey = String(copy.copyKey);
     const copyState = fiGetCopyState(copyKey);
     const totalAmount = fiFormatCurrency(fiCopyTotal(copyState));
     const requestDate = String(selectedMeta.requestDate || '________________');
     const divisionManagerName = String(selectedMeta.divisionManagerName || fiDefaultDivisionManager);
+    const printButtonLabel = isSingleCopy
+        ? 'Print'
+        : `Print Copy #${fiEsc(copy.copyNumber)}`;
 
     return `<div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col fi-copy-card" data-copy-key="${fiEsc(copyKey)}">
         <div class="bg-primary px-8 py-4 flex justify-between items-center">
@@ -719,7 +731,7 @@ function fiRenderCopyCard(copy, selectedMeta) {
             <div class="pt-2 no-print flex justify-end">
                 <button type="button" class="fi-print-copy inline-flex items-center gap-2 bg-white border border-outline-variant px-5 py-2.5 rounded-lg text-primary font-semibold hover:bg-surface-container-low transition-all active:scale-95 shadow-sm" data-copy-key="${fiEsc(copyKey)}">
                     <span class="material-symbols-outlined text-[20px]">print</span>
-                    Print Copy #${fiEsc(copy.copyNumber)}
+                    ${printButtonLabel}
                 </button>
             </div>
         </div>
@@ -736,19 +748,23 @@ function fiRenderCopyCards(selected) {
 
     const normalizedCopies = fiNormalizeCopies(selected);
     fiCurrentCopies = normalizedCopies;
+    const isSingleCopy = normalizedCopies.length === 1;
 
     if (normalizedCopies.length < 1) {
         fiEls.copiesContainer.innerHTML = '<div class="rounded-xl border border-outline-variant/20 bg-surface-container-low px-6 py-10 text-sm font-semibold text-outline text-center">No transportation copies available for this request.</div>';
+        fiUpdatePrintActionButton();
         return;
     }
 
     fiEls.copiesContainer.innerHTML = normalizedCopies.map(function (copy) {
-        return fiRenderCopyCard(copy, selected || {});
+        return fiRenderCopyCard(copy, selected || {}, isSingleCopy);
     }).join('');
 
     normalizedCopies.forEach(function (copy) {
         fiValidateCopyFields(copy.copyKey);
     });
+
+    fiUpdatePrintActionButton();
 }
 
 function fiFindCopy(copyKey) {
@@ -1058,7 +1074,25 @@ function fiFormatCurrency(value) {
     });
 }
 
-function fiShowConfirmPrintModal() {
+function fiPrintActionLabel() {
+    return fiCurrentCopies.length > 1 ? 'Print All' : 'Print';
+}
+
+function fiUpdatePrintActionButton() {
+    if (!fiEls.printAllButton) {
+        return;
+    }
+
+    const hasCopies = fiCurrentCopies.length > 0;
+    fiEls.printAllButton.disabled = !hasCopies;
+    fiEls.printAllButton.innerHTML = `<span class="material-symbols-outlined text-[20px]">print</span>${fiPrintActionLabel()}`;
+}
+
+function fiShowConfirmPrintModal(message = 'Are you sure you want to print?') {
+    if (fiEls.confirmPrintMessage) {
+        fiEls.confirmPrintMessage.textContent = message;
+    }
+
     fiEls.confirmPrintModal.classList.remove('hidden');
     fiEls.confirmPrintModal.classList.add('flex');
 }
@@ -1068,10 +1102,15 @@ function fiHideConfirmPrintModal() {
     fiEls.confirmPrintModal.classList.remove('flex');
 }
 
-async function fiPrintOfficeCopy(copyKey) {
+async function fiPrintOfficeCopy(copyKey, options = {}) {
     if (!fiSelectedRequestId || !copyKey) {
         return;
     }
+
+    const manageLoading = options.manageLoading !== false;
+    const loadingMessage = typeof options.loadingMessage === 'string' && options.loadingMessage.trim() !== ''
+        ? options.loadingMessage.trim()
+        : 'Preparing your download...';
 
     const copy = fiFindCopy(copyKey);
     if (!copy) {
@@ -1128,36 +1167,83 @@ async function fiPrintOfficeCopy(copyKey) {
     });
 
     let isCompleted = false;
-    function completeDownloadUI() {
-        if (isCompleted) {
-            return;
+    await new Promise(function (resolve) {
+        function completeDownloadUI() {
+            if (isCompleted) {
+                return;
+            }
+
+            isCompleted = true;
+            if (manageLoading) {
+                fiHideLoadingModal();
+            }
+            if (printButton) {
+                printButton.disabled = false;
+            }
+            window.removeEventListener('focus', handleWindowFocus);
+            resolve();
         }
 
-        isCompleted = true;
-        fiHideLoadingModal();
+        function handleWindowFocus() {
+            completeDownloadUI();
+        }
+
         if (printButton) {
-            printButton.disabled = false;
+            printButton.disabled = true;
         }
-        window.removeEventListener('focus', handleWindowFocus);
+        if (manageLoading) {
+            fiShowLoadingModal(loadingMessage);
+        }
+        window.addEventListener('focus', handleWindowFocus);
+
+        document.body.appendChild(form);
+        form.submit();
+        form.remove();
+
+        setTimeout(function () {
+            completeDownloadUI();
+        }, 2000);
+    });
+}
+
+async function fiPrintAllCopies() {
+    if (!fiCurrentCopies.length) {
+        fiShowWarningModal('No transportation copies available for this request.');
+        return;
     }
 
-    function handleWindowFocus() {
-        completeDownloadUI();
+    if (!fiValidateAllCopyFields(true, 'Dealer, all fuel quantities, and all fuel prices per liter are required for every transportation copy.')) {
+        return;
     }
 
-    if (printButton) {
-        printButton.disabled = true;
+    if (fiEls.printAllButton) {
+        fiEls.printAllButton.disabled = true;
     }
-    fiShowLoadingModal('Preparing your download...');
-    window.addEventListener('focus', handleWindowFocus);
 
-    document.body.appendChild(form);
-    form.submit();
-    form.remove();
+    const totalCopies = fiCurrentCopies.length;
+    fiShowLoadingModal(totalCopies > 1
+        ? `Preparing ${totalCopies} transportation copy downloads...`
+        : 'Preparing your download...');
 
-    setTimeout(function () {
-        completeDownloadUI();
-    }, 2000);
+    try {
+        for (let index = 0; index < totalCopies; index += 1) {
+            const copy = fiCurrentCopies[index];
+            const loadingLabel = totalCopies > 1
+                ? `Preparing copy ${index + 1} of ${totalCopies}...`
+                : 'Preparing your download...';
+
+            if (fiEls.loadingModalText) {
+                fiEls.loadingModalText.textContent = loadingLabel;
+            }
+
+            await fiPrintOfficeCopy(copy.copyKey, {
+                manageLoading: false,
+            });
+        }
+    } finally {
+        fiHideLoadingModal();
+        fiUpdatePrintActionButton();
+    }
 }
 
 async function fiRefresh(page = fiCurrentPage) {
@@ -1278,9 +1364,51 @@ fiEls.copiesContainer.addEventListener('click', function (event) {
         return;
     }
 
-    fiPendingPrintCopyKey = copyKey;
-    fiShowConfirmPrintModal();
+    fiPendingPrintAction = {
+        mode: 'single',
+        copyKey,
+    };
+    fiShowConfirmPrintModal('Are you sure you want to print this transportation copy?');
 });
+
+if (fiEls.printAllButton) {
+    fiEls.printAllButton.addEventListener('click', function () {
+        if (!fiCurrentCopies.length) {
+            fiShowWarningModal('No transportation copies available for this request.');
+            return;
+        }
+
+        const isMultipleCopies = fiCurrentCopies.length > 1;
+
+        if (isMultipleCopies) {
+            if (!fiValidateAllCopyFields(true, 'Dealer, all fuel quantities, and all fuel prices per liter are required for every transportation copy.')) {
+                return;
+            }
+
+            fiPendingPrintAction = {
+                mode: 'all',
+            };
+            fiShowConfirmPrintModal(`Are you sure you want to print all ${fiCurrentCopies.length} transportation copies?`);
+            return;
+        }
+
+        const singleCopy = fiCurrentCopies[0];
+        if (!singleCopy) {
+            fiShowWarningModal('No transportation copy available for this request.');
+            return;
+        }
+
+        if (!fiValidateSingleCopyFields(singleCopy.copyKey, true, 'Dealer, all fuel quantities, and all fuel prices per liter are required.')) {
+            return;
+        }
+
+        fiPendingPrintAction = {
+            mode: 'single',
+            copyKey: String(singleCopy.copyKey),
+        };
+        fiShowConfirmPrintModal('Are you sure you want to print?');
+    });
+}
 
 if (fiEls.warningModalClose) {
     fiEls.warningModalClose.addEventListener('click', function () {
@@ -1333,20 +1461,27 @@ fiEls.confirmPrintNo.addEventListener('click', function () {
 });
 
 fiEls.confirmPrintYes.addEventListener('click', function () {
-    const pendingCopyKey = fiPendingPrintCopyKey;
-    fiPendingPrintCopyKey = null;
+    const pendingAction = fiPendingPrintAction;
+    fiPendingPrintAction = null;
     fiHideConfirmPrintModal();
 
-    if (!pendingCopyKey) {
+    if (!pendingAction) {
         return;
     }
 
-    fiPrintOfficeCopy(pendingCopyKey);
+    if (pendingAction.mode === 'all') {
+        fiPrintAllCopies();
+        return;
+    }
+
+    if (pendingAction.mode === 'single' && pendingAction.copyKey) {
+        fiPrintOfficeCopy(pendingAction.copyKey);
+    }
 });
 
 fiEls.confirmPrintModal.addEventListener('click', function (event) {
     if (event.target === fiEls.confirmPrintModal) {
-        fiPendingPrintCopyKey = null;
+        fiPendingPrintAction = null;
         fiHideConfirmPrintModal();
     }
 });
