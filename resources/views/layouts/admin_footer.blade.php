@@ -16,6 +16,205 @@
 </div>
 </footer>
 
+<div id="global-admin-pending-transportation-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/45 px-4">
+    <div class="w-full max-w-lg rounded-2xl bg-surface-container-lowest p-6 shadow-2xl border border-outline-variant/30">
+        <div class="flex items-start justify-between gap-4 mb-4">
+            <div>
+                <h3 class="text-xl font-extrabold text-primary">Pending Transportation Requests</h3>
+                <p id="global-admin-pending-transportation-description" class="text-sm text-on-surface-variant">There {{ ((int) ($adminPendingTransportationRequestCount ?? 0)) === 1 ? 'is' : 'are' }} {{ number_format((int) ($adminPendingTransportationRequestCount ?? 0)) }} request{{ ((int) ($adminPendingTransportationRequestCount ?? 0)) === 1 ? '' : 's' }} waiting for admin review.</p>
+            </div>
+            <button id="global-admin-pending-transportation-close" type="button" class="inline-flex items-center justify-center rounded-lg border border-outline-variant px-3 py-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant hover:bg-surface-container-low">
+                Later
+            </button>
+        </div>
+
+        <div class="rounded-xl border border-primary/20 bg-primary-fixed/30 p-4">
+            <p class="text-sm text-on-surface-variant">Open Transportation Request to review and update pending transportation requests.</p>
+            <a id="global-admin-pending-transportation-go" href="{{ route('admin.transportation-request') }}" class="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-primary-container">
+                <span class="material-symbols-outlined text-sm">description</span>
+                Go to Transportation Request
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const modal = document.getElementById('global-admin-pending-transportation-modal');
+        const closeButton = document.getElementById('global-admin-pending-transportation-close');
+        const goButton = document.getElementById('global-admin-pending-transportation-go');
+        const description = document.getElementById('global-admin-pending-transportation-description');
+        const userId = @json((int) ($adminPendingTransportationRequestUserId ?? 0));
+        const endpoint = @json(route('admin.notifications.pending-transportation-requests'));
+        const storageKey = `nia_ems_admin_pending_transportation_seen_signature_user_${userId}`;
+        let pendingTransportationCount = @json((int) ($adminPendingTransportationRequestCount ?? 0));
+        let pendingTransportationSignature = @json((string) ($adminPendingTransportationRequestSignature ?? ''));
+        let pendingTransportationLatestId = extractLatestPendingId(pendingTransportationSignature);
+
+        if (!modal || !closeButton || !goButton || !description || userId <= 0) {
+            return;
+        }
+
+        function updateDescription(count) {
+            const normalizedCount = Number.isFinite(Number(count))
+                ? Math.max(0, Math.trunc(Number(count)))
+                : 0;
+            const verb = normalizedCount === 1 ? 'is' : 'are';
+            const noun = normalizedCount === 1 ? 'request' : 'requests';
+
+            description.textContent = `There ${verb} ${normalizedCount.toLocaleString('en-US')} ${noun} waiting for admin review.`;
+        }
+
+        function extractLatestPendingId(signature) {
+            const raw = String(signature || '').trim();
+            if (raw === '') {
+                return 0;
+            }
+
+            const parts = raw.split('|');
+            if (parts.length >= 2) {
+                const parsedFromSignature = Number(parts[1]);
+                if (Number.isFinite(parsedFromSignature) && parsedFromSignature > 0) {
+                    return Math.trunc(parsedFromSignature);
+                }
+            }
+
+            const parsedDirect = Number(raw);
+            if (Number.isFinite(parsedDirect) && parsedDirect > 0) {
+                return Math.trunc(parsedDirect);
+            }
+
+            return 0;
+        }
+
+        function readSeenPendingId() {
+            try {
+                const storedValue = window.localStorage.getItem(storageKey) || '';
+                return extractLatestPendingId(storedValue);
+            } catch (error) {
+                return 0;
+            }
+        }
+
+        function persistSeenPendingId() {
+            const currentSeenId = readSeenPendingId();
+            const nextSeenId = Math.max(currentSeenId, pendingTransportationLatestId);
+
+            try {
+                window.localStorage.setItem(storageKey, String(nextSeenId));
+            } catch (error) {
+                // Ignore storage failures.
+            }
+        }
+
+        function openModal() {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeModal(markAsSeen = true) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+
+            if (!markAsSeen || pendingTransportationLatestId <= 0) {
+                return;
+            }
+
+            persistSeenPendingId();
+        }
+
+        function shouldOpenModal() {
+            if (pendingTransportationCount <= 0 || pendingTransportationLatestId <= 0) {
+                return false;
+            }
+
+            const seenPendingId = readSeenPendingId();
+
+            return pendingTransportationLatestId > seenPendingId;
+        }
+
+        function applyStateAndToggleModal() {
+            updateDescription(pendingTransportationCount);
+
+            if (shouldOpenModal()) {
+                openModal();
+                return;
+            }
+
+            closeModal(false);
+        }
+
+        async function refreshPendingTransportationState() {
+            if (endpoint === '') {
+                return;
+            }
+
+            try {
+                const response = await fetch(endpoint, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    cache: 'no-store',
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const payload = await response.json();
+                const nextCount = Number(payload.pendingCount ?? 0);
+                const normalizedCount = Number.isFinite(nextCount)
+                    ? Math.max(0, Math.trunc(nextCount))
+                    : 0;
+                const nextSignature = String(payload.pendingSignature ?? '');
+                const nextLatestId = extractLatestPendingId(nextSignature);
+
+                const hasChanged = normalizedCount !== pendingTransportationCount
+                    || nextLatestId !== pendingTransportationLatestId;
+
+                pendingTransportationCount = normalizedCount;
+                pendingTransportationSignature = nextSignature;
+                pendingTransportationLatestId = nextLatestId;
+
+                if (hasChanged) {
+                    applyStateAndToggleModal();
+                }
+            } catch (error) {
+                // Ignore polling failures.
+            }
+        }
+
+        applyStateAndToggleModal();
+
+        closeButton.addEventListener('click', closeModal);
+        goButton.addEventListener('click', function () {
+            closeModal();
+        });
+
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal) {
+                closeModal();
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        const pollIntervalMs = 10000;
+        window.setInterval(refreshPendingTransportationState, pollIntervalMs);
+
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) {
+                refreshPendingTransportationState();
+            }
+        });
+    })();
+</script>
+
 <script>
 if (typeof window.emsLiveRefresh !== 'function') {
     window.__emsHasCustomLiveRefresh = false;

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\evaluationPerformanceController;
 use App\Http\Controllers\landingController;
+use App\Http\Controllers\NotificationModalController;
 use App\Http\Controllers\requestFormController;
 use App\Http\Controllers\UserDashboardController;
 use App\Http\Controllers\vehicleAvailabilityController;
@@ -39,6 +40,7 @@ Route::middleware('auth')->group(function () {
 
         Route::get("/evaluation-performance", [evaluationPerformanceController::class, 'index'])->name('evaluation-performance');
         Route::post('/evaluation-performance/submit', [evaluationPerformanceController::class, 'submit'])->name('evaluation-performance.submit');
+        Route::get('/notifications/pending-evaluations', [NotificationModalController::class, 'userPendingEvaluations'])->name('user.notifications.pending-evaluations');
 
 
         Route::get("/monthly-official-travel-report", [App\Http\Controllers\monthlyTravelReportController::class, 'index'])->name('monthly-official-travel-report');
@@ -106,6 +108,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/admin/reports/travel', [App\Http\Controllers\admin\travelReportController::class, 'index'])->name('admin.travel-reports');
         Route::get('/admin/reports/travel/export', [App\Http\Controllers\admin\travelReportController::class, 'export'])->name('admin.travel-reports.export');
         Route::get('/admin/reports/fuel-consumption', [App\Http\Controllers\admin\fuelConsumptionReportController::class, 'index'])->name('admin.fuel-consumption-report');
+        Route::get('/admin/notifications/pending-transportation-requests', [NotificationModalController::class, 'adminPendingTransportationRequests'])->name('admin.notifications.pending-transportation-requests');
 
         //  Route::get("/audit-log", [App\Http\Controllers\admin\auditLogController::class, 'index'])->name('audit-log');
     });
