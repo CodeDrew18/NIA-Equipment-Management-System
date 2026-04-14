@@ -266,7 +266,7 @@
 	<div class="nav-dropdown-menu" role="menu" aria-label="Reports menu">
 		<a class="nav-dropdown-item {{ $travelReportsActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.travel-reports') }}" role="menuitem">Travel Reports</a>
 		{{-- <a class="nav-dropdown-item {{ $dailyEquipmentUtilizationReportActive ? $dropdownActiveClass : '' }}" href="{{ route('daily-equipment-utilization-report') }}" role="menuitem">Daily Equipment Utilization Report</a> --}}
-		<a class="nav-dropdown-item {{ $fuelConsumptionReportActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.fuel-consumption-report') }}" role="menuitem">Monthly Fuel Consumption Report</a>
+		<a class="nav-dropdown-item {{ $fuelConsumptionReportActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.fuel-consumption-report') }}" role="menuitem">Monthly Fuel Consumption Report<br>(For Service Vehicles)</a>
 	</div>
 </div>
 <a class="nav-link {{ $auditLogActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('audit-log') }}">Audit Logs</a>
@@ -338,7 +338,7 @@
 			</summary>
 			<div class="pt-1 pb-1 space-y-1">
 				<a class="mobile-nav-subitem {{ $travelReportsActive ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.travel-reports') }}">Travel Reports</a>
-				<a class="mobile-nav-subitem {{ $fuelConsumptionReportActive ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.fuel-consumption-report') }}">Monthly Fuel Consumption Report</a>
+				<a class="mobile-nav-subitem {{ $fuelConsumptionReportActive ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.fuel-consumption-report') }}">Monthly Fuel Consumption Report<br> (For Service Vehicles)</a>
 				{{-- <a class="mobile-nav-subitem {{ request()->routeIs('daily-equipment-utilization-report') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('daily-equipment-utilization-report') }}">Daily Equipment Utilization Report</a> --}}
 			</div>
 		</details>

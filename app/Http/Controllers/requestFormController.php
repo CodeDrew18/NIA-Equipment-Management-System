@@ -32,20 +32,11 @@ class requestFormController extends Controller
             ->orderBy('name')
             ->get(['name']);
 
-        $requesterMessages = TransportationRequestFormModel::query()
-            ->where('form_creator_id', $user?->personnel_id)
-            ->where('status', 'Rejected')
-            ->whereNotNull('rejection_reason')
-            ->orderByDesc('updated_at')
-            ->limit(5)
-            ->get();
-
         return view('letter_of_request/requestform', [
             'availableVehicleTypes' => $availableVehicleTypes,
             'availableVehicleCounts' => $availableVehicleCounts,
             'showNoAvailableVehiclesModal' => !$hasAnyAvailableVehicle,
             'drivers' => $drivers,
-            'requesterMessages' => $requesterMessages,
         ]);
     }
 
@@ -75,8 +66,12 @@ class requestFormController extends Controller
             'requesting_division_position' => ['required', 'string', 'max:255'],
             'vehicle_id' => ['nullable', 'string', 'max:100'],
             'driver_name' => ['nullable', 'string', 'max:255'],
-            'attachments' => ['nullable', 'array'],
-            'attachments.*' => ['file', 'mimes:pdf,doc,docx', 'max:10240'],
+            'attachments' => ['required', 'array', 'min:1'],
+            'attachments.*' => ['required', 'file', 'mimes:docx', 'max:10240'],
+        ], [
+            'attachments.required' => 'Attach at least one DOCX file.',
+            'attachments.min' => 'Attach at least one DOCX file.',
+            'attachments.*.mimes' => 'Only DOCX files are allowed for attachments.',
         ]);
 
         $businessPassengers = collect($validated['division_personnel'] ?? [])

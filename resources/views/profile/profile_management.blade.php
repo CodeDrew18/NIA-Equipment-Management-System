@@ -53,7 +53,7 @@
         <p class="text-sm text-on-surface-variant mt-2">View the currently logged-in account details and role access.</p>
     </div>
 
-    <section class="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest shadow-sm overflow-hidden">
+    <section id="profile-session-section" class="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest shadow-sm overflow-hidden">
         <div class="bg-primary-fixed/50 border-b border-outline-variant/20 px-6 py-5">
             <p class="text-xs uppercase tracking-[0.18em] font-bold text-outline">Current Session</p>
             <h2 class="text-xl font-black text-primary mt-1">Logged-in User</h2>
@@ -97,5 +97,62 @@
 @else
 @include('layouts.footer')
 @endif
+<script>
+    (function () {
+        const profileSessionSection = document.getElementById('profile-session-section');
+        let refreshInFlight = false;
+
+        if (!profileSessionSection) {
+            return;
+        }
+
+        async function refreshProfileSection() {
+            if (refreshInFlight) {
+                return;
+            }
+
+            refreshInFlight = true;
+
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set('_live_refresh', String(Date.now()));
+
+                const response = await fetch(url.toString(), {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    cache: 'no-store',
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const html = await response.text();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const nextProfileSessionSection = doc.getElementById('profile-session-section');
+
+                if (!nextProfileSessionSection) {
+                    return;
+                }
+
+                profileSessionSection.innerHTML = nextProfileSessionSection.innerHTML;
+            } catch (error) {
+                // Ignore refresh failures.
+            } finally {
+                refreshInFlight = false;
+            }
+        }
+
+        if (typeof window.emsLiveRefresh === 'function') {
+            window.emsLiveRefresh(refreshProfileSection, {
+                intervalMs: 10000,
+                runImmediately: false,
+            });
+        } else {
+            window.setInterval(refreshProfileSection, 10000);
+        }
+    })();
+</script>
 </body>
 </html>

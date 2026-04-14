@@ -144,6 +144,8 @@
     </div>
   @endif
 
+  <div id="form-validation-banner" class="hidden rounded-xl border border-error/30 bg-error-container p-4 text-on-error-container text-sm font-semibold"></div>
+
 <section>
   <div class="flex items-center gap-3 mb-6">
     <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white">
@@ -217,7 +219,7 @@
     $coasterMax = max(1, (int) ($availableVehicleCounts['coaster'] ?? 1));
     $coasterQty = max(1, min((int) old('vehicle_requests.0.quantity', 1), $coasterMax));
   @endphp
-  <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row>
+  <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row data-vehicle-type="coaster">
     <div class="flex items-center gap-2">
       <input id="vehicle-coaster" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[0][selected]" value="1" {{ old('vehicle_requests.0.selected') ? 'checked' : '' }} />
       <input type="hidden" name="vehicle_requests[0][type]" value="coaster" />
@@ -227,7 +229,7 @@
     <div class="flex items-center gap-2">
       <label class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Qty</label>
       <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[0][quantity]" value="{{ $coasterQty }}" min="1" max="{{ $coasterMax }}" {{ old('vehicle_requests.0.selected') ? '' : 'disabled' }} />
-      <span class="text-[10px] font-semibold text-slate-500">Max {{ $coasterMax }}</span>
+      <span class="vehicle-request-max-label text-[10px] font-semibold text-slate-500">Max {{ $coasterMax }}</span>
     </div>
   </div>
   @endif
@@ -237,7 +239,7 @@
     $vanMax = max(1, (int) ($availableVehicleCounts['van'] ?? 1));
     $vanQty = max(1, min((int) old('vehicle_requests.1.quantity', 1), $vanMax));
   @endphp
-  <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row>
+  <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row data-vehicle-type="van">
     <div class="flex items-center gap-2">
       <input id="vehicle-van" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[1][selected]" value="1" {{ old('vehicle_requests.1.selected') ? 'checked' : '' }} />
       <input type="hidden" name="vehicle_requests[1][type]" value="van" />
@@ -247,7 +249,7 @@
     <div class="flex items-center gap-2">
       <label class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Qty</label>
       <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[1][quantity]" value="{{ $vanQty }}" min="1" max="{{ $vanMax }}" {{ old('vehicle_requests.1.selected') ? '' : 'disabled' }} />
-      <span class="text-[10px] font-semibold text-slate-500">Max {{ $vanMax }}</span>
+      <span class="vehicle-request-max-label text-[10px] font-semibold text-slate-500">Max {{ $vanMax }}</span>
     </div>
   </div>
   @endif
@@ -257,7 +259,7 @@
     $pickupMax = max(1, (int) ($availableVehicleCounts['pickup'] ?? 1));
     $pickupQty = max(1, min((int) old('vehicle_requests.2.quantity', 1), $pickupMax));
   @endphp
-  <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row>
+  <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row data-vehicle-type="pickup">
     <div class="flex items-center gap-2">
       <input id="vehicle-pickup" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[2][selected]" value="1" {{ old('vehicle_requests.2.selected') ? 'checked' : '' }} />
       <input type="hidden" name="vehicle_requests[2][type]" value="pickup" />
@@ -267,7 +269,7 @@
     <div class="flex items-center gap-2">
       <label class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Qty</label>
       <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[2][quantity]" value="{{ $pickupQty }}" min="1" max="{{ $pickupMax }}" {{ old('vehicle_requests.2.selected') ? '' : 'disabled' }} />
-      <span class="text-[10px] font-semibold text-slate-500">Max {{ $pickupMax }}</span>
+      <span class="vehicle-request-max-label text-[10px] font-semibold text-slate-500">Max {{ $pickupMax }}</span>
     </div>
   </div>
   @endif
@@ -355,8 +357,8 @@ Remove
     <label class="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center justify-center bg-surface-container-low/30 hover:bg-surface-container-low/50 transition-colors cursor-pointer">
       <span class="material-symbols-outlined text-4xl text-slate-400 mb-2">cloud_upload</span>
       <p class="text-sm font-semibold text-on-surface">Click or drag files to upload</p>
-      <p class="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">Supported: PDF, DOC, DOCX (Max 10MB)</p>
-      <input id="attachment-input" type="file" class="hidden" accept=".pdf,.doc,.docx" name="attachments[]" multiple/>
+      <p class="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">Supported: DOCX only (Max 10MB each)</p>
+      <input id="attachment-input" type="file" class="hidden" accept=".docx" name="attachments[]" multiple/>
     </label>
 
     <!-- Attached Files List -->
@@ -365,6 +367,7 @@ Remove
       <div id="attached-files-list" class="space-y-2">
         <p id="attached-files-empty" class="text-xs text-slate-400 italic">No files attached yet.</p>
       </div>
+      <p id="attachment-error" class="hidden text-xs font-semibold text-error">Attach at least one DOCX file.</p>
     </div>
 
   </div>
@@ -481,9 +484,17 @@ Remove
     const addPersonnelError = document.getElementById('add-personnel-error');
     const requestingDivisionName = requestForm ? requestForm.querySelector('input[name="requesting_division_name"]') : null;
     const requestingDivisionPosition = requestForm ? requestForm.querySelector('input[name="requesting_division_position"]') : null;
+    const requestDateInput = requestForm ? requestForm.querySelector('input[name="request_date"]') : null;
+    const requestedByInput = requestForm ? requestForm.querySelector('input[name="requested_by"]') : null;
+    const destinationInput = requestForm ? requestForm.querySelector('input[name="destination"]') : null;
+    const dateTimeFromInput = requestForm ? requestForm.querySelector('input[name="date_time_from"]') : null;
+    const dateTimeToInput = requestForm ? requestForm.querySelector('input[name="date_time_to"]') : null;
+    const purposeInput = requestForm ? requestForm.querySelector('textarea[name="purpose"]') : null;
     const input = document.getElementById('attachment-input');
     const list = document.getElementById('attached-files-list');
     const emptyState = document.getElementById('attached-files-empty');
+    const attachmentError = document.getElementById('attachment-error');
+    const formValidationBanner = document.getElementById('form-validation-banner');
     const primaryDownloadTrigger = document.getElementById('primary-download-trigger');
     const confirmDownloadModal = document.getElementById('confirm-download-modal');
     const confirmDownloadYes = document.getElementById('confirm-download-yes');
@@ -494,6 +505,7 @@ Remove
     const generatedDownloadUrl = @json(session('download_file') ? route('request-form.download', ['filename' => session('download_file')]) : null);
     const shouldAutoDownload = @json((bool) session('auto_download'));
     const shouldShowNoAvailableVehiclesModal = @json((bool) ($showNoAvailableVehiclesModal ?? false));
+    const vehicleAvailabilityEndpoint = @json(route('vehicle-available.data'));
 
     let pendingDownloadAction = null;
     let hasConfirmedSubmit = false;
@@ -503,6 +515,90 @@ Remove
     }
 
     const hasPersonnelSection = !!(personnelList && personnelCount && addPersonnelButton && addPersonnelError);
+
+    function setAttachmentError(message) {
+      if (!attachmentError) {
+        return;
+      }
+
+      if (!message) {
+        attachmentError.classList.add('hidden');
+        return;
+      }
+
+      attachmentError.textContent = message;
+      attachmentError.classList.remove('hidden');
+    }
+
+    function isDocxFile(file) {
+      return String(file && file.name ? file.name : '').toLowerCase().endsWith('.docx');
+    }
+
+    function enforceDocxAttachments() {
+      const currentFiles = Array.from(input.files || []);
+      const validFiles = currentFiles.filter(function (file) {
+        return isDocxFile(file);
+      });
+
+      if (validFiles.length === currentFiles.length) {
+        return;
+      }
+
+      const dataTransfer = new DataTransfer();
+      validFiles.forEach(function (file) {
+        dataTransfer.items.add(file);
+      });
+
+      input.files = dataTransfer.files;
+      setAttachmentError('Only DOCX files are allowed. Unsupported files were removed.');
+    }
+
+    function validateRequiredAttachments() {
+      const files = Array.from(input.files || []);
+
+      if (files.length === 0) {
+        setAttachmentError('Attach at least one DOCX file.');
+        return false;
+      }
+
+      const hasInvalid = files.some(function (file) {
+        return !isDocxFile(file);
+      });
+
+      if (hasInvalid) {
+        setAttachmentError('Only DOCX files are allowed for attachments.');
+        return false;
+      }
+
+      setAttachmentError('');
+      return true;
+    }
+
+    function setTopValidationBanner(messages) {
+      if (!formValidationBanner) {
+        return;
+      }
+
+      if (!messages || messages.length === 0) {
+        formValidationBanner.textContent = '';
+        formValidationBanner.classList.add('hidden');
+        return;
+      }
+
+      const uniqueMessages = Array.from(new Set(messages));
+      formValidationBanner.textContent = 'Please complete the following required fields: ' + uniqueMessages.join(', ') + '.';
+      formValidationBanner.classList.remove('hidden');
+      formValidationBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function markInputError(inputElement, hasError) {
+      if (!inputElement) {
+        return;
+      }
+
+      inputElement.classList.toggle('ring-2', hasError);
+      inputElement.classList.toggle('ring-error/40', hasError);
+    }
 
     function updatePersonnelCount() {
       personnelCount.textContent = '(' + getPersonnelRows().length + ')';
@@ -668,7 +764,135 @@ Remove
       });
     }
 
+    function normalizeAvailableCount(value) {
+      const parsed = Number(value);
+
+      if (!Number.isFinite(parsed)) {
+        return 0;
+      }
+
+      return Math.max(0, Math.trunc(parsed));
+    }
+
+    function mapAvailableVehicleCounts(vehicles) {
+      const counts = {
+        coaster: 0,
+        van: 0,
+        pickup: 0,
+      };
+
+      if (!Array.isArray(vehicles)) {
+        return counts;
+      }
+
+      vehicles.forEach(function (vehicle) {
+        const vehicleType = String(vehicle && vehicle.vehicle_type ? vehicle.vehicle_type : '')
+          .trim()
+          .toLowerCase();
+        const status = String(vehicle && vehicle.status ? vehicle.status : '')
+          .trim()
+          .toLowerCase();
+
+        if (status !== 'available' || !Object.prototype.hasOwnProperty.call(counts, vehicleType)) {
+          return;
+        }
+
+        counts[vehicleType] += 1;
+      });
+
+      return counts;
+    }
+
+    function applyVehicleAvailabilityCounts(counts) {
+      let totalAvailable = 0;
+
+      vehicleRequestRows.forEach(function (row) {
+        const vehicleType = String(row.getAttribute('data-vehicle-type') || '').trim().toLowerCase();
+
+        if (vehicleType === '') {
+          return;
+        }
+
+        const checkbox = row.querySelector('.vehicle-request-checkbox');
+        const quantityInput = row.querySelector('.vehicle-request-quantity');
+        const maxLabel = row.querySelector('.vehicle-request-max-label');
+
+        if (!checkbox || !quantityInput || !maxLabel) {
+          return;
+        }
+
+        const availableCount = normalizeAvailableCount(counts[vehicleType]);
+        const isAvailable = availableCount > 0;
+        const nextMax = Math.max(1, availableCount);
+        totalAvailable += availableCount;
+
+        maxLabel.textContent = 'Max ' + String(availableCount);
+        quantityInput.max = String(nextMax);
+
+        if (!isAvailable) {
+          checkbox.checked = false;
+        }
+
+        checkbox.disabled = !isAvailable;
+        quantityInput.disabled = !isAvailable || !checkbox.checked;
+
+        if (isAvailable) {
+          const currentValue = Number(quantityInput.value || '1');
+          const normalizedValue = Number.isFinite(currentValue)
+            ? Math.max(1, Math.min(nextMax, Math.floor(currentValue)))
+            : 1;
+
+          quantityInput.value = String(normalizedValue);
+        } else {
+          quantityInput.value = '1';
+        }
+
+        row.classList.toggle('opacity-50', !isAvailable);
+        row.classList.toggle('pointer-events-none', !isAvailable);
+      });
+
+      if (totalAvailable <= 0) {
+        showUnavailableVehiclesModal();
+      }
+    }
+
+    async function refreshVehicleAvailability() {
+      if (vehicleAvailabilityEndpoint === '') {
+        return;
+      }
+
+      try {
+        const response = await fetch(vehicleAvailabilityEndpoint, {
+          headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = await response.json();
+        const availableCounts = mapAvailableVehicleCounts(payload ? payload.vehicles : []);
+
+        applyVehicleAvailabilityCounts(availableCounts);
+      } catch (error) {
+        // Ignore refresh failures.
+      }
+    }
+
     bindVehicleRequestRows();
+
+    if (typeof window.emsLiveRefresh === 'function') {
+      window.emsLiveRefresh(refreshVehicleAvailability, {
+        intervalMs: 10000,
+        runImmediately: false,
+      });
+    } else {
+      window.setInterval(refreshVehicleAvailability, 10000);
+    }
 
     function normalizePersonnelId(rawValue) {
       return String(rawValue || '').replace(/\D/g, '').slice(0, 6);
@@ -900,48 +1124,111 @@ Remove
       });
     }
 
-    requestForm.addEventListener('submit', function (event) {
+    function validateFormBeforeSubmission() {
+      const validationMessages = [];
+
       if (hasPersonnelSection) {
         pruneEmptyPersonnelRows();
       }
 
+      if (addPersonnelError) {
+        addPersonnelError.classList.add('hidden');
+      }
+
+      const requestDateValue = requestDateInput ? String(requestDateInput.value || '').trim() : '';
+      const requestedByValue = requestedByInput ? String(requestedByInput.value || '').trim() : '';
+      const destinationValue = destinationInput ? String(destinationInput.value || '').trim() : '';
+      const dateTimeFromValue = dateTimeFromInput ? String(dateTimeFromInput.value || '').trim() : '';
+      const dateTimeToValue = dateTimeToInput ? String(dateTimeToInput.value || '').trim() : '';
+      const purposeValue = purposeInput ? String(purposeInput.value || '').trim() : '';
+
+      markInputError(requestDateInput, requestDateValue === '');
+      markInputError(requestedByInput, requestedByValue === '');
+      markInputError(destinationInput, destinationValue === '');
+      markInputError(dateTimeFromInput, dateTimeFromValue === '');
+      markInputError(dateTimeToInput, dateTimeToValue === '');
+      markInputError(purposeInput, purposeValue === '');
+
+      if (requestDateValue === '') {
+        validationMessages.push('Date of Request');
+      }
+
+      if (requestedByValue === '') {
+        validationMessages.push('To Be Used By');
+      }
+
+      if (destinationValue === '') {
+        validationMessages.push('Destination');
+      }
+
+      if (dateTimeFromValue === '') {
+        validationMessages.push('Date & Time Used (FROM)');
+      }
+
+      if (dateTimeToValue === '') {
+        validationMessages.push('Date & Time Used (TO)');
+      }
+
+      if (dateTimeFromValue !== '' && dateTimeToValue !== '') {
+        const fromTime = new Date(dateTimeFromValue).getTime();
+        const toTime = new Date(dateTimeToValue).getTime();
+
+        if (Number.isFinite(fromTime) && Number.isFinite(toTime) && toTime <= fromTime) {
+          markInputError(dateTimeToInput, true);
+          validationMessages.push('Date & Time Used (TO) must be later than (FROM)');
+        }
+      }
+
+      if (purposeValue === '') {
+        validationMessages.push('Purpose of Request');
+      }
+
       if (!hasSelectedVehicleRequests()) {
-        event.preventDefault();
         hasConfirmedSubmit = false;
         hideLoadingModal();
-        if (addPersonnelError) {
-          addPersonnelError.textContent = 'Select at least one vehicle type and quantity.';
-          addPersonnelError.classList.remove('hidden');
-        }
-        return;
+        validationMessages.push('Vehicle Selection');
       }
 
       if (hasPersonnelSection && hasInvalidPersonnelRows()) {
-        event.preventDefault();
         hasConfirmedSubmit = false;
         hideLoadingModal();
-        addPersonnelError.textContent = 'Every passenger row must have a valid 6-digit ID and an auto-filled name.';
-        addPersonnelError.classList.remove('hidden');
-        return;
+        validationMessages.push('Business Passengers (valid ID and Name)');
       }
 
       const divisionName = requestingDivisionName ? String(requestingDivisionName.value || '').trim() : '';
       const divisionPosition = requestingDivisionPosition ? String(requestingDivisionPosition.value || '').trim() : '';
 
-      if (requestingDivisionName) {
-        requestingDivisionName.classList.toggle('ring-2', divisionName === '');
-        requestingDivisionName.classList.toggle('ring-error/40', divisionName === '');
+      markInputError(requestingDivisionName, divisionName === '');
+      markInputError(requestingDivisionPosition, divisionPosition === '');
+
+      if (requestingDivisionName && divisionName === '') {
+        validationMessages.push('Requesting Division Name');
       }
 
-      if (requestingDivisionPosition) {
-        requestingDivisionPosition.classList.toggle('ring-2', divisionPosition === '');
-        requestingDivisionPosition.classList.toggle('ring-error/40', divisionPosition === '');
+      if (requestingDivisionPosition && divisionPosition === '') {
+        validationMessages.push('Requesting Division Position');
       }
 
-      if ((requestingDivisionName && divisionName === '') || (requestingDivisionPosition && divisionPosition === '')) {
-        event.preventDefault();
+      if (!validateRequiredAttachments()) {
+        const hasAttachment = Array.from(input.files || []).length > 0;
+        validationMessages.push(hasAttachment ? 'File Attachments (DOCX only)' : 'File Attachments');
+      }
+
+      if (validationMessages.length > 0) {
         hasConfirmedSubmit = false;
         hideLoadingModal();
+        setTopValidationBanner(validationMessages);
+        return false;
+      }
+
+      setTopValidationBanner([]);
+
+      return true;
+    }
+
+    requestForm.addEventListener('submit', function (event) {
+      if (!validateFormBeforeSubmission()) {
+        event.preventDefault();
         return;
       }
 
@@ -951,6 +1238,7 @@ Remove
         return;
       }
 
+      showLoadingModal();
       hasConfirmedSubmit = false;
     });
 
@@ -1036,10 +1324,21 @@ Remove
       });
     }
 
-    input.addEventListener('change', renderAttachedFiles);
+    input.addEventListener('change', function () {
+      enforceDocxAttachments();
+      renderAttachedFiles();
+
+      if (Array.from(input.files || []).length > 0) {
+        validateRequiredAttachments();
+      }
+    });
 
     if (primaryDownloadTrigger) {
       primaryDownloadTrigger.addEventListener('click', function () {
+        if (!validateFormBeforeSubmission()) {
+          return;
+        }
+
         showConfirmModal({ type: 'submit' });
       });
     }
@@ -1071,7 +1370,6 @@ Remove
 
         if (action.type === 'submit') {
           hideConfirmModal();
-          showLoadingModal();
           hasConfirmedSubmit = true;
           requestForm.requestSubmit();
           return;

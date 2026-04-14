@@ -16,46 +16,48 @@
 </div>
 </footer>
 
-@if (($returnedRequestMessages ?? collect())->isNotEmpty())
+@php
+    $initialReturnedRequestRows = ($returnedRequestMessages ?? collect())
+        ->map(function ($request) {
+            $attachments = collect(is_array($request->attachments) ? $request->attachments : [])
+                ->values()
+                ->map(function ($attachment, $index) use ($request) {
+                    return [
+                        'fileName' => trim((string) (is_array($attachment) ? ($attachment['file_name'] ?? '') : '')) ?: 'Attachment',
+                        'url' => route('request-form.attachment.view', [
+                            'transportationRequest' => $request->id,
+                            'index' => $index,
+                        ]),
+                    ];
+                })
+                ->values()
+                ->all();
+
+            return [
+                'id' => (int) ($request->id ?? 0),
+                'formId' => (string) ($request->form_id ?? 'N/A'),
+                'rejectionReason' => (string) ($request->rejection_reason ?? ''),
+                'attachments' => $attachments,
+            ];
+        })
+        ->sortByDesc('id')
+        ->values()
+        ->all();
+@endphp
+
 <div id="global-returned-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/45 px-4">
     <div class="w-full max-w-2xl rounded-2xl bg-surface-container-lowest p-6 shadow-2xl border border-outline-variant/30">
         <div class="flex items-start justify-between gap-4 mb-4">
             <div>
                 <h3 class="text-xl font-extrabold text-primary">Returned Requests</h3>
-                <p class="text-sm text-on-surface-variant">The following request(s) were rejected and sent back for correction.</p>
+                <p class="text-sm text-on-surface-variant">The latest rejected request will appear here for correction.</p>
             </div>
             <button id="global-returned-close" type="button" class="inline-flex items-center justify-center rounded-lg border border-outline-variant px-3 py-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant hover:bg-surface-container-low">
                 Close
             </button>
         </div>
 
-        <div class="max-h-[60vh] overflow-y-auto space-y-3 pr-1">
-            @foreach ($returnedRequestMessages as $messageRequest)
-                @php
-                    $requestAttachments = is_array($messageRequest->attachments) ? $messageRequest->attachments : [];
-                @endphp
-                <div class="rounded-xl border border-error/20 bg-error-container/60 p-4">
-                    <p class="text-sm font-bold text-error">{{ $messageRequest->form_id }} was rejected.</p>
-                    <p class="mt-1 text-sm font-semibold text-on-error-container">{{ $messageRequest->rejection_reason }}</p>
-
-                    @if (count($requestAttachments) > 0)
-                        <div class="mt-3 space-y-1">
-                            @foreach ($requestAttachments as $attachmentIndex => $attachment)
-                                <a
-                                    href="{{ route('request-form.attachment.view', ['transportationRequest' => $messageRequest->id, 'index' => $attachmentIndex]) }}"
-                                    target="_blank"
-                                    rel="noopener"
-                                    class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-container hover:underline"
-                                >
-                                    <span class="material-symbols-outlined text-sm">attach_file</span>
-                                    {{ $attachment['file_name'] ?? 'Attachment' }}
-                                </a>
-                            @endforeach
-                        </div>
-                    @endif
-                </div>
-            @endforeach
-        </div>
+        <div id="global-returned-list" class="max-h-[60vh] overflow-y-auto pr-1"></div>
     </div>
 </div>
 
@@ -63,18 +65,53 @@
     (function () {
         const modal = document.getElementById('global-returned-modal');
         const closeButton = document.getElementById('global-returned-close');
+        const list = document.getElementById('global-returned-list');
         const userId = @json((int) ($returnedRequestMessageUserId ?? 0));
-        const storageKey = `nia_ems_returned_requests_seen_signature_user_${userId}`;
-        const returnedRequestsSignature = @json(
-            ($returnedRequestMessages ?? collect())
-                ->map(function ($request) {
-                    return (string) $request->id . '|' . (string) optional($request->updated_at)->timestamp;
-                })
-                ->implode(',')
-        );
+        const endpoint = @json(route('user.notifications.returned-requests'));
+        const storageKey = `nia_ems_returned_requests_last_seen_id_user_${userId}`;
+        const initialReturnedRequests = @json($initialReturnedRequestRows);
 
-        if (!modal || !closeButton || returnedRequestsSignature === '') {
+        let latestReturnedRequest = Array.isArray(initialReturnedRequests) && initialReturnedRequests.length > 0
+            ? initialReturnedRequests[0]
+            : null;
+        let latestReturnedRequestSignature = latestReturnedRequest && Number(latestReturnedRequest.id) > 0
+            ? String(latestReturnedRequest.id)
+            : '';
+        let fetchInFlight = false;
+
+        if (!modal || !closeButton || !list || userId <= 0) {
             return;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function getLastSeenRejectedId() {
+            try {
+                const storedValue = Number(window.localStorage.getItem(storageKey) || 0);
+                return Number.isFinite(storedValue) ? Math.max(0, Math.trunc(storedValue)) : 0;
+            } catch (error) {
+                return 0;
+            }
+        }
+
+        function setLastSeenRejectedId(value) {
+            const normalizedValue = Number(value);
+            if (!Number.isFinite(normalizedValue) || normalizedValue <= 0) {
+                return;
+            }
+
+            try {
+                window.localStorage.setItem(storageKey, String(Math.trunc(normalizedValue)));
+            } catch (error) {
+                // Ignore storage failures.
+            }
         }
 
         function openModal() {
@@ -82,44 +119,139 @@
             modal.classList.add('flex');
         }
 
-        function closeModal() {
+        function closeModal(markAsSeen) {
             modal.classList.add('hidden');
             modal.classList.remove('flex');
 
+            if (!markAsSeen || !latestReturnedRequest) {
+                return;
+            }
+
+            setLastSeenRejectedId(latestReturnedRequest.id);
+        }
+
+        function renderLatestReturnedRequest() {
+            if (!latestReturnedRequest || Number(latestReturnedRequest.id) <= 0) {
+                list.innerHTML = '<p class="rounded-xl border border-outline-variant/40 bg-surface-container-low p-4 text-sm text-on-surface-variant">No returned requests right now.</p>';
+                return;
+            }
+
+            const attachments = Array.isArray(latestReturnedRequest.attachments)
+                ? latestReturnedRequest.attachments
+                : [];
+
+            const attachmentsHtml = attachments.length > 0
+                ? '<div class="mt-3 space-y-1">' + attachments.map(function (attachment) {
+                    const href = String((attachment && attachment.url) ? attachment.url : '#');
+                    const fileName = escapeHtml((attachment && attachment.fileName) ? attachment.fileName : 'Attachment');
+
+                    return [
+                        '<a href="' + href + '" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-container hover:underline">',
+                        '<span class="material-symbols-outlined text-sm">attach_file</span>',
+                        fileName,
+                        '</a>'
+                    ].join('');
+                }).join('') + '</div>'
+                : '';
+
+            list.innerHTML = [
+                '<div class="rounded-xl border border-error/20 bg-error-container/60 p-4" data-returned-request-id="' + escapeHtml(latestReturnedRequest.id) + '">',
+                '<p class="text-sm font-bold text-error">' + escapeHtml(latestReturnedRequest.formId || 'N/A') + ' was rejected.</p>',
+                '<p class="mt-1 text-sm font-semibold text-on-error-container">' + escapeHtml(latestReturnedRequest.rejectionReason || 'No rejection reason provided.') + '</p>',
+                attachmentsHtml,
+                '</div>'
+            ].join('');
+        }
+
+        function applyState() {
+            renderLatestReturnedRequest();
+
+            if (!latestReturnedRequest || Number(latestReturnedRequest.id) <= 0) {
+                closeModal(false);
+                return;
+            }
+
+            const lastSeenRejectedId = getLastSeenRejectedId();
+
+            if (Number(latestReturnedRequest.id) > lastSeenRejectedId) {
+                openModal();
+                return;
+            }
+
+            closeModal(false);
+        }
+
+        async function refreshReturnedRequests() {
+            if (fetchInFlight || endpoint === '') {
+                return;
+            }
+
+            fetchInFlight = true;
+
             try {
-                window.localStorage.setItem(storageKey, returnedRequestsSignature);
+                const response = await fetch(endpoint, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    cache: 'no-store',
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const payload = await response.json();
+                const nextLatestRequest = payload && payload.latestRequest && Number(payload.latestRequest.id) > 0
+                    ? payload.latestRequest
+                    : null;
+                const nextSignature = String(payload.latestRequestSignature ?? '');
+                const currentLatestId = latestReturnedRequest ? Number(latestReturnedRequest.id) : 0;
+                const nextLatestId = Number(payload.latestRequestId ?? 0);
+                const hasChanged = nextSignature !== latestReturnedRequestSignature
+                    || currentLatestId !== nextLatestId;
+
+                latestReturnedRequest = nextLatestRequest;
+                latestReturnedRequestSignature = nextSignature;
+
+                if (hasChanged) {
+                    applyState();
+                }
             } catch (error) {
-                // Ignore storage failures.
+                // Ignore polling failures.
+            } finally {
+                fetchInFlight = false;
             }
         }
 
-        let lastSeenSignature = '';
-        try {
-            lastSeenSignature = window.localStorage.getItem(storageKey) || '';
-        } catch (error) {
-            lastSeenSignature = '';
-        }
+        applyState();
 
-        if (lastSeenSignature !== returnedRequestsSignature) {
-            openModal();
-        }
-
-        closeButton.addEventListener('click', closeModal);
+        closeButton.addEventListener('click', function () {
+            closeModal(true);
+        });
 
         modal.addEventListener('click', function (event) {
             if (event.target === modal) {
-                closeModal();
+                closeModal(true);
             }
         });
 
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape') {
-                closeModal();
+                closeModal(true);
+            }
+        });
+
+        const pollIntervalMs = 10000;
+        window.setInterval(refreshReturnedRequests, pollIntervalMs);
+
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) {
+                refreshReturnedRequests();
             }
         });
     })();
 </script>
-@endif
 
 <div id="global-pending-evaluation-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/45 px-4">
     <div class="w-full max-w-lg rounded-2xl bg-surface-container-lowest p-6 shadow-2xl border border-outline-variant/30">

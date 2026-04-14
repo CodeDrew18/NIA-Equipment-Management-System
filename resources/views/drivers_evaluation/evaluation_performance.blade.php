@@ -162,7 +162,7 @@
 </div>
 <div class="bg-surface-container-high px-4 py-3 rounded-xl">
 <div class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Total Pending</div>
-<div class="text-2xl font-black text-primary">{{ number_format($pendingEvaluationCount) }}</div>
+<div id="pending-evaluation-total" class="text-2xl font-black text-primary">{{ number_format($pendingEvaluationCount) }}</div>
 </div>
 </div>
 
@@ -200,7 +200,7 @@
 <th class="px-5 py-3 text-right">Action</th>
 </tr>
 </thead>
-<tbody class="divide-y divide-outline-variant/10">
+<tbody id="pending-evaluation-table-body" class="divide-y divide-outline-variant/10">
 @forelse ($pendingEvaluations as $item)
 @php
     $evaluationRequest = $item->transportationRequestForm;
@@ -229,8 +229,8 @@ Fill Evaluation
 </div>
 
 <div class="px-5 py-4 bg-surface-container-low/60 flex items-center justify-between">
-<span class="text-xs text-on-surface-variant">Showing {{ $pendingEvaluations->firstItem() ?? 0 }} to {{ $pendingEvaluations->lastItem() ?? 0 }} of {{ $pendingEvaluations->total() }}</span>
-<div class="flex gap-2">
+<span id="pending-evaluation-table-summary" class="text-xs text-on-surface-variant">Showing {{ $pendingEvaluations->firstItem() ?? 0 }} to {{ $pendingEvaluations->lastItem() ?? 0 }} of {{ $pendingEvaluations->total() }}</span>
+<div id="pending-evaluation-pagination" class="flex gap-2">
 @if ($pendingEvaluations->onFirstPage())
 <span class="p-2 rounded text-slate-400">
 <span class="material-symbols-outlined text-sm">chevron_left</span>
@@ -641,6 +641,90 @@ Fill Evaluation
         }
 
         refreshFinalRate();
+    })();
+</script>
+<script>
+    (function () {
+        const pendingTotal = document.getElementById('pending-evaluation-total');
+        const pendingTableBody = document.getElementById('pending-evaluation-table-body');
+        const pendingTableSummary = document.getElementById('pending-evaluation-table-summary');
+        const pendingPagination = document.getElementById('pending-evaluation-pagination');
+        let refreshInFlight = false;
+
+        if (!pendingTotal || !pendingTableBody || !pendingTableSummary || !pendingPagination) {
+            return;
+        }
+
+        async function refreshPendingEvaluations() {
+            if (refreshInFlight) {
+                return;
+            }
+
+            refreshInFlight = true;
+
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set('_live_refresh', String(Date.now()));
+
+                const response = await fetch(url.toString(), {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    cache: 'no-store',
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const html = await response.text();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const nextPendingTotal = doc.getElementById('pending-evaluation-total');
+                const nextPendingTableBody = doc.getElementById('pending-evaluation-table-body');
+                const nextPendingTableSummary = doc.getElementById('pending-evaluation-table-summary');
+                const nextPendingPagination = doc.getElementById('pending-evaluation-pagination');
+
+                if (nextPendingTotal) {
+                    pendingTotal.textContent = nextPendingTotal.textContent;
+                }
+
+                if (nextPendingTableBody) {
+                    pendingTableBody.innerHTML = nextPendingTableBody.innerHTML;
+                }
+
+                if (nextPendingTableSummary) {
+                    pendingTableSummary.textContent = nextPendingTableSummary.textContent;
+                }
+
+                if (nextPendingPagination) {
+                    pendingPagination.innerHTML = nextPendingPagination.innerHTML;
+                }
+            } catch (error) {
+                // Ignore refresh failures.
+            } finally {
+                refreshInFlight = false;
+            }
+        }
+
+        if (typeof window.emsLiveRefresh === 'function') {
+            window.emsLiveRefresh(refreshPendingEvaluations, {
+                intervalMs: 10000,
+                runImmediately: false,
+                shouldPause: function () {
+                    const active = document.activeElement;
+
+                    if (!active) {
+                        return false;
+                    }
+
+                    const tagName = String(active.tagName || '').toLowerCase();
+
+                    return tagName === 'input' || tagName === 'textarea' || tagName === 'select';
+                },
+            });
+        } else {
+            window.setInterval(refreshPendingEvaluations, 10000);
+        }
     })();
 </script>
 </body></html>

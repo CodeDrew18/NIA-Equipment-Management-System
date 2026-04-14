@@ -124,7 +124,7 @@
 <!-- Main Report Table -->
 <div class="max-w-[1920px] mx-auto bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/10">
 <div class="overflow-x-auto">
-<table class="w-full text-left border-collapse">
+<table id="monthly-report-table" class="w-full text-left border-collapse">
 <thead class="bg-surface-container text-on-surface-variant font-label text-[10px] uppercase tracking-wider font-bold">
 <tr>
 <th class="px-4 py-4 border-r border-outline-variant/20">Date</th>
@@ -313,12 +313,12 @@
 <tr>
 <td class="px-4 py-4 uppercase text-[10px] tracking-widest border-r border-white/10">Total</td>
 <td class="px-4 py-4 border-r border-white/10">{{ number_format($totalDistance, 1) }}</td>
-<td class="px-4 py-4 border-r border-white/10">0.0</td>
-<td class="px-4 py-4 border-r border-white/10">0.0</td>
-<td class="px-4 py-4 border-r border-white/10">0.0</td>
-<td class="px-4 py-4 border-r border-white/10">0.0</td>
-<td class="px-4 py-4 border-r border-white/10">0.0</td>
-<td class="px-4 py-4 border-r border-white/10">0.0</td>
+<td class="px-4 py-4 border-r border-white/10">{{ number_format($totalDiesel, 1) }}</td>
+<td class="px-4 py-4 border-r border-white/10">{{ number_format($totalGasoline, 1) }}</td>
+<td class="px-4 py-4 border-r border-white/10">{{ number_format($totalEngineOil, 1) }}</td>
+<td class="px-4 py-4 border-r border-white/10">{{ number_format($totalGearOil, 1) }}</td>
+<td class="px-4 py-4 border-r border-white/10">{{ number_format($totalBrakeFluid, 1) }}</td>
+<td class="px-4 py-4 border-r border-white/10">{{ number_format($totalGrease, 1) }}</td>
 <td class="px-4 py-4" colspan="3">Consolidated Equipment Metrics</td>
 </tr>
 </tfoot>
@@ -376,6 +376,8 @@
 <script>
     (function () {
         const monthInput = document.getElementById('monthly-report-month');
+        const reportTable = document.getElementById('monthly-report-table');
+        let refreshInFlight = false;
 
         if (!monthInput) {
             return;
@@ -393,6 +395,57 @@
 
             window.location.assign(nextUrl.toString());
         });
+
+        if (!reportTable) {
+            return;
+        }
+
+        async function refreshReportTable() {
+            if (refreshInFlight) {
+                return;
+            }
+
+            refreshInFlight = true;
+
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set('_live_refresh', String(Date.now()));
+
+                const response = await fetch(url.toString(), {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    cache: 'no-store',
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const html = await response.text();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const nextTable = doc.getElementById('monthly-report-table');
+
+                if (!nextTable) {
+                    return;
+                }
+
+                reportTable.innerHTML = nextTable.innerHTML;
+            } catch (error) {
+                // Ignore refresh failures.
+            } finally {
+                refreshInFlight = false;
+            }
+        }
+
+        if (typeof window.emsLiveRefresh === 'function') {
+            window.emsLiveRefresh(refreshReportTable, {
+                intervalMs: 10000,
+                runImmediately: false,
+            });
+        } else {
+            window.setInterval(refreshReportTable, 10000);
+        }
     })();
 </script>
 </body></html>

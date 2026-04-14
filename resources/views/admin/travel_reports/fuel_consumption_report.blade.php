@@ -104,8 +104,8 @@
   <section class="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
     <div>
       <p class="text-[11px] uppercase tracking-[0.16em] font-bold text-secondary mb-2">Reports / Fuel Monitoring</p>
-      <h1 class="text-3xl font-extrabold tracking-tight text-primary">Monthly Fuel Consumption Matrix</h1>
-      <p class="text-sm font-medium text-on-surface-variant">System view of Annex B with editable cells and automatic computations.</p>
+      <h1 class="text-3xl font-extrabold tracking-tight text-primary">Monthly Fuel Consumption Report</h1>
+      <p class="text-sm font-medium text-on-surface-variant">Monthly Annex B fuel report featuring editable entries and automatic computation of values.</p>
     </div>
 
     <div class="no-print flex items-center gap-3">

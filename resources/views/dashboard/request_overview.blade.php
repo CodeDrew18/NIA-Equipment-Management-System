@@ -133,7 +133,7 @@
     <section class="bg-surface-container-lowest rounded-xl border border-outline-variant/10 shadow-sm overflow-hidden">
         <div class="px-6 py-4 border-b border-outline-variant/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h2 class="text-lg font-bold text-primary">All Requests</h2>
-            <p class="text-sm text-on-surface-variant">{{ number_format($requests->total()) }} total request{{ $requests->total() === 1 ? '' : 's' }}</p>
+            <p id="request-overview-total-count" class="text-sm text-on-surface-variant">{{ number_format($requests->total()) }} total request{{ $requests->total() === 1 ? '' : 's' }}</p>
         </div>
 
         <div class="overflow-x-auto">
@@ -147,7 +147,7 @@
                         <th class="px-4 py-3">Status</th>
                     </tr>
                 </thead>
-                <tbody class="text-sm text-on-surface">
+                <tbody id="request-overview-table-body" class="text-sm text-on-surface">
                     @forelse ($requests as $requestItem)
                         @php
                             $statusValue = (string) ($requestItem->status ?: 'Unknown');
@@ -175,14 +175,87 @@
             </table>
         </div>
 
-        @if ($requests->hasPages())
-            <div class="px-6 py-4 border-t border-outline-variant/20">
+        <div id="request-overview-pagination" class="px-6 py-4 border-t border-outline-variant/20 {{ $requests->hasPages() ? '' : 'hidden' }}">
+            @if ($requests->hasPages())
                 {{ $requests->onEachSide(1)->links() }}
-            </div>
-        @endif
+            @endif
+        </div>
     </section>
 </main>
 
 @include('layouts.footer')
+<script>
+    (function () {
+        const tableBody = document.getElementById('request-overview-table-body');
+        const totalCount = document.getElementById('request-overview-total-count');
+        const pagination = document.getElementById('request-overview-pagination');
+        let refreshInFlight = false;
+
+        if (!tableBody || !totalCount) {
+            return;
+        }
+
+        async function refreshOverview() {
+            if (refreshInFlight) {
+                return;
+            }
+
+            refreshInFlight = true;
+
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set('_live_refresh', String(Date.now()));
+
+                const response = await fetch(url.toString(), {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    cache: 'no-store',
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const html = await response.text();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const nextTableBody = doc.getElementById('request-overview-table-body');
+                const nextTotalCount = doc.getElementById('request-overview-total-count');
+                const nextPagination = doc.getElementById('request-overview-pagination');
+
+                if (nextTableBody) {
+                    tableBody.innerHTML = nextTableBody.innerHTML;
+                }
+
+                if (nextTotalCount) {
+                    totalCount.textContent = nextTotalCount.textContent;
+                }
+
+                if (pagination) {
+                    if (nextPagination) {
+                        pagination.innerHTML = nextPagination.innerHTML;
+                        pagination.classList.remove('hidden');
+                    } else {
+                        pagination.innerHTML = '';
+                        pagination.classList.add('hidden');
+                    }
+                }
+            } catch (error) {
+                // Ignore refresh failures.
+            } finally {
+                refreshInFlight = false;
+            }
+        }
+
+        if (typeof window.emsLiveRefresh === 'function') {
+            window.emsLiveRefresh(refreshOverview, {
+                intervalMs: 10000,
+                runImmediately: false,
+            });
+        } else {
+            window.setInterval(refreshOverview, 10000);
+        }
+    })();
+</script>
 </body>
 </html>

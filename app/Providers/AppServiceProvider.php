@@ -49,9 +49,16 @@ class AppServiceProvider extends ServiceProvider
                         ->where('form_creator_id', $authUser->personnel_id)
                         ->where('status', 'Rejected')
                         ->whereNotNull('rejection_reason')
+                        ->where('rejection_reason', '!=', '')
                         ->orderByDesc('updated_at')
-                        ->limit(5)
-                        ->get();
+                        ->limit(20)
+                        ->get([
+                            'id',
+                            'form_id',
+                            'rejection_reason',
+                            'attachments',
+                            'updated_at',
+                        ]);
                 }
 
                 if ($hasUserAreaRole) {

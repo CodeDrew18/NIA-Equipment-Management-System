@@ -10,6 +10,77 @@ use Illuminate\Http\Request;
 
 class NotificationModalController extends Controller
 {
+    public function userReturnedRequests(Request $request): JsonResponse
+    {
+        $personnelId = (string) ($request->user()?->personnel_id ?? '');
+
+        if ($personnelId === '') {
+            return response()->json([
+                'latestRequest' => null,
+                'latestRequestId' => 0,
+                'latestRequestSignature' => '',
+            ]);
+        }
+
+        $latestReturnedRequest = TransportationRequestFormModel::query()
+            ->where('form_creator_id', $personnelId)
+            ->where('status', 'Rejected')
+            ->whereNotNull('rejection_reason')
+            ->where('rejection_reason', '!=', '')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->first([
+                'id',
+                'form_id',
+                'rejection_reason',
+                'attachments',
+                'updated_at',
+            ]);
+
+        if (!$latestReturnedRequest) {
+            return response()->json([
+                'latestRequest' => null,
+                'latestRequestId' => 0,
+                'latestRequestSignature' => '',
+            ]);
+        }
+
+        $attachments = collect(is_array($latestReturnedRequest->attachments) ? $latestReturnedRequest->attachments : [])
+            ->values()
+            ->map(function ($attachment, int $index) use ($latestReturnedRequest): array {
+                $fileName = '';
+                if (is_array($attachment)) {
+                    $fileName = trim((string) ($attachment['file_name'] ?? ''));
+                }
+
+                return [
+                    'fileName' => $fileName !== '' ? $fileName : 'Attachment',
+                    'url' => route('request-form.attachment.view', [
+                        'transportationRequest' => $latestReturnedRequest->id,
+                        'index' => $index,
+                    ]),
+                ];
+            })
+            ->all();
+
+        $latestRequestId = (int) ($latestReturnedRequest->id ?? 0);
+        $latestRequestSignature = implode('|', [
+            (string) $latestRequestId,
+            (string) (optional($latestReturnedRequest->updated_at)->timestamp ?? 0),
+        ]);
+
+        return response()->json([
+            'latestRequest' => [
+                'id' => $latestRequestId,
+                'formId' => (string) ($latestReturnedRequest->form_id ?? 'N/A'),
+                'rejectionReason' => (string) ($latestReturnedRequest->rejection_reason ?? ''),
+                'attachments' => $attachments,
+            ],
+            'latestRequestId' => $latestRequestId,
+            'latestRequestSignature' => $latestRequestSignature,
+        ]);
+    }
+
     public function userPendingEvaluations(Request $request): JsonResponse
     {
         $personnelId = (string) ($request->user()?->personnel_id ?? '');
