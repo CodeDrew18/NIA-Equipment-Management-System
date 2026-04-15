@@ -145,6 +145,10 @@
     </div>
   @endif
 
+  <div id="download-success-banner" class="hidden rounded-xl border border-secondary/30 bg-secondary-container p-4 text-on-secondary-container text-sm font-semibold">
+    Transportation request form downloaded successfully.
+  </div>
+
   <div id="form-validation-banner" class="hidden rounded-xl border border-error/30 bg-error-container p-4 text-on-error-container text-sm font-semibold"></div>
 
 <section>
@@ -483,6 +487,7 @@ Remove
     const list = document.getElementById('attached-files-list');
     const emptyState = document.getElementById('attached-files-empty');
     const attachmentError = document.getElementById('attachment-error');
+    const downloadSuccessBanner = document.getElementById('download-success-banner');
     const formValidationBanner = document.getElementById('form-validation-banner');
     const primaryDownloadTrigger = document.getElementById('primary-download-trigger');
     const confirmDownloadModal = document.getElementById('confirm-download-modal');
@@ -581,6 +586,20 @@ function validateRequiredAttachments() {
       formValidationBanner.textContent = 'Please complete the following required fields: ' + uniqueMessages.join(', ') + '.';
       formValidationBanner.classList.remove('hidden');
       formValidationBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function showDownloadSuccessBanner(message) {
+      if (!downloadSuccessBanner) {
+        return;
+      }
+
+      downloadSuccessBanner.textContent = message || 'Transportation request form downloaded successfully.';
+      downloadSuccessBanner.classList.remove('hidden');
+      downloadSuccessBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      window.setTimeout(function () {
+        downloadSuccessBanner.classList.add('hidden');
+      }, 5000);
     }
 
     function markInputError(inputElement, hasError) {
@@ -1367,6 +1386,7 @@ function validateRequiredAttachments() {
               downloadRequestFormInput.value = '0';
             }
             requestForm.target = '';
+            showDownloadSuccessBanner('Transportation request form downloaded successfully.');
           }, 2500);
         }
       });

@@ -156,9 +156,22 @@
                             $tripStart = optional($requestItem->date_time_from)->format('M d, Y h:i A') ?: 'N/A';
                             $tripEnd = optional($requestItem->date_time_to)->format('M d, Y h:i A') ?: 'N/A';
                             $attachmentLinks = collect($requestItem->normalizeAttachments())
-                                ->values()
                                 ->map(function ($attachment, $index) use ($requestItem) {
-                                    $attachmentName = trim((string) (is_array($attachment) ? ($attachment['file_name'] ?? '') : ''));
+                                    if (!is_array($attachment)) {
+                                        return null;
+                                    }
+
+                                    $process = trim((string) ($attachment['process'] ?? ''));
+                                    $processKey = trim((string) ($attachment['process_key'] ?? ''));
+                                    $isTransportationRequestAttachment = $process === ''
+                                        || $process === 'transportation_request_form'
+                                        || $processKey === 'transportation_request_form_file';
+
+                                    if (!$isTransportationRequestAttachment) {
+                                        return null;
+                                    }
+
+                                    $attachmentName = trim((string) ($attachment['file_name'] ?? ''));
 
                                     return [
                                         'name' => $attachmentName !== '' ? $attachmentName : 'Attachment',
@@ -168,6 +181,8 @@
                                         ]),
                                     ];
                                 })
+                                ->filter()
+                                ->values()
                                 ->all();
                         @endphp
                         <tr class="border-b border-outline-variant/10 {{ $loop->even ? 'bg-surface-container-low/35' : '' }}">
