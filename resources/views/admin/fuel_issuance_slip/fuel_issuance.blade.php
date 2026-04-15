@@ -96,7 +96,8 @@
         ? 'FIS-' . optional($selectedRequest->request_date)->format('Y') . '-' . str_pad((string) $selectedRequest->id, 4, '0', STR_PAD_LEFT)
         : 'FIS-0000-0000';
     $dealerName = '____________________________';
-    $divisionManagerName = 'ENGR. EMILIO M. DOMAGAS JR';
+    $divisionManagerName = (string) ($activeAssignatory['name'] ?? '');
+    $divisionManagerPosition = (string) ($activeAssignatory['position'] ?? '');
     $activeFuelPartnership = $selectedFuelPartnership ?? [
         'id' => null,
         'name' => 'Petron Fuel',
@@ -123,6 +124,7 @@
         'vehicleId' => (string) ($selectedRequest?->vehicle_id ?: '____________________________'),
         'driverName' => (string) ($selectedRequest?->driver_name ?: 'N/A'),
         'divisionManagerName' => $divisionManagerName,
+        'divisionManagerPosition' => $divisionManagerPosition,
         'fuelPartnership' => $activeFuelPartnership,
         'copies' => $selectedCopies ?? [],
     ];
@@ -381,6 +383,7 @@ const fiPrintUrl = "{{ route('admin.fuel_issuance_slip.print') }}";
 const fiDispatchUrlTemplate = "{{ route('admin.fuel_issuance_slip.dispatch', ['transportationRequest' => '__ID__']) }}";
 const fiCsrfToken = "{{ csrf_token() }}";
 const fiDefaultDivisionManager = "{{ $divisionManagerName }}";
+const fiDefaultDivisionManagerPosition = "{{ $divisionManagerPosition }}";
 const fiInitialFuelPartnership = @json($activeFuelPartnership);
 let fiCurrentPage = {{ $dispatchedRequests->currentPage() }};
 let fiSelectedRequestId = {{ $selectedRequest?->id ?? 'null' }};
@@ -633,6 +636,7 @@ function fiRenderCopyCard(copy, selectedMeta, isSingleCopy = false) {
     const totalAmount = fiFormatCurrency(fiCopyTotal(copyState));
     const requestDate = String(selectedMeta.requestDate || '________________');
     const divisionManagerName = String(selectedMeta.divisionManagerName || fiDefaultDivisionManager);
+    const divisionManagerPosition = String(selectedMeta.divisionManagerPosition || fiDefaultDivisionManagerPosition);
     const printButtonLabel = isSingleCopy
         ? 'Print'
         : `Print Copy #${fiEsc(copy.copyNumber)}`;
@@ -674,7 +678,7 @@ function fiRenderCopyCard(copy, selectedMeta, isSingleCopy = false) {
                 <div class="space-y-4 text-sm font-semibold">
                     <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
                         <span class="col-span-5 text-on-surface-variant">GASOLINE (Extra/Reg)</span>
-                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="gasoline" value="${fiEsc(copyState.gasoline)}" required/>
+                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="gasoline" value=0 required/>
                         <span class="col-span-1 text-center text-on-surface-variant">@</span>
                         <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="gasolinePrice" value="${fiEsc(copyState.gasolinePrice)}" placeholder="0.00" required/>
                         <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
@@ -682,7 +686,7 @@ function fiRenderCopyCard(copy, selectedMeta, isSingleCopy = false) {
                     </div>
                     <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
                         <span class="col-span-5 text-on-surface-variant">DIESEL FUEL</span>
-                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="diesel" value="${fiEsc(copyState.diesel)}" required/>
+                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="diesel" value=0 required/>
                         <span class="col-span-1 text-center text-on-surface-variant">@</span>
                         <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="dieselPrice" value="${fiEsc(copyState.dieselPrice)}" placeholder="0.00" required/>
                         <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
@@ -690,7 +694,7 @@ function fiRenderCopyCard(copy, selectedMeta, isSingleCopy = false) {
                     </div>
                     <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
                         <span class="col-span-5 text-on-surface-variant">FUEL SAVE</span>
-                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="fuelSave" value="${fiEsc(copyState.fuelSave)}" required/>
+                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="fuelSave" value=0 required/>
                         <span class="col-span-1 text-center text-on-surface-variant">@</span>
                         <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="fuelSavePrice" value="${fiEsc(copyState.fuelSavePrice)}" placeholder="0.00" required/>
                         <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
@@ -698,7 +702,7 @@ function fiRenderCopyCard(copy, selectedMeta, isSingleCopy = false) {
                     </div>
                     <div class="grid grid-cols-12 items-end gap-2 border-b border-outline-variant/30 pb-1">
                         <span class="col-span-5 text-on-surface-variant">V-POWER</span>
-                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="vpower" value="${fiEsc(copyState.vpower)}" required/>
+                        <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="vpower" value=0 required/>
                         <span class="col-span-1 text-center text-on-surface-variant">@</span>
                         <input type="number" min="0" step="0.01" class="col-span-2 w-full bg-transparent border-none p-0 text-right text-on-surface font-semibold focus:ring-0 fi-copy-input" data-copy-key="${fiEsc(copyKey)}" data-copy-field="vpowerPrice" value="${fiEsc(copyState.vpowerPrice)}" placeholder="0.00" required/>
                         <span class="col-span-1 text-on-surface-variant text-xs">PHP/ltr</span>
@@ -724,16 +728,10 @@ function fiRenderCopyCard(copy, selectedMeta, isSingleCopy = false) {
                     <div class="h-12 border-b border-on-surface-variant/30 flex items-end justify-center mb-1">
                         <p class="text-sm font-bold">${fiEsc(divisionManagerName)}</p>
                     </div>
-                    <p class="text-[11px] font-bold text-on-surface uppercase">Division Manager</p>
+                    <p class="text-[11px] font-bold text-on-surface uppercase">${fiEsc(divisionManagerPosition)}</p>
                 </div>
             </div>
 
-            <div class="pt-2 no-print flex justify-end">
-                <button type="button" class="fi-print-copy inline-flex items-center gap-2 bg-white border border-outline-variant px-5 py-2.5 rounded-lg text-primary font-semibold hover:bg-surface-container-low transition-all active:scale-95 shadow-sm" data-copy-key="${fiEsc(copyKey)}">
-                    <span class="material-symbols-outlined text-[20px]">print</span>
-                    ${printButtonLabel}
-                </button>
-            </div>
         </div>
         <div class="bg-surface-container mt-auto px-8 py-2 text-[9px] text-on-surface-variant italic text-center uppercase tracking-widest opacity-60">
             Internal Document - Verification Required

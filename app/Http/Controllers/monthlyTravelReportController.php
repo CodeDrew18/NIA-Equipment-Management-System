@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\TransportationRequestFormModel;
+use App\Support\AssignatoryPersonnelResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -227,7 +228,9 @@ class monthlyTravelReportController extends Controller
         $derivedPrimaryDriver = (string) ($driverNames->first() ?? 'N/A');
         $primaryDriver = $loggedInUserName !== '' ? $loggedInUserName : $derivedPrimaryDriver;
         $assignedDriver = $primaryDriver;
-        $divisionManagerName = 'ENGR. EMILIO M. DOMAGAS JR.';
+        $assignatory = AssignatoryPersonnelResolver::resolve();
+        $divisionManagerName = (string) ($assignatory['name'] ?? 'N/A');
+        $divisionManagerPosition = (string) ($assignatory['position'] ?? 'Division Manager');
 
         $vehiclePlate = (string) (
             $reportItems->pluck('vehicle_id')
@@ -255,6 +258,7 @@ class monthlyTravelReportController extends Controller
             'assignedDriver' => $assignedDriver,
             'primaryDriver' => $primaryDriver,
             'divisionManagerName' => $divisionManagerName,
+            'divisionManagerPosition' => $divisionManagerPosition,
             'propertyNumber' => $propertyNumber,
             'reportRows' => $reportRows,
             'totalDistance' => round($totalDistance, 1),

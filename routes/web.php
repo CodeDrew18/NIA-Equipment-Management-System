@@ -6,6 +6,7 @@ use App\Http\Controllers\NotificationModalController;
 use App\Http\Controllers\ProfileManagementController;
 use App\Http\Controllers\requestFormController;
 use App\Http\Controllers\UserDashboardController;
+use App\Http\Controllers\admin\vehicleCalendarController;
 use App\Http\Controllers\vehicleAvailabilityController;
 use Illuminate\Support\Facades\Route;
 
@@ -67,6 +68,7 @@ Route::middleware('auth')->group(function () {
             '/admin/vehicle-availability/{vehicle}',
             [App\Http\Controllers\admin\adminVehicleAvailabilityController::class, 'update']
         )->name('admin.vehicle-availability.update');
+        Route::get('/admin/vehicle-calendar', [vehicleCalendarController::class, 'index'])->name('admin.vehicle_calendar');
 
         // Admin Daily Driver's Trip Ticket
         Route::get("/admin/daily-trip-ticket", [App\Http\Controllers\admin\dailyTripTicketController::class, 'index'])->name('admin.daily-trip-ticket');
@@ -86,6 +88,13 @@ Route::middleware('auth')->group(function () {
         // Admin User Roles
         Route::get("/admin/user-roles", [App\Http\Controllers\admin\userRolesController::class, 'index'])->name('admin.user_roles');
         Route::post('/admin/user-roles/{user}/role', [App\Http\Controllers\admin\userRolesController::class, 'updateRole'])->name('admin.user_roles.update-role');
+
+        // Admin Assignatories
+        Route::get('/admin/assignatories', [App\Http\Controllers\admin\assignatoryPersonnelController::class, 'index'])->name('admin.assignatories');
+        Route::post('/admin/assignatories', [App\Http\Controllers\admin\assignatoryPersonnelController::class, 'store'])->name('admin.assignatories.store');
+        Route::put('/admin/assignatories/{assignatoryPersonnel}', [App\Http\Controllers\admin\assignatoryPersonnelController::class, 'update'])->name('admin.assignatories.update');
+        Route::post('/admin/assignatories/{assignatoryPersonnel}/activate', [App\Http\Controllers\admin\assignatoryPersonnelController::class, 'activate'])->name('admin.assignatories.activate');
+        Route::delete('/admin/assignatories/{assignatoryPersonnel}', [App\Http\Controllers\admin\assignatoryPersonnelController::class, 'destroy'])->name('admin.assignatories.destroy');
 
         // Admin Fuel Issuance Slip
         Route::get("/admin/fuel-issuance-slip", [App\Http\Controllers\admin\fuelIssuanceController::class, 'index'])->name('admin.fuel_issuance_slip');

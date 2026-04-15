@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\AdminVehicleAvailability;
 use App\Models\TransportationRequestFormModel;
+use App\Support\AssignatoryPersonnelResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -25,7 +26,7 @@ class requestFormController extends Controller
         $availableVehicleInventory = $this->resolveAvailableVehicleInventory();
         $availableVehicleTypes = $availableVehicleInventory['types'];
         $availableVehicleCounts = $availableVehicleInventory['counts'];
-        $hasAnyAvailableVehicle = collect($availableVehicleCounts)->sum() > 0;
+        $availableVehicleCapacities = $availableVehicleInventory['capacities'] ?? ['coaster' => null, 'van' => null, 'pickup' => null];
 
         $drivers = User::query()
             ->whereRaw("CONCAT(',', role, ',') LIKE '%,driver,%'")
@@ -35,7 +36,7 @@ class requestFormController extends Controller
         return view('letter_of_request/requestform', [
             'availableVehicleTypes' => $availableVehicleTypes,
             'availableVehicleCounts' => $availableVehicleCounts,
-            'showNoAvailableVehiclesModal' => !$hasAnyAvailableVehicle,
+            'availableVehicleCapacities' => $availableVehicleCapacities,
             'drivers' => $drivers,
         ]);
     }
@@ -67,11 +68,11 @@ class requestFormController extends Controller
             'vehicle_id' => ['nullable', 'string', 'max:100'],
             'driver_name' => ['nullable', 'string', 'max:255'],
             'attachments' => ['required', 'array', 'min:1'],
-            'attachments.*' => ['required', 'file', 'mimes:docx', 'max:10240'],
+            'attachments.*' => ['required', 'file', 'mimes:docx,pdf,jpg,jpeg,png', 'max:10240'],
         ], [
-            'attachments.required' => 'Attach at least one DOCX file.',
-            'attachments.min' => 'Attach at least one DOCX file.',
-            'attachments.*.mimes' => 'Only DOCX files are allowed for attachments.',
+            'attachments.required' => 'Attach at least one file.',
+            'attachments.min' => 'Attach at least one file.',
+            'attachments.*.mimes' => 'Only DOCX, PDF, and image files (JPG, JPEG, PNG) are allowed.',
         ]);
 
         $businessPassengers = collect($validated['division_personnel'] ?? [])
@@ -205,7 +206,7 @@ class requestFormController extends Controller
 
         // Data's
 
-        $divisionManager = "ENGR. EMILIO M. DOMAGAS JR.";
+        $divisionManager = AssignatoryPersonnelResolver::resolve()['name'];
 
         // Date Cell Activation
 
@@ -289,11 +290,21 @@ class requestFormController extends Controller
                 'generated_filename' => $filename,
             ]);
 
+            $transportationRequest->upsertAttachment([
+                'file_name' => $filename,
+                'file_path' => 'generated_forms/' . $filename,
+                'process' => 'transportation_request_form',
+                'process_key' => self::REQUEST_FORM_ATTACHMENT_KEY,
+                'source' => 'request_form_generated',
+            ]);
+
+            if ($request->boolean('download_request_form')) {
+                return response()->download($tempPath, $filename);
+            }
+
             return redirect()
                 ->route('request-form')
-                ->with('request_form_success', 'Transportation request download successfully.')
-                ->with('download_file', $filename)
-                ->with('auto_download', true);
+                ->with('request_form_success', 'Transportation request download successfully.');
         } catch (\Throwable $e) {
             return redirect()
                 ->route('request-form')
@@ -306,28 +317,10 @@ class requestFormController extends Controller
         $safeFilename = basename($filename);
         $path = storage_path('app/public/generated_forms/' . $safeFilename);
 
-        $transportationRequest = TransportationRequestFormModel::query()
-            ->where('generated_filename', $safeFilename)
-            ->first();
-
         if (pathinfo($safeFilename, PATHINFO_EXTENSION) !== 'xlsx' || !is_readable($path)) {
             return redirect()
                 ->route('request-form')
                 ->with('error', 'The requested spreadsheet file is unavailable. Please submit the form again.');
-        }
-
-        if ($transportationRequest) {
-            $transportationRequest->update([
-                'status' => 'To be Signed',
-            ]);
-
-            $transportationRequest->upsertAttachment([
-                'file_name' => $safeFilename,
-                'file_path' => 'generated_forms/' . $safeFilename,
-                'process' => 'transportation_request_form',
-                'process_key' => self::REQUEST_FORM_ATTACHMENT_KEY,
-                'source' => 'request_form_download',
-            ]);
         }
 
         return response()->download($path, $safeFilename);
@@ -392,22 +385,37 @@ class requestFormController extends Controller
         ];
 
         $availableVehicles = AdminVehicleAvailability::query()
-            ->where('status', 'Available')
-            ->get(['vehicle_type']);
+            ->get(['vehicle_type', 'capacity_label']);
+
+        $capacityMap = [
+            'coaster' => null,
+            'van' => null,
+            'pickup' => null,
+        ];
 
         foreach ($availableVehicles as $availableVehicle) {
             $label = strtolower((string) ($availableVehicle->vehicle_type ?? ''));
+            $capacityLabel = trim((string) ($availableVehicle->capacity_label ?? '')) ?: null;
 
             if (str_contains($label, 'coaster')) {
                 $vehicleTypeCounts['coaster']++;
+                if ($capacityMap['coaster'] === null && $capacityLabel !== null) {
+                    $capacityMap['coaster'] = $capacityLabel;
+                }
             }
 
             if (str_contains($label, 'van')) {
                 $vehicleTypeCounts['van']++;
+                if ($capacityMap['van'] === null && $capacityLabel !== null) {
+                    $capacityMap['van'] = $capacityLabel;
+                }
             }
 
             if (str_contains($label, 'pickup') || str_contains($label, 'pick-up')) {
                 $vehicleTypeCounts['pickup']++;
+                if ($capacityMap['pickup'] === null && $capacityLabel !== null) {
+                    $capacityMap['pickup'] = $capacityLabel;
+                }
             }
         }
 
@@ -418,6 +426,7 @@ class requestFormController extends Controller
                 'van' => $vehicleTypeCounts['van'] > 0,
                 'pickup' => $vehicleTypeCounts['pickup'] > 0,
             ],
+            'capacities' => $capacityMap,
         ];
     }
 }

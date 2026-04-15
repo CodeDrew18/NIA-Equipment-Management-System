@@ -225,6 +225,7 @@
 	$profileManagementActive = request()->routeIs('profile-management');
 	$dropdownActiveClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200';
 	$vehicleAvailabilityActive = request()->routeIs('admin.vehicle-availability');
+	$vehicleCalendarActive = request()->routeIs('admin.vehicle_calendar');
 	$transportationRequestActive = request()->routeIs('admin.transportation-request');
 	$vehicleAssignmentActive = request()->routeIs('admin.vehicle_assignment');
 	$fuelIssuanceActive = request()->routeIs('admin.fuel_issuance_slip');
@@ -233,11 +234,12 @@
 	$fuelConsumptionReportActive = request()->routeIs('admin.fuel-consumption-report');
 	$dailyEquipmentUtilizationReportActive = request()->routeIs('daily-equipment-utilization-report');
 	$onTripVehiclesActive = request()->routeIs('admin.on_trip_vehicles');
+	$assignatoriesActive = request()->routeIs('admin.assignatories');
 	$auditLogActive = request()->routeIs('audit-log');
 @endphp
 @php
 	$fuelPartnershipsActive = request()->routeIs('admin.fuel_partnerships');
-	$operationsActive = $operationsActive || $fuelPartnershipsActive;
+	$operationsActive = $operationsActive || $fuelPartnershipsActive || $vehicleCalendarActive;
 @endphp
 <div class="flex justify-between items-center w-full px-8 py-4 max-w-full h-20">
 <div class="flex items-center gap-8">
@@ -252,6 +254,7 @@
 		<a class="nav-dropdown-item {{ $vehicleAvailabilityActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.vehicle-availability') }}" role="menuitem">Vehicle Availability</a>
 	            <a class="nav-dropdown-item {{ $transportationRequestActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.transportation-request') }}" role="menuitem">Transportation Request</a>
 			 <a class="nav-dropdown-item {{ $vehicleAssignmentActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.vehicle_assignment') }}" role="menuitem">Vehicle Assignment</a>
+			<a class="nav-dropdown-item {{ $vehicleCalendarActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.vehicle_calendar') }}" role="menuitem">Vehicle Calendar</a>
 		<a class="nav-dropdown-item {{ $dailyTripTicketActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.daily-trip-ticket') }}" role="menuitem">Daily Driver's Trip Ticket</a>
             {{-- <a class="nav-dropdown-item" href="#" role="menuitem">Daily Equipment Utilization Report</a> --}}
 	            <a class="nav-dropdown-item {{ $fuelIssuanceActive ? $dropdownActiveClass : '' }}	" href="{{ route('admin.fuel_issuance_slip') }}" role="menuitem">Fuel Issuance Slips</a>
@@ -269,6 +272,7 @@
 		<a class="nav-dropdown-item {{ $fuelConsumptionReportActive ? $dropdownActiveClass : '' }}" href="{{ route('admin.fuel-consumption-report') }}" role="menuitem">Monthly Fuel Consumption Report<br>(For Service Vehicles)</a>
 	</div>
 </div>
+<a class="nav-link {{ $assignatoriesActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('admin.assignatories') }}">Assignatories</a>
 <a class="nav-link {{ $auditLogActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('audit-log') }}">Audit Logs</a>
 {{-- <a class="nav-link {{ $evaluationsActive ? 'nav-link-active' : 'text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200' }}" href="{{ route('landing-page') }}">Evaluations</a> --}}
 </nav>
@@ -323,6 +327,7 @@
 				<a class="mobile-nav-subitem {{ request()->routeIs('admin.vehicle-availability') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.vehicle-availability') }}">Vehicle Availability</a>
 				<a class="mobile-nav-subitem {{ request()->routeIs('admin.transportation-request') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.transportation-request') }}">Transportation Request</a>	
 				<a class="mobile-nav-subitem {{ request()->routeIs('admin.vehicle_assignment') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.vehicle_assignment') }}">Vehicle Assignment</a>
+				<a class="mobile-nav-subitem {{ $vehicleCalendarActive ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.vehicle_calendar') }}">Vehicle Calendar</a>
 				<a class="mobile-nav-subitem {{ request()->routeIs('admin.daily-trip-ticket') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.daily-trip-ticket') }}">Daily Driver's Trip Ticket</a>
 				<a class="mobile-nav-subitem {{ request()->routeIs('admin.fuel_issuance_slip') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.fuel_issuance_slip') }}">Fuel Issuance Slips</a>
 				<a class="mobile-nav-subitem {{ request()->routeIs('admin.fuel_partnerships') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('admin.fuel_partnerships') }}">Fuel Partnerships</a>
@@ -330,6 +335,7 @@
 		</details>
 
 		<a class="mobile-nav-link {{ request()->routeIs('admin.on_trip_vehicles') ? 'mobile-nav-link-active' : '' }}" href="{{ route('admin.on_trip_vehicles') }}">On Trip Vehicles</a>
+		<a class="mobile-nav-link {{ $assignatoriesActive ? 'mobile-nav-link-active' : '' }}" href="{{ route('admin.assignatories') }}">Assignatories</a>
 
 		<details class="mobile-nav-group" {{ $reportsActive ? 'open' : '' }}>
 			<summary class="mobile-nav-link {{ $reportsActive ? 'mobile-nav-link-active' : '' }} flex items-center justify-between cursor-pointer">

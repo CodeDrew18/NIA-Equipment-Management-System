@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\DriverPerformanceEvaluation;
 use App\Models\TransportationRequestFormModel;
+use App\Support\AssignatoryPersonnelResolver;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\View;
@@ -24,6 +25,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        View::share('activeAssignatory', AssignatoryPersonnelResolver::resolve());
+
         $adminRoles = collect(['admin', 'chief_of_motorpool_section']);
         $userRoles = collect(['user', 'operator', 'driver']);
 

@@ -100,6 +100,36 @@ class UserPersonnelSeeder extends Seeder
                 'email' => 'driver6@nia.local',
                 'role' => 'driver',
             ],
+            [
+                'personnel_id' => '100037',
+                'name' => 'Victor Ramos',
+                'email' => 'driver7@nia.local',
+                'role' => 'driver',
+            ],
+            [
+                'personnel_id' => '100038',
+                'name' => 'Gilbert Manalo',
+                'email' => 'driver8@nia.local',
+                'role' => 'driver',
+            ],
+            [
+                'personnel_id' => '100039',
+                'name' => 'Dennis Laurente',
+                'email' => 'driver9@nia.local',
+                'role' => 'driver',
+            ],
+            [
+                'personnel_id' => '100040',
+                'name' => 'Marvin Galvez',
+                'email' => 'driver10@nia.local',
+                'role' => 'driver',
+            ],
+            [
+                'personnel_id' => '100041',
+                'name' => 'Rogelio Bautista',
+                'email' => 'driver11@nia.local',
+                'role' => 'driver',
+            ],
 
             [
                 'personnel_id' => '100015',
@@ -221,7 +251,7 @@ class UserPersonnelSeeder extends Seeder
                 'email' => 'user20@nia.local',
                 'role' => 'user',
             ],
-                        [
+            [
                 'personnel_id' => '100035',
                 'name' => 'Arturo Meldea',
                 'email' => 'dispatcher21@nia.local',

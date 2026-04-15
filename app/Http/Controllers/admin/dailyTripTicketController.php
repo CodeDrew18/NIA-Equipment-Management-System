@@ -304,6 +304,10 @@ class dailyTripTicketController extends Controller
         $sheet->mergeCells('P15:S15');
         $sheet->setCellValue('P15', $toDate ? $toDate->format('H:i') : 'N/A');
 
+        // Driver Name
+        $sheet->mergeCells('P49:V49');
+        $sheet->setCellValue('P49', (string) ($driverName ?: (string) ($transportationRequest->driver_name ?: 'N/A')));
+
         $outputDirectory = Storage::disk('public')->path('generated_forms');
         if (!is_dir($outputDirectory)) {
             mkdir($outputDirectory, 0755, true);

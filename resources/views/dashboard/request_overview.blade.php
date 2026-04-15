@@ -144,6 +144,7 @@
                         <th class="px-4 py-3 border-r border-outline-variant/20">Request Date</th>
                         <th class="px-4 py-3 border-r border-outline-variant/20">Trip Schedule</th>
                         <th class="px-4 py-3 border-r border-outline-variant/20">Destination</th>
+                        <th class="px-4 py-3 border-r border-outline-variant/20">Attachments</th>
                         <th class="px-4 py-3">Status</th>
                     </tr>
                 </thead>
@@ -154,19 +155,47 @@
                             $statusClass = $statusBadgeClasses[$statusValue] ?? 'bg-slate-100 text-slate-700';
                             $tripStart = optional($requestItem->date_time_from)->format('M d, Y h:i A') ?: 'N/A';
                             $tripEnd = optional($requestItem->date_time_to)->format('M d, Y h:i A') ?: 'N/A';
+                            $attachmentLinks = collect($requestItem->normalizeAttachments())
+                                ->values()
+                                ->map(function ($attachment, $index) use ($requestItem) {
+                                    $attachmentName = trim((string) (is_array($attachment) ? ($attachment['file_name'] ?? '') : ''));
+
+                                    return [
+                                        'name' => $attachmentName !== '' ? $attachmentName : 'Attachment',
+                                        'url' => route('request-form.attachment.view', [
+                                            'transportationRequest' => $requestItem->id,
+                                            'index' => $index,
+                                        ]),
+                                    ];
+                                })
+                                ->all();
                         @endphp
                         <tr class="border-b border-outline-variant/10 {{ $loop->even ? 'bg-surface-container-low/35' : '' }}">
                             <td class="px-4 py-3 border-r border-outline-variant/20 font-semibold text-primary">{{ $requestItem->form_id ?: 'N/A' }}</td>
                             <td class="px-4 py-3 border-r border-outline-variant/20">{{ optional($requestItem->request_date)->format('M d, Y') ?: 'N/A' }}</td>
                             <td class="px-4 py-3 border-r border-outline-variant/20 text-xs sm:text-sm">{{ $tripStart }} to {{ $tripEnd }}</td>
                             <td class="px-4 py-3 border-r border-outline-variant/20">{{ $requestItem->destination ?: 'N/A' }}</td>
+                            <td class="px-4 py-3 border-r border-outline-variant/20">
+                                @if (!empty($attachmentLinks))
+                                    <div class="space-y-1">
+                                        @foreach ($attachmentLinks as $attachment)
+                                            <a href="{{ $attachment['url'] }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-container hover:underline">
+                                                <span class="material-symbols-outlined text-sm">attach_file</span>
+                                                {{ $attachment['name'] }}
+                                            </a>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <span class="text-xs text-outline">No attachment</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3">
                                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold {{ $statusClass }}">{{ $statusValue }}</span>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="px-4 py-8 text-center text-on-surface-variant">
+                            <td colspan="6" class="px-4 py-8 text-center text-on-surface-variant">
                                 {{ $search !== '' ? 'No requests matched your search.' : 'No requests found yet.' }}
                             </td>
                         </tr>

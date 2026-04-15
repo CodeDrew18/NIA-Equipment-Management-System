@@ -118,6 +118,7 @@
 </div>
 </header>
 <form id="request-form" class="space-y-10 px-4" method="POST" action="{{route('request-form.submit')}}" enctype="multipart/form-data">
+<input type="hidden" name="download_request_form" value="0" />
 <!-- Section 1: Requestor & Trip Core Info -->
   @csrf
   @if ($errors->any())
@@ -214,71 +215,71 @@
 @endphp
 
 <div class="space-y-3">
-  @if ($availableVehicleTypes['coaster'])
   @php
-    $coasterMax = max(1, (int) ($availableVehicleCounts['coaster'] ?? 1));
+    $coasterAvailable = max(0, (int) ($availableVehicleCounts['coaster'] ?? 0));
+    $coasterMax = max(1, $coasterAvailable);
     $coasterQty = max(1, min((int) old('vehicle_requests.0.quantity', 1), $coasterMax));
   @endphp
   <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row data-vehicle-type="coaster">
     <div class="flex items-center gap-2">
-      <input id="vehicle-coaster" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[0][selected]" value="1" {{ old('vehicle_requests.0.selected') ? 'checked' : '' }} />
+      <input id="vehicle-coaster" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[0][selected]" value="1" {{ old('vehicle_requests.0.selected') ? 'checked' : '' }} {{ $coasterAvailable > 0 ? '' : 'disabled' }} />
       <input type="hidden" name="vehicle_requests[0][type]" value="coaster" />
       <span class="material-symbols-outlined text-primary text-lg">directions_bus</span>
-      <label for="vehicle-coaster" class="text-sm font-bold text-on-surface">Coaster</label>
+      <div class="flex flex-col">
+        <label for="vehicle-coaster" class="text-sm font-bold text-on-surface">Coaster</label>
+        <span class="text-[11px] text-slate-500">Capacity: {{ $availableVehicleCapacities['coaster'] ?? 'N/A' }}</span>
+      </div>
     </div>
     <div class="flex items-center gap-2">
       <label class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Qty</label>
-      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[0][quantity]" value="{{ $coasterQty }}" min="1" max="{{ $coasterMax }}" {{ old('vehicle_requests.0.selected') ? '' : 'disabled' }} />
-      <span class="vehicle-request-max-label text-[10px] font-semibold text-slate-500">Max {{ $coasterMax }}</span>
+      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[0][quantity]" value="{{ $coasterQty }}" min="1" max="{{ $coasterMax }}" {{ old('vehicle_requests.0.selected') && $coasterAvailable > 0 ? '' : 'disabled' }} />
+      <span class="vehicle-request-max-label text-[10px] font-semibold text-slate-500">Available {{ $coasterAvailable }}</span>
     </div>
   </div>
-  @endif
 
-  @if ($availableVehicleTypes['van'])
   @php
-    $vanMax = max(1, (int) ($availableVehicleCounts['van'] ?? 1));
+    $vanAvailable = max(0, (int) ($availableVehicleCounts['van'] ?? 0));
+    $vanMax = max(1, $vanAvailable);
     $vanQty = max(1, min((int) old('vehicle_requests.1.quantity', 1), $vanMax));
   @endphp
   <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row data-vehicle-type="van">
     <div class="flex items-center gap-2">
-      <input id="vehicle-van" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[1][selected]" value="1" {{ old('vehicle_requests.1.selected') ? 'checked' : '' }} />
+      <input id="vehicle-van" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[1][selected]" value="1" {{ old('vehicle_requests.1.selected') ? 'checked' : '' }} {{ $vanAvailable > 0 ? '' : 'disabled' }} />
       <input type="hidden" name="vehicle_requests[1][type]" value="van" />
       <span class="material-symbols-outlined text-primary text-lg">airport_shuttle</span>
-      <label for="vehicle-van" class="text-sm font-bold text-on-surface">Van</label>
+      <div class="flex flex-col">
+        <label for="vehicle-van" class="text-sm font-bold text-on-surface">Van</label>
+        <span class="text-[11px] text-slate-500">Capacity: {{ $availableVehicleCapacities['van'] ?? 'N/A' }}</span>
+      </div>
     </div>
     <div class="flex items-center gap-2">
       <label class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Qty</label>
-      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[1][quantity]" value="{{ $vanQty }}" min="1" max="{{ $vanMax }}" {{ old('vehicle_requests.1.selected') ? '' : 'disabled' }} />
-      <span class="vehicle-request-max-label text-[10px] font-semibold text-slate-500">Max {{ $vanMax }}</span>
+      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[1][quantity]" value="{{ $vanQty }}" min="1" max="{{ $vanMax }}" {{ old('vehicle_requests.1.selected') && $vanAvailable > 0 ? '' : 'disabled' }} />
+      <span class="vehicle-request-max-label text-[10px] font-semibold text-slate-500">Available {{ $vanAvailable }}</span>
     </div>
   </div>
-  @endif
 
-  @if ($availableVehicleTypes['pickup'])
   @php
-    $pickupMax = max(1, (int) ($availableVehicleCounts['pickup'] ?? 1));
+    $pickupAvailable = max(0, (int) ($availableVehicleCounts['pickup'] ?? 0));
+    $pickupMax = max(1, $pickupAvailable);
     $pickupQty = max(1, min((int) old('vehicle_requests.2.quantity', 1), $pickupMax));
   @endphp
   <div class="vehicle-request-row flex items-center justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-highest p-3" data-vehicle-row data-vehicle-type="pickup">
     <div class="flex items-center gap-2">
-      <input id="vehicle-pickup" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[2][selected]" value="1" {{ old('vehicle_requests.2.selected') ? 'checked' : '' }} />
+      <input id="vehicle-pickup" class="vehicle-request-checkbox h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox" name="vehicle_requests[2][selected]" value="1" {{ old('vehicle_requests.2.selected') ? 'checked' : '' }} {{ $pickupAvailable > 0 ? '' : 'disabled' }} />
       <input type="hidden" name="vehicle_requests[2][type]" value="pickup" />
       <span class="material-symbols-outlined text-primary text-lg">directions_car</span>
-      <label for="vehicle-pickup" class="text-sm font-bold text-on-surface">Pick-up</label>
+      <div class="flex flex-col">
+        <label for="vehicle-pickup" class="text-sm font-bold text-on-surface">Pick-up</label>
+        <span class="text-[11px] text-slate-500">Capacity: {{ $availableVehicleCapacities['pickup'] ?? 'N/A' }}</span>
+      </div>
     </div>
     <div class="flex items-center gap-2">
       <label class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Qty</label>
-      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[2][quantity]" value="{{ $pickupQty }}" min="1" max="{{ $pickupMax }}" {{ old('vehicle_requests.2.selected') ? '' : 'disabled' }} />
-      <span class="vehicle-request-max-label text-[10px] font-semibold text-slate-500">Max {{ $pickupMax }}</span>
+      <input class="vehicle-request-quantity w-20 bg-surface-container-lowest border border-slate-200 rounded-lg px-3 py-2 text-center text-sm focus:ring-2 focus:ring-primary" type="number" name="vehicle_requests[2][quantity]" value="{{ $pickupQty }}" min="1" max="{{ $pickupMax }}" {{ old('vehicle_requests.2.selected') && $pickupAvailable > 0 ? '' : 'disabled' }} />
+      <span class="vehicle-request-max-label text-[10px] font-semibold text-slate-500">Available {{ $pickupAvailable }}</span>
     </div>
   </div>
-  @endif
-
-  @if (!$availableVehicleTypes['coaster'] && !$availableVehicleTypes['van'] && !$availableVehicleTypes['pickup'])
-  <div class="rounded-xl border border-error/30 bg-error-container px-4 py-3 text-xs font-semibold text-on-error-container">
-    No vehicles are currently marked as Available.
-  </div>
-  @endif
 </div>
 </div>
 </div>
@@ -357,8 +358,8 @@ Remove
     <label class="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center justify-center bg-surface-container-low/30 hover:bg-surface-container-low/50 transition-colors cursor-pointer">
       <span class="material-symbols-outlined text-4xl text-slate-400 mb-2">cloud_upload</span>
       <p class="text-sm font-semibold text-on-surface">Click or drag files to upload</p>
-      <p class="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">Supported: DOCX only (Max 10MB each)</p>
-      <input id="attachment-input" type="file" class="hidden" accept=".docx" name="attachments[]" multiple/>
+      <p class="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">Supported: DOCX, PDF, JPG, PNG (Max 10MB each)</p>
+      <input id="attachment-input" type="file" class="hidden" accept=".docx,.pdf,.jpg,.jpeg,.png" name="attachments[]" multiple/>
     </label>
 
     <!-- Attached Files List -->
@@ -367,12 +368,12 @@ Remove
       <div id="attached-files-list" class="space-y-2">
         <p id="attached-files-empty" class="text-xs text-slate-400 italic">No files attached yet.</p>
       </div>
-      <p id="attachment-error" class="hidden text-xs font-semibold text-error">Attach at least one DOCX file.</p>
+      <p id="attachment-error" class="hidden text-xs font-semibold text-error">Attach at least one file (DOCX, PDF, or image).</p>
     </div>
 
   </div>
 </section>
-<section>
+{{-- <section>
 <div class="flex items-center gap-3 mb-6">
 <div class="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center text-white">
 <span class="material-symbols-outlined">local_shipping</span>
@@ -391,13 +392,13 @@ Remove
 <option value="{{ $driver->name }}" @selected(old('driver_name') === $driver->name)>{{ $driver->name }}</option>
 @endforeach --}}
 {{-- </select> --}}
-</div>
+{{-- </div>
 <div class="flex items-center gap-3 text-secondary">
 <span class="material-symbols-outlined">verified</span>
 <p class="text-sm font-semibold italic">has been officially dispatched for the requesting trip.</p>
 </div>
 </div>
-</section>
+</section> --}}
 <!-- Section 5: Authorization & Approval -->
 <section class="bg-primary text-white p-10 rounded-3xl relative overflow-hidden"> 
 <div class="absolute -right-20 -top-20 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
@@ -411,9 +412,9 @@ Remove
 </div>
 <div class="space-y-2">
   <p></p>
-<p class="text-[16px] font-black uppercase tracking-widest text-blue-200">Division Manager A, EOD.</p>
+<p class="text-[16px] font-black uppercase tracking-widest text-blue-200">{{ $activeAssignatory['position'] }}</p>
 <div class="border-b border-white/30 pb-4 mb-2">
-<p class="text-xl font-bold">ENGR. EMILIO M. DOMAGAS JR.</p>
+<p class="text-xl font-bold">{{ $activeAssignatory['name'] }}</p>
 <p class="text-[12px] text-blue-300 opacity-70">Official Signatory</p>
 </div>
 <div class="w-full h-12 bg-white/10 rounded-lg flex items-center justify-center text-[10px] font-bold uppercase tracking-widest text-white/50 border border-white/10">
@@ -435,21 +436,6 @@ Remove
 </section>
 </form>
 
-<div id="no-available-vehicles-modal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/50 px-4">
-  <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
-    <div class="mb-4 flex items-center gap-3 text-error">
-      <span class="material-symbols-outlined">warning</span>
-      <h3 class="text-lg font-bold">No Available Vehicles</h3>
-    </div>
-    <p class="text-sm text-on-surface-variant leading-relaxed">
-      All vehicles are currently on business trip or unavailable. Please submit your request again once a vehicle becomes available.
-    </p>
-    <div class="mt-6 flex justify-end">
-      <button id="no-available-vehicles-close" type="button" class="rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-primary/90">Understood</button>
-    </div>
-  </div>
-</div>
-
 <div id="confirm-download-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4">
   <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
     <div class="mb-4 flex items-center gap-3 text-primary">
@@ -467,9 +453,11 @@ Remove
 <div id="download-loading-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/45 px-4">
   <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center">
     <div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary"></div>
-    <p class="text-sm font-semibold text-on-surface">Preparing your download...</p>
+    <p class="text-sm font-semibold text-on-surface">Preparing your file. Please wait for the download to start...</p>
   </div>
 </div>
+
+<iframe id="request-form-download-frame" name="request-form-download-frame" class="hidden"></iframe>
 </main>
 
 @include('layouts.footer')
@@ -490,6 +478,7 @@ Remove
     const dateTimeFromInput = requestForm ? requestForm.querySelector('input[name="date_time_from"]') : null;
     const dateTimeToInput = requestForm ? requestForm.querySelector('input[name="date_time_to"]') : null;
     const purposeInput = requestForm ? requestForm.querySelector('textarea[name="purpose"]') : null;
+    const downloadRequestFormInput = requestForm ? requestForm.querySelector('input[name="download_request_form"]') : null;
     const input = document.getElementById('attachment-input');
     const list = document.getElementById('attached-files-list');
     const emptyState = document.getElementById('attached-files-empty');
@@ -499,12 +488,8 @@ Remove
     const confirmDownloadModal = document.getElementById('confirm-download-modal');
     const confirmDownloadYes = document.getElementById('confirm-download-yes');
     const confirmDownloadNo = document.getElementById('confirm-download-no');
-    const noAvailableVehiclesModal = document.getElementById('no-available-vehicles-modal');
-    const noAvailableVehiclesClose = document.getElementById('no-available-vehicles-close');
     const downloadLoadingModal = document.getElementById('download-loading-modal');
-    const generatedDownloadUrl = @json(session('download_file') ? route('request-form.download', ['filename' => session('download_file')]) : null);
-    const shouldAutoDownload = @json((bool) session('auto_download'));
-    const shouldShowNoAvailableVehiclesModal = @json((bool) ($showNoAvailableVehiclesModal ?? false));
+    const downloadFrame = document.getElementById('request-form-download-frame');
     const vehicleAvailabilityEndpoint = @json(route('vehicle-available.data'));
 
     let pendingDownloadAction = null;
@@ -530,49 +515,56 @@ Remove
       attachmentError.classList.remove('hidden');
     }
 
-    function isDocxFile(file) {
-      return String(file && file.name ? file.name : '').toLowerCase().endsWith('.docx');
+    function isValidFile(file) {
+        const name = String(file && file.name ? file.name : '').toLowerCase();
+      return (
+        name.endsWith('.docx') ||
+        name.endsWith('.pdf') ||
+        name.endsWith('.jpg') ||
+        name.endsWith('.jpeg') ||
+        name.endsWith('.png')
+      );
     }
 
-    function enforceDocxAttachments() {
-      const currentFiles = Array.from(input.files || []);
-      const validFiles = currentFiles.filter(function (file) {
-        return isDocxFile(file);
-      });
+function enforceValidAttachments() {
+  const currentFiles = Array.from(input.files || []);
+  const validFiles = currentFiles.filter(function (file) {
+    return isValidFile(file);
+  });
 
-      if (validFiles.length === currentFiles.length) {
-        return;
-      }
+  if (validFiles.length === currentFiles.length) {
+    return;
+  }
 
-      const dataTransfer = new DataTransfer();
-      validFiles.forEach(function (file) {
-        dataTransfer.items.add(file);
-      });
+  const dataTransfer = new DataTransfer();
+  validFiles.forEach(function (file) {
+    dataTransfer.items.add(file);
+  });
 
-      input.files = dataTransfer.files;
-      setAttachmentError('Only DOCX files are allowed. Unsupported files were removed.');
-    }
+  input.files = dataTransfer.files;
+  setAttachmentError('Only DOCX, PDF, and image files are allowed. Unsupported files were removed.');
+}
 
-    function validateRequiredAttachments() {
-      const files = Array.from(input.files || []);
+function validateRequiredAttachments() {
+  const files = Array.from(input.files || []);
 
-      if (files.length === 0) {
-        setAttachmentError('Attach at least one DOCX file.');
-        return false;
-      }
+  if (files.length === 0) {
+    setAttachmentError('Attach at least one file (DOCX, PDF, or image).');
+    return false;
+  }
 
-      const hasInvalid = files.some(function (file) {
-        return !isDocxFile(file);
-      });
+  const hasInvalid = files.some(function (file) {
+    return !isValidFile(file);
+  });
 
-      if (hasInvalid) {
-        setAttachmentError('Only DOCX files are allowed for attachments.');
-        return false;
-      }
+  if (hasInvalid) {
+    setAttachmentError('Only DOCX, PDF, and image files are allowed for attachments.');
+    return false;
+  }
 
-      setAttachmentError('');
-      return true;
-    }
+  setAttachmentError('');
+  return true;
+}
 
     function setTopValidationBanner(messages) {
       if (!formValidationBanner) {
@@ -642,24 +634,6 @@ Remove
       downloadLoadingModal.classList.remove('flex');
     }
 
-    function showUnavailableVehiclesModal() {
-      if (!noAvailableVehiclesModal) {
-        return;
-      }
-
-      noAvailableVehiclesModal.classList.remove('hidden');
-      noAvailableVehiclesModal.classList.add('flex');
-    }
-
-    function hideUnavailableVehiclesModal() {
-      if (!noAvailableVehiclesModal) {
-        return;
-      }
-
-      noAvailableVehiclesModal.classList.add('hidden');
-      noAvailableVehiclesModal.classList.remove('flex');
-    }
-
     function setPrimaryButtonBusy(isBusy) {
       if (!primaryDownloadTrigger) {
         return;
@@ -674,6 +648,7 @@ Remove
       const iframeId = 'hidden-download-frame';
       let frame = document.getElementById(iframeId);
       let isCompleted = false;
+      let fallbackTimeoutId = null;
 
       function completeDownloadUI() {
         if (isCompleted) {
@@ -681,6 +656,10 @@ Remove
         }
 
         isCompleted = true;
+        if (fallbackTimeoutId !== null) {
+          clearTimeout(fallbackTimeoutId);
+          fallbackTimeoutId = null;
+        }
         hideLoadingModal();
         setPrimaryButtonBusy(false);
         window.removeEventListener('focus', handleWindowFocus);
@@ -705,9 +684,10 @@ Remove
       window.addEventListener('focus', handleWindowFocus);
       frame.src = downloadUrl + separator + 'download_ts=' + Date.now();
 
-      setTimeout(function () {
+      // Safety fallback in case browser does not trigger iframe load/focus events for file downloads.
+      fallbackTimeoutId = setTimeout(function () {
         completeDownloadUI();
-      }, 2000);
+      }, 5000);
     }
 
     function bindVehicleRequestRows() {
@@ -789,11 +769,8 @@ Remove
         const vehicleType = String(vehicle && vehicle.vehicle_type ? vehicle.vehicle_type : '')
           .trim()
           .toLowerCase();
-        const status = String(vehicle && vehicle.status ? vehicle.status : '')
-          .trim()
-          .toLowerCase();
 
-        if (status !== 'available' || !Object.prototype.hasOwnProperty.call(counts, vehicleType)) {
+        if (!Object.prototype.hasOwnProperty.call(counts, vehicleType)) {
           return;
         }
 
@@ -804,8 +781,6 @@ Remove
     }
 
     function applyVehicleAvailabilityCounts(counts) {
-      let totalAvailable = 0;
-
       vehicleRequestRows.forEach(function (row) {
         const vehicleType = String(row.getAttribute('data-vehicle-type') || '').trim().toLowerCase();
 
@@ -824,9 +799,7 @@ Remove
         const availableCount = normalizeAvailableCount(counts[vehicleType]);
         const isAvailable = availableCount > 0;
         const nextMax = Math.max(1, availableCount);
-        totalAvailable += availableCount;
-
-        maxLabel.textContent = 'Max ' + String(availableCount);
+        maxLabel.textContent = 'Available ' + String(availableCount);
         quantityInput.max = String(nextMax);
 
         if (!isAvailable) {
@@ -850,10 +823,6 @@ Remove
         row.classList.toggle('opacity-50', !isAvailable);
         row.classList.toggle('pointer-events-none', !isAvailable);
       });
-
-      if (totalAvailable <= 0) {
-        showUnavailableVehiclesModal();
-      }
     }
 
     async function refreshVehicleAvailability() {
@@ -1211,7 +1180,7 @@ Remove
 
       if (!validateRequiredAttachments()) {
         const hasAttachment = Array.from(input.files || []).length > 0;
-        validationMessages.push(hasAttachment ? 'File Attachments (DOCX only)' : 'File Attachments');
+        validationMessages.push(hasAttachment ? 'File Attachments (DOCX, PDF, or image)' : 'File Attachments');
       }
 
       if (validationMessages.length > 0) {
@@ -1325,7 +1294,7 @@ Remove
     }
 
     input.addEventListener('change', function () {
-      enforceDocxAttachments();
+      enforceValidAttachments();
       renderAttachedFiles();
 
       if (Array.from(input.files || []).length > 0) {
@@ -1339,7 +1308,7 @@ Remove
           return;
         }
 
-        showConfirmModal({ type: 'submit' });
+        showConfirmModal({ type: 'download' });
       });
     }
 
@@ -1375,40 +1344,35 @@ Remove
           return;
         }
 
-        if (action.type === 'download' && action.url) {
+        if (action.type === 'download') {
           hideConfirmModal();
           showLoadingModal();
           setPrimaryButtonBusy(true);
 
-          startBackgroundDownload(action.url);
+          if (downloadRequestFormInput) {
+            downloadRequestFormInput.value = '1';
+          }
+
+          if (downloadFrame) {
+            requestForm.target = downloadFrame.name;
+          }
+
+          hasConfirmedSubmit = true;
+          requestForm.requestSubmit();
+
+          window.setTimeout(function () {
+            hideLoadingModal();
+            setPrimaryButtonBusy(false);
+            if (downloadRequestFormInput) {
+              downloadRequestFormInput.value = '0';
+            }
+            requestForm.target = '';
+          }, 2500);
         }
       });
     }
 
-    if (noAvailableVehiclesClose) {
-      noAvailableVehiclesClose.addEventListener('click', function () {
-        hideUnavailableVehiclesModal();
-      });
-    }
-
-    if (noAvailableVehiclesModal) {
-      noAvailableVehiclesModal.addEventListener('click', function (event) {
-        if (event.target === noAvailableVehiclesModal) {
-          hideUnavailableVehiclesModal();
-        }
-      });
-    }
-
-    if (shouldShowNoAvailableVehiclesModal) {
-      showUnavailableVehiclesModal();
-    }
-
-    if (shouldAutoDownload && generatedDownloadUrl) {
-      showLoadingModal();
-      setPrimaryButtonBusy(true);
-      startBackgroundDownload(generatedDownloadUrl);
-    }
-  })();
+  })(); 
 </script>
 
 </body></html>

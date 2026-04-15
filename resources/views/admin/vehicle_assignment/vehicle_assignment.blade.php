@@ -222,46 +222,79 @@
                             <input type="hidden" name="transportation_request_id" value="{{ $item->id }}">
                             <input type="hidden" name="assignment_action" value="assign_vehicles">
 
-                            @foreach (['coaster', 'van', 'pickup', 'other'] as $typeKey)
+                            @php
+                                $displayVehicleTypeKeys = ['coaster', 'van', 'pickup'];
+                                if ((int) ($requestedMix['other'] ?? 0) > 0) {
+                                    $displayVehicleTypeKeys[] = 'other';
+                                }
+                            @endphp
+
+                            @foreach ($displayVehicleTypeKeys as $typeKey)
                                 @php
                                     $requiredCount = (int) ($requestedMix[$typeKey] ?? 0);
-                                @endphp
-                                @continue($requiredCount < 1)
-
-                                @php
                                     $vehicleOptions = $typeKey === 'other'
                                         ? $availableVehicles
                                         : ($availableVehiclesByType[$typeKey] ?? collect());
+
+                                    $slotVehicleOptions = $requiredCount > 0
+                                        ? $availableVehicles
+                                        : $vehicleOptions;
 
                                     $oldSelections = $oldRequestId === (int) $item->id
                                         ? (array) old('vehicle_codes.' . $typeKey, [])
                                         : [];
 
-                                    if ($vehicleOptions->isEmpty()) {
+                                    $oldDriverOverrides = $oldRequestId === (int) $item->id
+                                        ? (array) old('driver_overrides.' . $typeKey, [])
+                                        : [];
+
+                                    if ($requiredCount > 0 && $slotVehicleOptions->isEmpty()) {
                                         $missingRequiredInventory = true;
                                     }
                                 @endphp
 
-                                <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low p-3">
-                                    <p class="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">
-                                        {{ $vehicleLabels[$typeKey] }} Slots ({{ $requiredCount }})
-                                    </p>
+                                @continue($requiredCount < 1)
 
-                                    @if ($vehicleOptions->isEmpty())
-                                        <p class="text-xs font-semibold text-error">No available {{ strtolower($vehicleLabels[$typeKey]) }} units right now.</p>
-                                    @else
-                                        <div class="grid grid-cols-1 gap-2 lg:grid-cols-2">
-                                            @for ($slotIndex = 0; $slotIndex < $requiredCount; $slotIndex++)
-                                                @php
-                                                    $oldSelectedCode = (string) ($oldSelections[$slotIndex] ?? '');
-                                                @endphp
-                                                <div>
-                                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-outline mb-1">
-                                                        {{ $vehicleLabels[$typeKey] }} #{{ $slotIndex + 1 }}
+                                @if ($slotVehicleOptions->isEmpty())
+                                    <div class="rounded-xl border border-error/30 bg-error-container p-4 mb-4">
+                                        <p class="text-sm font-semibold text-error flex items-center gap-2">
+                                            <span class="material-symbols-outlined text-lg">error</span>
+                                            No available vehicles right now.
+                                        </p>
+                                    </div>
+                                @else
+                                    <div class="mx-auto grid w-full max-w-4xl grid-cols-1 gap-4">
+                                        @for ($slotIndex = 0; $slotIndex < $requiredCount; $slotIndex++)
+                                            @php
+                                                $oldSelectedCode = (string) ($oldSelections[$slotIndex] ?? '');
+                                                $oldSelectedOverride = (string) ($oldDriverOverrides[$slotIndex] ?? '');
+                                            @endphp
+                                            <div class="relative overflow-hidden rounded-3xl border border-primary/10 bg-gradient-to-br from-white via-surface-container-low to-surface-container-high shadow-lg p-5 md:p-6 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl">
+                                                <div class="pointer-events-none absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-primary/5 blur-2xl"></div>
+                                                <div class="relative flex items-start justify-between gap-4 mb-4">
+                                                    <div class="flex items-center gap-3">
+                                                        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm">
+                                                            <span class="material-symbols-outlined text-2xl">directions_car</span>
+                                                        </div>
+                                                        <div>
+                                                            <p class="text-[10px] font-bold uppercase tracking-[0.24em] text-outline">Assignment Slot</p>
+                                                            <h3 class="text-lg font-extrabold tracking-tight text-primary">Vehicle Slot #{{ $slotIndex + 1 }}</h3>
+                                                        </div>
+                                                    </div>
+                                                    <span class="inline-flex items-center rounded-full bg-secondary-container px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-on-secondary-container">
+                                                        {{ $vehicleLabels[$typeKey] }}
+                                                    </span>
+                                                </div>
+
+                                                <div class="relative space-y-2">
+                                                    <label class="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.18em] text-outline">
+                                                        <span class="material-symbols-outlined text-[18px]">garage</span>
+                                                        Select Vehicle
                                                     </label>
-                                                    <select name="vehicle_codes[{{ $typeKey }}][]" class="w-full rounded-lg border border-outline-variant/40 bg-white py-2 px-3 text-sm focus:ring-2 focus:ring-primary" required>
-                                                        <option value="">Select available vehicle...</option>
-                                                        @foreach ($vehicleOptions as $vehicle)
+                                                    <div class="relative">
+                                                        <select name="vehicle_codes[{{ $typeKey }}][]" class="w-full appearance-none rounded-2xl border border-outline-variant/40 bg-white/95 py-3 pl-4 pr-4 text-sm font-semibold text-on-surface shadow-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10" required>
+                                                            <option value="">Choose an available vehicle</option>
+                                                        @foreach ($slotVehicleOptions as $vehicle)
                                                             <option value="{{ $vehicle->vehicle_code }}" @selected($oldSelectedCode === $vehicle->vehicle_code)>
                                                                 {{ $vehicle->vehicle_code }} - {{ $vehicle->vehicle_type }}
                                                                 @if (!empty($vehicle->capacity_label))
@@ -272,17 +305,38 @@
                                                                 @endif
                                                             </option>
                                                         @endforeach
-                                                    </select>
+                                                        </select>
+                                                    </div>
                                                 </div>
-                                            @endfor
-                                        </div>
-                                    @endif
-                                </div>
+
+                                                <div class="relative mt-4 space-y-2">
+                                                    <label class="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.18em] text-outline">
+                                                        <span class="material-symbols-outlined text-[18px]">badge</span>
+                                                        Driver Override
+                                                    </label>
+                                                    <div class="relative">
+                                                        <select name="driver_overrides[{{ $typeKey }}][]" class="w-full appearance-none rounded-2xl border border-outline-variant/40 bg-white/95 py-3 pl-4 pr-4 text-sm font-semibold text-on-surface shadow-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10">
+                                                            <option value="" @selected($oldSelectedOverride === '')>Use primary driver of selected vehicle</option>
+                                                        @foreach (($replacementDrivers ?? collect()) as $replacementDriver)
+                                                            <option value="{{ $replacementDriver }}" @selected($oldSelectedOverride === $replacementDriver)>
+                                                                {{ $replacementDriver }}
+                                                            </option>
+                                                        @endforeach
+                                                        </select>
+                                                    </div>
+                                                    @if (($replacementDrivers ?? collect())->isEmpty())
+                                                        <p class="mt-1 text-[10px] font-semibold text-outline">No replacement drivers available yet.</p>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endfor
+                                    </div>
+                                @endif
                             @endforeach
                         </form>
 
                         @if ($missingRequiredInventory)
-                        <p class="mt-2 text-xs font-semibold text-error">One or more required vehicle types are unavailable. Update Vehicle Availability first.</p>
+                        <p class="mt-2 text-xs font-semibold text-error">No available vehicles for assignment right now. Update Vehicle Availability first.</p>
                         @endif
                     </td>
 
@@ -321,5 +375,8 @@
 </main>
 
 @include('layouts.admin_footer')
+<script>
+    window.__emsHasCustomLiveRefresh = true;
+</script>
 </body>
 </html>

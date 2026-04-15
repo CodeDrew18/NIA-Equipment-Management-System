@@ -7,6 +7,7 @@ use App\Models\AdminVehicleAvailability;
 use App\Models\FuelIssuance;
 use App\Models\FuelIssuancePartnership;
 use App\Models\TransportationRequestFormModel;
+use App\Support\AssignatoryPersonnelResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,6 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class fuelIssuanceController extends Controller
 {
-    private const DIVISION_MANAGER = 'ENGR. EMILIO M. DOMAGAS JR';
     private const FUEL_ATTACHMENT_KEY_PREFIX = 'fuel_issuance_file_';
 
     public function index(Request $request)
@@ -40,6 +40,7 @@ class fuelIssuanceController extends Controller
         $payload = $this->buildPayload($request);
         $requests = $payload['dispatchedRequests'];
         $selectedRequest = $payload['selectedRequest'];
+        $assignatory = AssignatoryPersonnelResolver::resolve();
 
         return response()->json([
             'filters' => [
@@ -73,7 +74,8 @@ class fuelIssuanceController extends Controller
                 'vehicleId' => (string) ($selectedRequest?->vehicle_id ?: '____________________________'),
                 'driverName' => (string) ($selectedRequest?->driver_name ?: 'N/A'),
                 'requestorName' => (string) ($selectedRequest?->requestor_name ?: '________________'),
-                'divisionManagerName' => self::DIVISION_MANAGER,
+                'divisionManagerName' => (string) ($assignatory['name'] ?? ''),
+                'divisionManagerPosition' => (string) ($assignatory['position'] ?? ''),
                 'fuelPartnership' => $payload['selectedFuelPartnership'],
                 'canDispatchVehicle' => (bool) ($selectedRequest?->can_dispatch_vehicle ?? false),
                 'copies' => $payload['selectedCopies'],
@@ -273,6 +275,7 @@ class fuelIssuanceController extends Controller
 
         $spreadsheet = IOFactory::load($templatePath);
         $sheet = $spreadsheet->getActiveSheet();
+        $assignatoryName = AssignatoryPersonnelResolver::resolve()['name'];
 
         $ctrlNumber = (string) ($selectedCopy['ctrlNumber'] ?? ('FIS-' . optional($selectedRequest->request_date)->format('Y') . '-' . str_pad((string) $selectedRequest->id, 4, '0', STR_PAD_LEFT)));
         $requestDate = optional($selectedRequest->request_date)->format('M d, Y') ?: '';
@@ -309,7 +312,7 @@ class fuelIssuanceController extends Controller
         $sheet->setCellValue('C27', (string) ($selectedCopy['driverName'] ?? ''));
 
         $sheet->mergeCells('C32:E32');
-        $sheet->setCellValue('C32', self::DIVISION_MANAGER);
+        $sheet->setCellValue('C32', $assignatoryName);
 
 
         // Dealer's Copy
@@ -344,7 +347,7 @@ class fuelIssuanceController extends Controller
         $sheet->setCellValue('K27', (string) ($selectedCopy['driverName'] ?? ''));
 
         $sheet->mergeCells('K32:M32');
-        $sheet->setCellValue('K32', self::DIVISION_MANAGER);
+        $sheet->setCellValue('K32', $assignatoryName);
 
         $outputDirectory = storage_path('app/public/generated_forms');
         if (!is_dir($outputDirectory)) {

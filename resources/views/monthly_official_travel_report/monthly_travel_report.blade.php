@@ -337,7 +337,7 @@
 <div class="w-full border-b border-on-surface mb-2 h-12 flex items-end justify-center">
 <span class=" text-primary w-full mb-2 h-12 flex items-end justify-center font-bold uppercase">{{ $divisionManagerName }}</span>
 </div>
-<span class="text-[10px] font-bold uppercase tracking-tighter text-outline">Approved By (Division Manager, EOD)</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter text-outline">Approved By ({{ $divisionManagerPosition ?? 'Division Manager, EOD' }})</span>
 </div>
 <!-- Driver Name -->
 <div class="flex flex-col items-center">

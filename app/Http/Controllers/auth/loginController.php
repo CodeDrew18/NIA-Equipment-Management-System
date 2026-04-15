@@ -72,7 +72,7 @@ class loginController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        return redirect()->route('landing-page');
     }
 
     private function redirectByRole(string $role)

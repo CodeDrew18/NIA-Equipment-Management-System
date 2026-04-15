@@ -309,6 +309,20 @@
 </div>
 </div>
 
+<div id="confirm-dispatch-modal" class="fixed inset-0 z-[65] hidden items-center justify-center bg-black/40 px-4">
+<div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
+<div class="mb-4 flex items-center gap-3 text-primary">
+<span class="material-symbols-outlined">warning</span>
+<h3 class="text-lg font-bold">Confirm Dispatch</h3>
+</div>
+<p id="confirm-dispatch-message" class="text-sm text-on-surface-variant">Are you sure you want to dispatch the vehicle?</p>
+<div class="mt-6 flex justify-end gap-3">
+<button id="confirm-dispatch-no" type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50">No</button>
+<button id="confirm-dispatch-yes" type="button" class="rounded-lg bg-secondary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-secondary/90">OK</button>
+</div>
+</div>
+</div>
+
 <div id="dtt-warning-modal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/50 px-4">
 <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
 <div class="mb-4 flex items-center gap-3 text-error">
@@ -343,6 +357,9 @@ const dttEls = {
     confirmDownloadModal: document.getElementById('confirm-download-modal'),
     confirmDownloadYes: document.getElementById('confirm-download-yes'),
     confirmDownloadNo: document.getElementById('confirm-download-no'),
+    confirmDispatchModal: document.getElementById('confirm-dispatch-modal'),
+    confirmDispatchYes: document.getElementById('confirm-dispatch-yes'),
+    confirmDispatchNo: document.getElementById('confirm-dispatch-no'),
     downloadLoadingModal: document.getElementById('download-loading-modal'),
     warningModal: document.getElementById('dtt-warning-modal'),
     warningModalMessage: document.getElementById('dtt-warning-modal-message'),
@@ -353,6 +370,7 @@ const dttDataUrl = "{{ route('admin.daily-trip-ticket.data') }}";
 const dttCsrfToken = "{{ csrf_token() }}";
 let dttCurrentPage = {{ $requests->currentPage() }};
 let pendingDttDownloadAction = null;
+let pendingDttDispatchAction = null;
 let dttIsDownloading = false;
 
 function esc(value) {
@@ -484,6 +502,45 @@ function hideDttConfirmDownloadModal() {
 
     dttEls.confirmDownloadModal.classList.add('hidden');
     dttEls.confirmDownloadModal.classList.remove('flex');
+}
+
+function showDttConfirmDispatchModal(selectEl) {
+    if (!selectEl) {
+        return;
+    }
+
+    if (!dttEls.confirmDispatchModal) {
+        updateDttStatus(selectEl);
+        return;
+    }
+
+    pendingDttDispatchAction = {
+        selectEl,
+        originalValue: String(selectEl.dataset.original || ''),
+        nextValue: String(selectEl.value || ''),
+    };
+
+    dttEls.confirmDispatchModal.classList.remove('hidden');
+    dttEls.confirmDispatchModal.classList.add('flex');
+}
+
+function hideDttConfirmDispatchModal() {
+    pendingDttDispatchAction = null;
+
+    if (!dttEls.confirmDispatchModal) {
+        return;
+    }
+
+    dttEls.confirmDispatchModal.classList.add('hidden');
+    dttEls.confirmDispatchModal.classList.remove('flex');
+}
+
+function cancelDttConfirmDispatchModal() {
+    if (pendingDttDispatchAction && pendingDttDispatchAction.selectEl) {
+        pendingDttDispatchAction.selectEl.value = pendingDttDispatchAction.originalValue || 'Signed';
+    }
+
+    hideDttConfirmDispatchModal();
 }
 
 function showDttDownloadLoadingModal() {
@@ -774,6 +831,15 @@ dttEls.tbody.addEventListener('change', function (event) {
     if (!selectEl) {
         return;
     }
+
+    const selectedStatus = String(selectEl.value || '');
+    const originalStatus = String(selectEl.dataset.original || '');
+
+    if (selectedStatus === 'Dispatched' && originalStatus !== 'Dispatched') {
+        showDttConfirmDispatchModal(selectEl);
+        return;
+    }
+
     updateDttStatus(selectEl);
 });
 
@@ -845,6 +911,37 @@ if (dttEls.confirmDownloadYes) {
         }
 
         hideDttConfirmDownloadModal();
+    });
+}
+
+if (dttEls.confirmDispatchNo) {
+    dttEls.confirmDispatchNo.addEventListener('click', function () {
+        cancelDttConfirmDispatchModal();
+    });
+}
+
+if (dttEls.confirmDispatchModal) {
+    dttEls.confirmDispatchModal.addEventListener('click', function (event) {
+        if (event.target === dttEls.confirmDispatchModal) {
+            cancelDttConfirmDispatchModal();
+        }
+    });
+}
+
+if (dttEls.confirmDispatchYes) {
+    dttEls.confirmDispatchYes.addEventListener('click', async function () {
+        const action = pendingDttDispatchAction;
+
+        if (!action || !action.selectEl) {
+            hideDttConfirmDispatchModal();
+            return;
+        }
+
+        const selectEl = action.selectEl;
+        selectEl.value = action.nextValue;
+        hideDttConfirmDispatchModal();
+
+        await updateDttStatus(selectEl);
     });
 }
 

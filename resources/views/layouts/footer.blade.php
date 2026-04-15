@@ -283,9 +283,11 @@
         const description = document.getElementById('global-pending-evaluation-description');
         const userId = @json((int) ($returnedRequestMessageUserId ?? 0));
         const endpoint = @json(route('user.notifications.pending-evaluations'));
-        const storageKey = `nia_ems_pending_evaluations_seen_signature_user_${userId}`;
+        const storageKey = `nia_ems_pending_evaluations_last_seen_latest_id_user_${userId}`;
+        const legacyStorageKey = `nia_ems_pending_evaluations_seen_signature_user_${userId}`;
         let pendingEvaluationCount = @json((int) ($pendingUserEvaluationCount ?? 0));
         let pendingEvaluationSignature = @json((string) ($pendingUserEvaluationSignature ?? ''));
+        let pendingLatestEvaluationId = extractLatestEvaluationId(pendingEvaluationSignature);
 
         if (!modal || !closeButton || !goButton || !description || userId <= 0) {
             return;
@@ -297,6 +299,51 @@
                 : 0;
 
             description.textContent = `You have ${normalizedCount.toLocaleString('en-US')} trip evaluation${normalizedCount === 1 ? '' : 's'} waiting for submission.`;
+        }
+
+        function extractLatestEvaluationId(signature) {
+            const raw = String(signature ?? '').trim();
+            if (raw === '') {
+                return 0;
+            }
+
+            const parts = raw.split('|');
+            const candidate = parts.length >= 2 ? Number(parts[1]) : Number(parts[0]);
+
+            if (!Number.isFinite(candidate)) {
+                return 0;
+            }
+
+            return Math.max(0, Math.trunc(candidate));
+        }
+
+        function getLastSeenLatestEvaluationId() {
+            try {
+                const storedValue = window.localStorage.getItem(storageKey);
+                const parsedValue = Number(storedValue || 0);
+
+                if (Number.isFinite(parsedValue) && parsedValue > 0) {
+                    return Math.max(0, Math.trunc(parsedValue));
+                }
+
+                const legacyStoredValue = window.localStorage.getItem(legacyStorageKey) || '';
+                return extractLatestEvaluationId(legacyStoredValue);
+            } catch (error) {
+                return 0;
+            }
+        }
+
+        function setLastSeenLatestEvaluationId(value) {
+            const normalizedValue = Number(value);
+            if (!Number.isFinite(normalizedValue) || normalizedValue <= 0) {
+                return;
+            }
+
+            try {
+                window.localStorage.setItem(storageKey, String(Math.trunc(normalizedValue)));
+            } catch (error) {
+                // Ignore storage failures.
+            }
         }
 
         function showModalWhenReady(attempt) {
@@ -319,30 +366,20 @@
             modal.classList.add('hidden');
             modal.classList.remove('flex');
 
-            if (!markAsSeen || pendingEvaluationSignature === '') {
+            if (!markAsSeen || pendingLatestEvaluationId <= 0) {
                 return;
             }
 
-            try {
-                window.localStorage.setItem(storageKey, pendingEvaluationSignature);
-            } catch (error) {
-                // Ignore storage failures.
-            }
+            setLastSeenLatestEvaluationId(pendingLatestEvaluationId);
         }
 
         function shouldOpenModal() {
-            if (pendingEvaluationCount <= 0 || pendingEvaluationSignature === '') {
+            if (pendingEvaluationCount <= 0 || pendingLatestEvaluationId <= 0) {
                 return false;
             }
 
-            let lastSeenSignature = '';
-            try {
-                lastSeenSignature = window.localStorage.getItem(storageKey) || '';
-            } catch (error) {
-                lastSeenSignature = '';
-            }
-
-            return lastSeenSignature !== pendingEvaluationSignature;
+            const lastSeenLatestEvaluationId = getLastSeenLatestEvaluationId();
+            return pendingLatestEvaluationId > lastSeenLatestEvaluationId;
         }
 
         function applyStateAndToggleModal() {
@@ -386,6 +423,7 @@
 
                 pendingEvaluationCount = normalizedCount;
                 pendingEvaluationSignature = nextSignature;
+                pendingLatestEvaluationId = extractLatestEvaluationId(nextSignature);
 
                 if (hasChanged) {
                     applyStateAndToggleModal();
