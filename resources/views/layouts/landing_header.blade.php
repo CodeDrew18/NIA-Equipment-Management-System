@@ -138,116 +138,183 @@
 
 <script>
     (function () {
-        const toggleButton = document.getElementById('landing-mobile-nav-toggle');
-        const panel = document.getElementById('landing-mobile-nav-panel');
-        const icon = document.getElementById('landing-mobile-nav-icon');
-        const header = document.querySelector('header[data-landing-header="true"]');
-        const sectionIds = ['home-section', 'operations-section', 'reports-section', 'evaluation-section'];
-        const desktopLinks = Array.from(document.querySelectorAll('[data-section-link]'));
-        const mobileLinks = Array.from(document.querySelectorAll('[data-mobile-section-link]'));
+        function initLandingHeader() {
+            const toggleButton = document.getElementById('landing-mobile-nav-toggle');
+            const panel = document.getElementById('landing-mobile-nav-panel');
+            const icon = document.getElementById('landing-mobile-nav-icon');
+            const header = document.querySelector('header[data-landing-header="true"]');
+            const sectionIds = ['home-section', 'operations-section', 'reports-section', 'evaluation-section'];
+            const desktopLinks = Array.from(document.querySelectorAll('[data-section-link]'));
+            const mobileLinks = Array.from(document.querySelectorAll('[data-mobile-section-link]'));
 
-        function closeMobilePanel() {
-            if (!toggleButton || !panel || !icon) {
-                return;
+            function closeMobilePanel() {
+                if (!toggleButton || !panel || !icon) {
+                    return;
+                }
+
+                panel.classList.add('hidden');
+                toggleButton.setAttribute('aria-expanded', 'false');
+                icon.textContent = 'menu';
             }
 
-            panel.classList.add('hidden');
-            toggleButton.setAttribute('aria-expanded', 'false');
-            icon.textContent = 'menu';
-        }
+            function setActiveSection(sectionId) {
+                desktopLinks.forEach(function (link) {
+                    link.classList.toggle('nav-link-active', link.getAttribute('data-section-link') === sectionId);
+                });
 
-        function setActiveSection(sectionId) {
+                mobileLinks.forEach(function (link) {
+                    link.classList.toggle('mobile-nav-link-active', link.getAttribute('data-mobile-section-link') === sectionId);
+                });
+            }
+
+            function scrollToSection(sectionId) {
+                const section = document.getElementById(sectionId);
+                if (!section) {
+                    return;
+                }
+
+                const headerOffset = (header ? header.offsetHeight : 80) + 12;
+                const targetTop = section.getBoundingClientRect().top + window.scrollY - headerOffset;
+
+                window.scrollTo({
+                    top: targetTop,
+                    behavior: 'smooth',
+                });
+            }
+
+            function handleSectionLinkClick(event) {
+                const sectionId = this.getAttribute('data-section-link') || this.getAttribute('data-mobile-section-link');
+                const section = sectionId ? document.getElementById(sectionId) : null;
+
+                if (!section) {
+                    return;
+                }
+
+                event.preventDefault();
+                scrollToSection(sectionId);
+                setActiveSection(sectionId);
+                closeMobilePanel();
+
+                if (window.history && typeof window.history.replaceState === 'function') {
+                    window.history.replaceState(null, '', '#' + sectionId);
+                }
+            }
+
             desktopLinks.forEach(function (link) {
-                link.classList.toggle('nav-link-active', link.getAttribute('data-section-link') === sectionId);
+                link.addEventListener('click', handleSectionLinkClick);
             });
 
             mobileLinks.forEach(function (link) {
-                link.classList.toggle('mobile-nav-link-active', link.getAttribute('data-mobile-section-link') === sectionId);
+                link.addEventListener('click', handleSectionLinkClick);
             });
-        }
 
-        function scrollToSection(sectionId) {
-            const section = document.getElementById(sectionId);
-            if (!section) {
-                return;
-            }
-
-            const headerOffset = (header ? header.offsetHeight : 80) + 12;
-            const targetTop = section.getBoundingClientRect().top + window.scrollY - headerOffset;
-
-            window.scrollTo({
-                top: targetTop,
-                behavior: 'smooth',
-            });
-        }
-
-        function handleSectionLinkClick(event) {
-            const sectionId = this.getAttribute('data-section-link') || this.getAttribute('data-mobile-section-link');
-            const section = sectionId ? document.getElementById(sectionId) : null;
-
-            if (!section) {
-                return;
-            }
-
-            event.preventDefault();
-            scrollToSection(sectionId);
-            setActiveSection(sectionId);
-            closeMobilePanel();
-
-            if (window.history && typeof window.history.replaceState === 'function') {
-                window.history.replaceState(null, '', '#' + sectionId);
-            }
-        }
-
-        desktopLinks.forEach(function (link) {
-            link.addEventListener('click', handleSectionLinkClick);
-        });
-
-        mobileLinks.forEach(function (link) {
-            link.addEventListener('click', handleSectionLinkClick);
-        });
-
-        if (toggleButton && panel && icon) {
-            toggleButton.addEventListener('click', function () {
-                const isHidden = panel.classList.contains('hidden');
-                panel.classList.toggle('hidden');
-                toggleButton.setAttribute('aria-expanded', String(isHidden));
-                icon.textContent = isHidden ? 'close' : 'menu';
-            });
-        }
-
-        const observer = new IntersectionObserver(function (entries) {
-            const visibleEntries = entries
-                .filter(function (entry) {
-                    return entry.isIntersecting;
-                })
-                .sort(function (a, b) {
-                    return b.intersectionRatio - a.intersectionRatio;
+            if (toggleButton && panel && icon) {
+                toggleButton.addEventListener('click', function () {
+                    const isHidden = panel.classList.contains('hidden');
+                    panel.classList.toggle('hidden');
+                    toggleButton.setAttribute('aria-expanded', String(isHidden));
+                    icon.textContent = isHidden ? 'close' : 'menu';
                 });
-
-            if (visibleEntries.length > 0) {
-                setActiveSection(visibleEntries[0].target.id);
             }
-        }, {
-            rootMargin: '-40% 0px -45% 0px',
-            threshold: [0.2, 0.35, 0.5, 0.7],
-        });
 
-        sectionIds.forEach(function (sectionId) {
-            const section = document.getElementById(sectionId);
-            if (section) {
-                observer.observe(section);
+            const observer = new IntersectionObserver(function (entries) {
+                const visibleEntries = entries
+                    .filter(function (entry) {
+                        return entry.isIntersecting;
+                    })
+                    .sort(function (a, b) {
+                        return b.intersectionRatio - a.intersectionRatio;
+                    });
+
+                if (visibleEntries.length > 0) {
+                    setActiveSection(visibleEntries[0].target.id);
+                }
+            }, {
+                rootMargin: '-40% 0px -45% 0px',
+                threshold: [0.2, 0.35, 0.5, 0.7],
+            });
+
+            sectionIds.forEach(function (sectionId) {
+                const section = document.getElementById(sectionId);
+                if (section) {
+                    observer.observe(section);
+                }
+            });
+
+            // Fallback / reinforcement: use a scroll-based detector to handle
+            // cases where IntersectionObserver margins don't match layout.
+            let ticking = false;
+
+            function detectActiveSection() {
+                const headerOffset = (header ? header.offsetHeight : 80) + 12;
+                const checkY = headerOffset + (window.innerHeight - headerOffset) * 0.25;
+                let found = null;
+
+                for (let i = 0; i < sectionIds.length; i++) {
+                    const id = sectionIds[i];
+                    const el = document.getElementById(id);
+                    if (!el) continue;
+                    const r = el.getBoundingClientRect();
+                    if (r.top <= checkY && r.bottom >= checkY) {
+                        found = id;
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    // choose the section whose top is nearest but not below viewport bottom
+                    let best = null;
+                    let bestDist = Infinity;
+                    for (let i = 0; i < sectionIds.length; i++) {
+                        const id = sectionIds[i];
+                        const el = document.getElementById(id);
+                        if (!el) continue;
+                        const r = el.getBoundingClientRect();
+                        const dist = Math.abs(r.top - headerOffset);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            best = id;
+                        }
+                    }
+                    found = best;
+                }
+
+                if (found) {
+                    setActiveSection(found);
+                }
             }
-        });
 
-        const hashSectionId = window.location.hash.replace('#', '');
-        if (sectionIds.includes(hashSectionId) && document.getElementById(hashSectionId)) {
-            setActiveSection(hashSectionId);
-            window.setTimeout(function () {
-                scrollToSection(hashSectionId);
-            }, 0);
+            function onScrollOrResize() {
+                if (!ticking) {
+                    window.requestAnimationFrame(function () {
+                        detectActiveSection();
+                        ticking = false;
+                    });
+                    ticking = true;
+                }
+            }
+
+            window.addEventListener('scroll', onScrollOrResize, { passive: true });
+            window.addEventListener('resize', onScrollOrResize);
+
+            // initial check
+            detectActiveSection();
+
+            const hashSectionId = window.location.hash.replace('#', '');
+            if (sectionIds.includes(hashSectionId) && document.getElementById(hashSectionId)) {
+                setActiveSection(hashSectionId);
+                window.setTimeout(function () {
+                    scrollToSection(hashSectionId);
+                }, 0);
+            } else {
+                setActiveSection('home-section');
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initLandingHeader);
         } else {
-            setActiveSection('home-section');
+            initLandingHeader();
         }
     })();
 </script>

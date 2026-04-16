@@ -32,6 +32,8 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('layouts.footer', function ($view) use ($adminRoles, $userRoles) {
             $returnedRequestMessages = collect();
+            $approvedRequestMessages = collect();
+            $cancelledRequestMessages = collect();
             $authUser = Auth::user();
             $pendingUserEvaluationCount = 0;
             $pendingUserEvaluationSignature = '';
@@ -51,6 +53,32 @@ class AppServiceProvider extends ServiceProvider
                     $returnedRequestMessages = TransportationRequestFormModel::query()
                         ->where('form_creator_id', $authUser->personnel_id)
                         ->where('status', 'Rejected')
+                        ->whereNotNull('rejection_reason')
+                        ->where('rejection_reason', '!=', '')
+                        ->orderByDesc('updated_at')
+                        ->limit(20)
+                        ->get([
+                            'id',
+                            'form_id',
+                            'rejection_reason',
+                            'attachments',
+                            'updated_at',
+                        ]);
+                    $approvedRequestMessages = TransportationRequestFormModel::query()
+                        ->where('form_creator_id', $authUser->personnel_id)
+                        ->where('status', 'Signed')
+                        ->orderByDesc('updated_at')
+                        ->limit(20)
+                        ->get([
+                            'id',
+                            'form_id',
+                            'attachments',
+                            'updated_at',
+                        ]);
+
+                    $cancelledRequestMessages = TransportationRequestFormModel::query()
+                        ->where('form_creator_id', $authUser->personnel_id)
+                        ->where('status', 'Cancelled')
                         ->whereNotNull('rejection_reason')
                         ->where('rejection_reason', '!=', '')
                         ->orderByDesc('updated_at')
@@ -92,6 +120,10 @@ class AppServiceProvider extends ServiceProvider
 
             $view->with('returnedRequestMessages', $returnedRequestMessages);
             $view->with('returnedRequestMessageUserId', (int) ($authUser->id ?? 0));
+            $view->with('approvedRequestMessages', $approvedRequestMessages);
+            $view->with('approvedRequestMessageUserId', (int) ($authUser->id ?? 0));
+            $view->with('cancelledRequestMessages', $cancelledRequestMessages);
+            $view->with('cancelledRequestMessageUserId', (int) ($authUser->id ?? 0));
             $view->with('pendingUserEvaluationCount', (int) $pendingUserEvaluationCount);
             $view->with('pendingUserEvaluationSignature', (string) $pendingUserEvaluationSignature);
         });

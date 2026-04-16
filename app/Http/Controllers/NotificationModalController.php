@@ -81,6 +81,144 @@ class NotificationModalController extends Controller
         ]);
     }
 
+    public function userApprovedRequests(Request $request): JsonResponse
+    {
+        $personnelId = (string) ($request->user()?->personnel_id ?? '');
+
+        if ($personnelId === '') {
+            return response()->json([
+                'latestRequest' => null,
+                'latestRequestId' => 0,
+                'latestRequestSignature' => '',
+            ]);
+        }
+
+        $latestApprovedRequest = TransportationRequestFormModel::query()
+            ->where('form_creator_id', $personnelId)
+            ->where('status', 'Signed')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->first([
+                'id',
+                'form_id',
+                'attachments',
+                'updated_at',
+            ]);
+
+        if (!$latestApprovedRequest) {
+            return response()->json([
+                'latestRequest' => null,
+                'latestRequestId' => 0,
+                'latestRequestSignature' => '',
+            ]);
+        }
+
+        $attachments = collect(is_array($latestApprovedRequest->attachments) ? $latestApprovedRequest->attachments : [])
+            ->values()
+            ->map(function ($attachment, int $index) use ($latestApprovedRequest): array {
+                $fileName = '';
+                if (is_array($attachment)) {
+                    $fileName = trim((string) ($attachment['file_name'] ?? ''));
+                }
+
+                return [
+                    'fileName' => $fileName !== '' ? $fileName : 'Attachment',
+                    'url' => route('request-form.attachment.view', [
+                        'transportationRequest' => $latestApprovedRequest->id,
+                        'index' => $index,
+                    ]),
+                ];
+            })
+            ->all();
+
+        $latestRequestId = (int) ($latestApprovedRequest->id ?? 0);
+        $latestRequestSignature = implode('|', [
+            (string) $latestRequestId,
+            (string) (optional($latestApprovedRequest->updated_at)->timestamp ?? 0),
+        ]);
+
+        return response()->json([
+            'latestRequest' => [
+                'id' => $latestRequestId,
+                'formId' => (string) ($latestApprovedRequest->form_id ?? 'N/A'),
+                'attachments' => $attachments,
+            ],
+            'latestRequestId' => $latestRequestId,
+            'latestRequestSignature' => $latestRequestSignature,
+        ]);
+    }
+
+    public function userCancelledRequests(Request $request): JsonResponse
+    {
+        $personnelId = (string) ($request->user()?->personnel_id ?? '');
+
+        if ($personnelId === '') {
+            return response()->json([
+                'latestRequest' => null,
+                'latestRequestId' => 0,
+                'latestRequestSignature' => '',
+            ]);
+        }
+
+        $latestCancelledRequest = TransportationRequestFormModel::query()
+            ->where('form_creator_id', $personnelId)
+            ->where('status', 'Cancelled')
+            ->whereNotNull('rejection_reason')
+            ->where('rejection_reason', '!=', '')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->first([
+                'id',
+                'form_id',
+                'rejection_reason',
+                'attachments',
+                'updated_at',
+            ]);
+
+        if (!$latestCancelledRequest) {
+            return response()->json([
+                'latestRequest' => null,
+                'latestRequestId' => 0,
+                'latestRequestSignature' => '',
+            ]);
+        }
+
+        $attachments = collect(is_array($latestCancelledRequest->attachments) ? $latestCancelledRequest->attachments : [])
+            ->values()
+            ->map(function ($attachment, int $index) use ($latestCancelledRequest): array {
+                $fileName = '';
+                if (is_array($attachment)) {
+                    $fileName = trim((string) ($attachment['file_name'] ?? ''));
+                }
+
+                return [
+                    'fileName' => $fileName !== '' ? $fileName : 'Attachment',
+                    'url' => route('request-form.attachment.view', [
+                        'transportationRequest' => $latestCancelledRequest->id,
+                        'index' => $index,
+                    ]),
+                ];
+            })
+            ->all();
+
+        $latestRequestId = (int) ($latestCancelledRequest->id ?? 0);
+        $latestRequestSignature = implode('|', [
+            (string) $latestRequestId,
+            (string) (optional($latestCancelledRequest->updated_at)->timestamp ?? 0),
+        ]);
+
+        return response()->json([
+            'latestRequest' => [
+                'id' => $latestRequestId,
+                'formId' => (string) ($latestCancelledRequest->form_id ?? 'N/A'),
+                'cancellationReason' => (string) ($latestCancelledRequest->rejection_reason ?? ''),
+                'attachments' => $attachments,
+            ],
+            'latestRequestId' => $latestRequestId,
+            'latestRequestSignature' => $latestRequestSignature,
+        ]);
+    }
+
     public function userPendingEvaluations(Request $request): JsonResponse
     {
         $personnelId = (string) ($request->user()?->personnel_id ?? '');

@@ -43,6 +43,57 @@
         ->sortByDesc('id')
         ->values()
         ->all();
+        $initialApprovedRequests = ($approvedRequestMessages ?? collect())
+            ->map(function ($request) {
+                $attachments = collect(is_array($request->attachments) ? $request->attachments : [])
+                    ->values()
+                    ->map(function ($attachment, $index) use ($request) {
+                        return [
+                            'fileName' => trim((string) (is_array($attachment) ? ($attachment['file_name'] ?? '') : '')) ?: 'Attachment',
+                            'url' => route('request-form.attachment.view', [
+                                'transportationRequest' => $request->id,
+                                'index' => $index,
+                            ]),
+                        ];
+                    })
+                    ->values()
+                    ->all();
+
+                return [
+                    'id' => (int) ($request->id ?? 0),
+                    'formId' => (string) ($request->form_id ?? 'N/A'),
+                    'attachments' => $attachments,
+                ];
+            })
+            ->sortByDesc('id')
+            ->values()
+            ->all();
+        $initialCancelledRequests = ($cancelledRequestMessages ?? collect())
+            ->map(function ($request) {
+                $attachments = collect(is_array($request->attachments) ? $request->attachments : [])
+                    ->values()
+                    ->map(function ($attachment, $index) use ($request) {
+                        return [
+                            'fileName' => trim((string) (is_array($attachment) ? ($attachment['file_name'] ?? '') : '')) ?: 'Attachment',
+                            'url' => route('request-form.attachment.view', [
+                                'transportationRequest' => $request->id,
+                                'index' => $index,
+                            ]),
+                        ];
+                    })
+                    ->values()
+                    ->all();
+
+                return [
+                    'id' => (int) ($request->id ?? 0),
+                    'formId' => (string) ($request->form_id ?? 'N/A'),
+                    'cancellationReason' => (string) ($request->rejection_reason ?? ''),
+                    'attachments' => $attachments,
+                ];
+            })
+            ->sortByDesc('id')
+            ->values()
+            ->all();
 @endphp
 
 <div id="global-returned-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/45 px-4">
@@ -58,6 +109,38 @@
         </div>
 
         <div id="global-returned-list" class="max-h-[60vh] overflow-y-auto pr-1"></div>
+    </div>
+</div>
+
+<div id="global-approved-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/45 px-4">
+    <div class="w-full max-w-2xl rounded-2xl bg-surface-container-lowest p-6 shadow-2xl border border-outline-variant/30">
+        <div class="flex items-start justify-between gap-4 mb-4">
+            <div>
+                <h3 class="text-xl font-extrabold text-primary">Approved Requests</h3>
+                <p class="text-sm text-on-surface-variant">The latest approved request will appear here.</p>
+            </div>
+            <button id="global-approved-close" type="button" class="inline-flex items-center justify-center rounded-lg border border-outline-variant px-3 py-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant hover:bg-surface-container-low">
+                Close
+            </button>
+        </div>
+
+        <div id="global-approved-list" class="max-h-[60vh] overflow-y-auto pr-1"></div>
+    </div>
+</div>
+
+<div id="global-cancelled-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/45 px-4">
+    <div class="w-full max-w-2xl rounded-2xl bg-surface-container-lowest p-6 shadow-2xl border border-outline-variant/30">
+        <div class="flex items-start justify-between gap-4 mb-4">
+            <div>
+                <h3 class="text-xl font-extrabold text-primary">Cancelled Requests</h3>
+                <p class="text-sm text-on-surface-variant">The latest cancelled request will appear here with the reason.</p>
+            </div>
+            <button id="global-cancelled-close" type="button" class="inline-flex items-center justify-center rounded-lg border border-outline-variant px-3 py-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant hover:bg-surface-container-low">
+                Close
+            </button>
+        </div>
+
+        <div id="global-cancelled-list" class="max-h-[60vh] overflow-y-auto pr-1"></div>
     </div>
 </div>
 
@@ -253,6 +336,389 @@
     })();
 </script>
 
+<script>
+    (function () {
+        const modal = document.getElementById('global-approved-modal');
+        const closeButton = document.getElementById('global-approved-close');
+        const list = document.getElementById('global-approved-list');
+        const userId = @json((int) ($approvedRequestMessageUserId ?? 0));
+        const endpoint = @json(route('user.notifications.approved-requests'));
+        const storageKey = `nia_ems_approved_requests_last_seen_id_user_${userId}`;
+        const initialApproved = @json($initialApprovedRequests);
+
+        let latestApprovedRequest = Array.isArray(initialApproved) && initialApproved.length > 0
+            ? initialApproved[0]
+            : null;
+        let latestApprovedRequestSignature = latestApprovedRequest && Number(latestApprovedRequest.id) > 0
+            ? String(latestApprovedRequest.id)
+            : '';
+        let fetchInFlight = false;
+
+        if (!modal || !closeButton || !list || userId <= 0) {
+            return;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function getLastSeenApprovedId() {
+            try {
+                const storedValue = Number(window.localStorage.getItem(storageKey) || 0);
+                return Number.isFinite(storedValue) ? Math.max(0, Math.trunc(storedValue)) : 0;
+            } catch (error) {
+                return 0;
+            }
+        }
+
+        function setLastSeenApprovedId(value) {
+            const normalizedValue = Number(value);
+            if (!Number.isFinite(normalizedValue) || normalizedValue <= 0) {
+                return;
+            }
+
+            try {
+                window.localStorage.setItem(storageKey, String(Math.trunc(normalizedValue)));
+            } catch (error) {
+                // Ignore storage failures.
+            }
+        }
+
+        function openModal() {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeModal(markAsSeen) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+
+            if (!markAsSeen || !latestApprovedRequest) {
+                return;
+            }
+
+            setLastSeenApprovedId(latestApprovedRequest.id);
+        }
+
+        function renderLatestApprovedRequest() {
+            if (!latestApprovedRequest || Number(latestApprovedRequest.id) <= 0) {
+                list.innerHTML = '<p class="rounded-xl border border-outline-variant/40 bg-surface-container-low p-4 text-sm text-on-surface-variant">No approved requests right now.</p>';
+                return;
+            }
+
+            const attachments = Array.isArray(latestApprovedRequest.attachments)
+                ? latestApprovedRequest.attachments
+                : [];
+
+            const attachmentsHtml = attachments.length > 0
+                ? '<div class="mt-3 space-y-1">' + attachments.map(function (attachment) {
+                    const href = String((attachment && attachment.url) ? attachment.url : '#');
+                    const fileName = escapeHtml((attachment && attachment.fileName) ? attachment.fileName : 'Attachment');
+
+                    return [
+                        '<a href="' + href + '" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-container hover:underline">',
+                        '<span class="material-symbols-outlined text-sm">attach_file</span>',
+                        fileName,
+                        '</a>'
+                    ].join('');
+                }).join('') + '</div>'
+                : '';
+
+            list.innerHTML = [
+                '<div class="rounded-xl border border-primary/20 bg-primary-fixed/20 p-4" data-approved-request-id="' + escapeHtml(latestApprovedRequest.id) + '">',
+                '<p class="text-sm font-bold text-primary">' + escapeHtml(latestApprovedRequest.formId || 'N/A') + ' was approved.</p>',
+                attachmentsHtml,
+                '</div>'
+            ].join('');
+        }
+
+        function applyState() {
+            renderLatestApprovedRequest();
+
+            if (!latestApprovedRequest || Number(latestApprovedRequest.id) <= 0) {
+                closeModal(false);
+                return;
+            }
+
+            const lastSeenId = getLastSeenApprovedId();
+
+            if (Number(latestApprovedRequest.id) > lastSeenId) {
+                openModal();
+                return;
+            }
+
+            closeModal(false);
+        }
+
+        async function refreshApprovedRequests() {
+            if (fetchInFlight || endpoint === '') {
+                return;
+            }
+
+            fetchInFlight = true;
+
+            try {
+                const response = await fetch(endpoint, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    cache: 'no-store',
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const payload = await response.json();
+                const nextLatestRequest = payload && payload.latestRequest && Number(payload.latestRequest.id) > 0
+                    ? payload.latestRequest
+                    : null;
+                const nextSignature = String(payload.latestRequestSignature ?? '');
+                const currentLatestId = latestApprovedRequest ? Number(latestApprovedRequest.id) : 0;
+                const nextLatestId = Number(payload.latestRequestId ?? 0);
+                const hasChanged = nextSignature !== latestApprovedRequestSignature
+                    || currentLatestId !== nextLatestId;
+
+                latestApprovedRequest = nextLatestRequest;
+                latestApprovedRequestSignature = nextSignature;
+
+                if (hasChanged) {
+                    applyState();
+                }
+            } catch (error) {
+                // Ignore polling failures.
+            } finally {
+                fetchInFlight = false;
+            }
+        }
+
+        applyState();
+
+        closeButton.addEventListener('click', function () {
+            closeModal(true);
+        });
+
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal) {
+                closeModal(true);
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeModal(true);
+            }
+        });
+
+        const pollIntervalMs = 10000;
+        window.setInterval(refreshApprovedRequests, pollIntervalMs);
+
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) {
+                refreshApprovedRequests();
+            }
+        });
+    })();
+</script>
+
+<script>
+    (function () {
+        const modal = document.getElementById('global-cancelled-modal');
+        const closeButton = document.getElementById('global-cancelled-close');
+        const list = document.getElementById('global-cancelled-list');
+        const userId = @json((int) ($cancelledRequestMessageUserId ?? 0));
+        const endpoint = @json(route('user.notifications.cancelled-requests'));
+        const storageKey = `nia_ems_cancelled_requests_last_seen_id_user_${userId}`;
+        const initialCancelled = @json($initialCancelledRequests);
+
+        let latestCancelledRequest = Array.isArray(initialCancelled) && initialCancelled.length > 0
+            ? initialCancelled[0]
+            : null;
+        let latestCancelledRequestSignature = latestCancelledRequest && Number(latestCancelledRequest.id) > 0
+            ? String(latestCancelledRequest.id)
+            : '';
+        let fetchInFlight = false;
+
+        if (!modal || !closeButton || !list || userId <= 0) {
+            return;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function getLastSeenCancelledId() {
+            try {
+                const storedValue = Number(window.localStorage.getItem(storageKey) || 0);
+                return Number.isFinite(storedValue) ? Math.max(0, Math.trunc(storedValue)) : 0;
+            } catch (error) {
+                return 0;
+            }
+        }
+
+        function setLastSeenCancelledId(value) {
+            const normalizedValue = Number(value);
+            if (!Number.isFinite(normalizedValue) || normalizedValue <= 0) {
+                return;
+            }
+
+            try {
+                window.localStorage.setItem(storageKey, String(Math.trunc(normalizedValue)));
+            } catch (error) {
+                // Ignore storage failures.
+            }
+        }
+
+        function openModal() {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeModal(markAsSeen) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+
+            if (!markAsSeen || !latestCancelledRequest) {
+                return;
+            }
+
+            setLastSeenCancelledId(latestCancelledRequest.id);
+        }
+
+        function renderLatestCancelledRequest() {
+            if (!latestCancelledRequest || Number(latestCancelledRequest.id) <= 0) {
+                list.innerHTML = '<p class="rounded-xl border border-outline-variant/40 bg-surface-container-low p-4 text-sm text-on-surface-variant">No cancelled requests right now.</p>';
+                return;
+            }
+
+            const attachments = Array.isArray(latestCancelledRequest.attachments)
+                ? latestCancelledRequest.attachments
+                : [];
+
+            const attachmentsHtml = attachments.length > 0
+                ? '<div class="mt-3 space-y-1">' + attachments.map(function (attachment) {
+                    const href = String((attachment && attachment.url) ? attachment.url : '#');
+                    const fileName = escapeHtml((attachment && attachment.fileName) ? attachment.fileName : 'Attachment');
+
+                    return [
+                        '<a href="' + href + '" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-container hover:underline">',
+                        '<span class="material-symbols-outlined text-sm">attach_file</span>',
+                        fileName,
+                        '</a>'
+                    ].join('');
+                }).join('') + '</div>'
+                : '';
+
+            list.innerHTML = [
+                '<div class="rounded-xl border border-outline-variant/50 bg-surface-container-low p-4" data-cancelled-request-id="' + escapeHtml(latestCancelledRequest.id) + '">',
+                '<p class="text-sm font-bold text-on-surface">' + escapeHtml(latestCancelledRequest.formId || 'N/A') + ' was cancelled.</p>',
+                '<p class="mt-1 text-sm font-semibold text-on-surface-variant">' + escapeHtml(latestCancelledRequest.cancellationReason || 'No cancellation reason provided.') + '</p>',
+                attachmentsHtml,
+                '</div>'
+            ].join('');
+        }
+
+        function applyState() {
+            renderLatestCancelledRequest();
+
+            if (!latestCancelledRequest || Number(latestCancelledRequest.id) <= 0) {
+                closeModal(false);
+                return;
+            }
+
+            const lastSeenId = getLastSeenCancelledId();
+
+            if (Number(latestCancelledRequest.id) > lastSeenId) {
+                openModal();
+                return;
+            }
+
+            closeModal(false);
+        }
+
+        async function refreshCancelledRequests() {
+            if (fetchInFlight || endpoint === '') {
+                return;
+            }
+
+            fetchInFlight = true;
+
+            try {
+                const response = await fetch(endpoint, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    cache: 'no-store',
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const payload = await response.json();
+                const nextLatestRequest = payload && payload.latestRequest && Number(payload.latestRequest.id) > 0
+                    ? payload.latestRequest
+                    : null;
+                const nextSignature = String(payload.latestRequestSignature ?? '');
+                const currentLatestId = latestCancelledRequest ? Number(latestCancelledRequest.id) : 0;
+                const nextLatestId = Number(payload.latestRequestId ?? 0);
+                const hasChanged = nextSignature !== latestCancelledRequestSignature
+                    || currentLatestId !== nextLatestId;
+
+                latestCancelledRequest = nextLatestRequest;
+                latestCancelledRequestSignature = nextSignature;
+
+                if (hasChanged) {
+                    applyState();
+                }
+            } catch (error) {
+                // Ignore polling failures.
+            } finally {
+                fetchInFlight = false;
+            }
+        }
+
+        applyState();
+
+        closeButton.addEventListener('click', function () {
+            closeModal(true);
+        });
+
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal) {
+                closeModal(true);
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeModal(true);
+            }
+        });
+
+        const pollIntervalMs = 10000;
+        window.setInterval(refreshCancelledRequests, pollIntervalMs);
+
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) {
+                refreshCancelledRequests();
+            }
+        });
+    })();
+</script>
+
 <div id="global-pending-evaluation-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/45 px-4">
     <div class="w-full max-w-lg rounded-2xl bg-surface-container-lowest p-6 shadow-2xl border border-outline-variant/30">
         <div class="flex items-start justify-between gap-4 mb-4">
@@ -348,9 +814,13 @@
 
         function showModalWhenReady(attempt) {
             const returnedModal = document.getElementById('global-returned-modal');
+            const approvedModal = document.getElementById('global-approved-modal');
+            const cancelledModal = document.getElementById('global-cancelled-modal');
             const isReturnedModalOpen = returnedModal && !returnedModal.classList.contains('hidden');
+            const isApprovedModalOpen = approvedModal && !approvedModal.classList.contains('hidden');
+            const isCancelledModalOpen = cancelledModal && !cancelledModal.classList.contains('hidden');
 
-            if (isReturnedModalOpen && attempt < 20) {
+            if ((isReturnedModalOpen || isApprovedModalOpen || isCancelledModalOpen) && attempt < 20) {
                 window.setTimeout(function () {
                     showModalWhenReady(attempt + 1);
                 }, 180);

@@ -62,8 +62,8 @@ class vehicleAssignmentController extends Controller
             return $requestItem;
         });
 
+        // Show all vehicles regardless of current status so admin can choose reserved/on-trip ones.
         $availableVehicles = AdminVehicleAvailability::query()
-            ->where('status', 'Available')
             ->orderBy('vehicle_type')
             ->orderBy('vehicle_code')
             ->get();
@@ -210,18 +210,8 @@ class vehicleAssignmentController extends Controller
                     ]);
                 }
 
-                if ((string) $vehicle->status !== 'Available') {
-                    throw ValidationException::withMessages([
-                        'vehicle_codes' => 'Vehicle ' . $vehicle->vehicle_code . ' is no longer available.',
-                    ]);
-                }
-
-                $driverName = trim((string) $vehicle->driver_name);
-                if ($driverName === '') {
-                    throw ValidationException::withMessages([
-                        'vehicle_codes' => 'Vehicle ' . $vehicle->vehicle_code . ' has no assigned driver. Update Vehicle Availability first.',
-                    ]);
-                }
+                // Allow selecting vehicles even if their status is not 'Available'.
+                // Driver presence will be validated after considering replacement overrides.
             }
         }
 
@@ -262,6 +252,84 @@ class vehicleAssignmentController extends Controller
             ->filter()
             ->unique()
             ->values();
+
+        // Schedule conflict checks: ensure selected vehicle/driver are not already scheduled
+        // for an overlapping transportation request (Signed, Dispatched, On Trip).
+        $newFrom = null;
+        $newTo = null;
+        try {
+            $newFrom = $transportationRequest->date_time_from ? Carbon::parse($transportationRequest->date_time_from) : null;
+            $newTo = $transportationRequest->date_time_to ? Carbon::parse($transportationRequest->date_time_to) : null;
+        } catch (\Throwable $e) {
+            // If parsing fails, skip strict conflict checks (validation elsewhere should prevent bad dates).
+        }
+
+        $conflicts = [];
+
+        if ($newFrom && $newTo) {
+            // statuses that occupy vehicle/driver
+            $occupyingStatuses = ['Signed', 'Dispatched', 'On Trip'];
+
+            // Build mapping of slot vehicle -> resolved driver for per-slot check
+            $perSlot = [];
+            foreach ($selectedCodesByType as $type => $codes) {
+                foreach (array_values($codes) as $slotIndex => $vehicleCode) {
+                    $driverName = trim((string) ($selectedDriverOverridesByType[$type][$slotIndex] ?? '')) ?: null;
+                    if ($driverName === null) {
+                        // fallback to vehicle primary driver if present
+                        $vehicle = $vehiclesByCode->get($vehicleCode);
+                        $driverName = $vehicle ? trim((string) $vehicle->driver_name) : null;
+                    }
+
+                    $perSlot[] = [
+                        'vehicle_code' => $vehicleCode,
+                        'driver_name' => $driverName,
+                    ];
+                }
+            }
+
+            foreach ($perSlot as $slot) {
+                $vcode = (string) $slot['vehicle_code'];
+                $dname = trim((string) ($slot['driver_name'] ?? ''));
+
+                $query = TransportationRequestFormModel::query()
+                    ->where('id', '!=', $transportationRequest->id)
+                    ->whereIn('status', $occupyingStatuses)
+                    ->where(function (Builder $q) use ($vcode, $dname) {
+                        $q->where('vehicle_id', 'like', '%' . $vcode . '%');
+
+                        if ($dname !== '') {
+                            $q->orWhere('driver_name', 'like', '%' . $dname . '%');
+                        }
+                    })
+                    ->whereNotNull('date_time_from')
+                    ->whereNotNull('date_time_to')
+                    ->where(function (Builder $q) use ($newFrom, $newTo) {
+                        // overlap if existing.from <= new.to AND existing.to >= new.from
+                        $q->where('date_time_from', '<=', $newTo->toDateTimeString())
+                            ->where('date_time_to', '>=', $newFrom->toDateTimeString());
+                    });
+
+                $existing = $query->first();
+
+                if ($existing) {
+                    $conflicts[] = sprintf(
+                        '%s (vehicle %s or driver %s) conflicts in schedule [%s to %s]',
+                        $existing->form_id ?: ('Request #' . $existing->id),
+                        $vcode,
+                        $dname ?: 'N/A',
+                        optional($existing->date_time_from)->toDateTimeString() ?: 'N/A',
+                        optional($existing->date_time_to)->toDateTimeString() ?: 'N/A'
+                    );
+                }
+            }
+        }
+
+        if (!empty($conflicts)) {
+            throw ValidationException::withMessages([
+                'vehicle_codes' => 'Schedule conflict detected: ' . implode('; ', $conflicts),
+            ]);
+        }
 
         DB::transaction(function () use ($transportationRequest, $selectedVehicleCodes, $driverNames, $previousVehicleCodes) {
             $vehicleCodesToRelease = array_values(array_diff($previousVehicleCodes, $selectedVehicleCodes));

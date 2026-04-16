@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Storage;
 
 class adminTransportationRequest extends Controller
 {
-    private const STATUS_OPTIONS = ['To be Signed', 'Signed', 'Rejected'];
+    private const STATUS_OPTIONS = ['To be Signed', 'Signed', 'Rejected', 'Cancelled'];
 
     public function index(Request $request)
     {
@@ -51,20 +51,20 @@ class adminTransportationRequest extends Controller
     {
         $validated = $request->validate([
             'status' => ['required', 'in:' . implode(',', self::STATUS_OPTIONS)],
-            'rejection_reason' => ['nullable', 'string', 'max:2000', 'required_if:status,Rejected'],
+            'rejection_reason' => ['nullable', 'string', 'max:2000', 'required_if:status,Rejected', 'required_if:status,Cancelled'],
         ]);
 
         $previousVehicleCodes = $this->extractVehicleCodes((string) $transportationRequest->vehicle_id);
 
         $updatePayload = [
             'status' => $validated['status'],
-            'rejection_reason' => $validated['status'] === 'Rejected'
+            'rejection_reason' => in_array($validated['status'], ['Rejected', 'Cancelled'], true)
                 ? trim((string) ($validated['rejection_reason'] ?? ''))
                 : null,
         ];
 
         // Approval must always pass through admin vehicle assignment first.
-        if (in_array($validated['status'], ['Signed', 'Rejected'], true)) {
+        if (in_array($validated['status'], ['Signed', 'Rejected', 'Cancelled'], true)) {
             $updatePayload['vehicle_id'] = null;
             $updatePayload['driver_name'] = null;
         }

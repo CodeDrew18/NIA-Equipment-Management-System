@@ -44,6 +44,8 @@ Route::middleware('auth')->group(function () {
         Route::get("/evaluation-performance", [evaluationPerformanceController::class, 'index'])->name('evaluation-performance');
         Route::post('/evaluation-performance/submit', [evaluationPerformanceController::class, 'submit'])->name('evaluation-performance.submit');
         Route::get('/notifications/returned-requests', [NotificationModalController::class, 'userReturnedRequests'])->name('user.notifications.returned-requests');
+        Route::get('/notifications/approved-requests', [NotificationModalController::class, 'userApprovedRequests'])->name('user.notifications.approved-requests');
+        Route::get('/notifications/cancelled-requests', [NotificationModalController::class, 'userCancelledRequests'])->name('user.notifications.cancelled-requests');
         Route::get('/notifications/pending-evaluations', [NotificationModalController::class, 'userPendingEvaluations'])->name('user.notifications.pending-evaluations');
 
 

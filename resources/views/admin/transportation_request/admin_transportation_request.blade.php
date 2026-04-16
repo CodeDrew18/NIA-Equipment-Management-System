@@ -220,11 +220,24 @@
     </form>
     <button
         type="button"
-        class="fi-open-reject-modal flex items-center gap-1 px-3 py-2 rounded-md bg-error text-white text-[10px] font-bold uppercase tracking-wider hover:bg-red-700 transition-colors"
+        class="tr-open-reason-modal flex items-center gap-1 px-3 py-2 rounded-md bg-error text-white text-[10px] font-bold uppercase tracking-wider hover:bg-red-700 transition-colors"
         data-action="{{ route('admin.transportation-request.status', $item) }}"
         data-form-id="{{ $item->form_id }}"
+        data-status="Rejected"
+        data-action-label="reject"
     >
         Reject
+    </button>
+
+    <button
+        type="button"
+        class="tr-open-reason-modal flex items-center gap-1 px-3 py-2 rounded-md bg-slate-700 text-white text-[10px] font-bold uppercase tracking-wider hover:bg-slate-800 transition-colors"
+        data-action="{{ route('admin.transportation-request.status', $item) }}"
+        data-form-id="{{ $item->form_id }}"
+        data-status="Cancelled"
+        data-action-label="cancel"
+    >
+        Cancel
     </button>
 
 </div>
@@ -251,19 +264,19 @@ Showing {{ $requests->firstItem() ?? 0 }} to {{ $requests->lastItem() ?? 0 }} of
 
 <div id="tr-reject-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4">
     <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
-        <h3 class="text-lg font-bold text-on-surface">Reject Transportation Request</h3>
-        <p class="mt-2 text-sm text-on-surface-variant">Are you sure you want to reject <span id="tr-reject-form-id" class="font-semibold"></span>?</p>
+        <h3 id="tr-reason-title" class="text-lg font-bold text-on-surface">Reject Transportation Request</h3>
+        <p id="tr-reason-description" class="mt-2 text-sm text-on-surface-variant">Are you sure you want to <span id="tr-reason-action" class="font-semibold">reject</span> <span id="tr-reason-form-id" class="font-semibold"></span>?</p>
 
         <form id="tr-reject-form" method="POST" action="" class="mt-5 space-y-4">
             @csrf
-            <input type="hidden" name="status" value="Rejected"/>
+            <input id="tr-reason-status" type="hidden" name="status" value="Rejected"/>
             <div>
-                <label for="tr-rejection-reason" class="block text-xs font-bold uppercase tracking-wider text-outline mb-2">Reason for rejection</label>
+                <label id="tr-reason-label" for="tr-rejection-reason" class="block text-xs font-bold uppercase tracking-wider text-outline mb-2">Reason for rejection</label>
                 <textarea id="tr-rejection-reason" name="rejection_reason" rows="4" class="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Enter the reason for rejection..." required></textarea>
             </div>
             <div class="flex justify-end gap-3 pt-1">
                 <button id="tr-reject-cancel" type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50">Cancel</button>
-                <button type="submit" class="rounded-lg bg-error px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-red-700">Confirm Reject</button>
+                <button id="tr-reason-confirm" type="submit" class="rounded-lg bg-error px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-red-700">Confirm Reject</button>
             </div>
         </form>
     </div>
@@ -307,17 +320,46 @@ Showing {{ $requests->firstItem() ?? 0 }} to {{ $requests->lastItem() ?? 0 }} of
     (function () {
         const modal = document.getElementById('tr-reject-modal');
         const rejectForm = document.getElementById('tr-reject-form');
-        const rejectFormId = document.getElementById('tr-reject-form-id');
+        const reasonTitle = document.getElementById('tr-reason-title');
+        const reasonDescription = document.getElementById('tr-reason-description');
+        const reasonAction = document.getElementById('tr-reason-action');
+        const reasonFormId = document.getElementById('tr-reason-form-id');
+        const reasonStatus = document.getElementById('tr-reason-status');
+        const reasonLabel = document.getElementById('tr-reason-label');
         const reasonField = document.getElementById('tr-rejection-reason');
+        const reasonConfirm = document.getElementById('tr-reason-confirm');
         const cancelButton = document.getElementById('tr-reject-cancel');
 
-        if (!modal || !rejectForm || !rejectFormId || !reasonField || !cancelButton) {
+        if (!modal || !rejectForm || !reasonTitle || !reasonDescription || !reasonAction || !reasonFormId || !reasonStatus || !reasonLabel || !reasonField || !reasonConfirm || !cancelButton) {
             return;
         }
 
-        function openModal(action, formId) {
+        function openModal(action, formId, status, actionLabel) {
+            const normalizedStatus = String(status || 'Rejected');
+            const normalizedActionLabel = String(actionLabel || 'reject').toLowerCase();
+
             rejectForm.action = action;
-            rejectFormId.textContent = formId || 'this request';
+            reasonFormId.textContent = formId || 'this request';
+            reasonStatus.value = normalizedStatus;
+
+            if (normalizedStatus === 'Cancelled') {
+                reasonTitle.textContent = 'Cancel Transportation Request';
+                reasonAction.textContent = 'cancel';
+                reasonLabel.textContent = 'Reason for cancellation';
+                reasonField.placeholder = 'Enter the reason for cancellation...';
+                reasonConfirm.textContent = 'Confirm Cancel';
+                reasonConfirm.classList.remove('bg-error', 'hover:bg-red-700');
+                reasonConfirm.classList.add('bg-slate-700', 'hover:bg-slate-800');
+            } else {
+                reasonTitle.textContent = 'Reject Transportation Request';
+                reasonAction.textContent = normalizedActionLabel === 'cancel' ? 'cancel' : 'reject';
+                reasonLabel.textContent = 'Reason for rejection';
+                reasonField.placeholder = 'Enter the reason for rejection...';
+                reasonConfirm.textContent = 'Confirm Reject';
+                reasonConfirm.classList.remove('bg-slate-700', 'hover:bg-slate-800');
+                reasonConfirm.classList.add('bg-error', 'hover:bg-red-700');
+            }
+
             reasonField.value = '';
             modal.classList.remove('hidden');
             modal.classList.add('flex');
@@ -331,9 +373,14 @@ Showing {{ $requests->firstItem() ?? 0 }} to {{ $requests->lastItem() ?? 0 }} of
             modal.classList.remove('flex');
         }
 
-        document.querySelectorAll('.fi-open-reject-modal').forEach(function (button) {
+        document.querySelectorAll('.tr-open-reason-modal').forEach(function (button) {
             button.addEventListener('click', function () {
-                openModal(button.getAttribute('data-action'), button.getAttribute('data-form-id'));
+                openModal(
+                    button.getAttribute('data-action'),
+                    button.getAttribute('data-form-id'),
+                    button.getAttribute('data-status'),
+                    button.getAttribute('data-action-label')
+                );
             });
         });
 

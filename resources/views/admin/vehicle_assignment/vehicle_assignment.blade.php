@@ -300,9 +300,12 @@
                                                                 @if (!empty($vehicle->capacity_label))
                                                                     ({{ $vehicle->capacity_label }})
                                                                 @endif
-                                                                @if (!empty($vehicle->driver_name))
-                                                                    | Driver: {{ $vehicle->driver_name }}
-                                                                @endif
+                                                                    @if (!empty($vehicle->driver_name))
+                                                                        | Driver: {{ $vehicle->driver_name }}
+                                                                    @endif
+                                                                    @if (!empty($vehicle->status))
+                                                                        | Status: {{ $vehicle->status }}
+                                                                    @endif
                                                             </option>
                                                         @endforeach
                                                         </select>
