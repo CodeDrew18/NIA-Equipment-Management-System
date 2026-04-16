@@ -247,23 +247,14 @@
                         </div>
                     </div>
 
-                    <div class="flex flex-col gap-2 rounded-xl border border-primary/10 bg-primary-fixed/20 p-4">
-                        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Open Related Page</p>
-                        <a id="calendar-detail-action" href="{{ route('admin.vehicle_assignment') }}" class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-container transition-colors">
-                            <span class="material-symbols-outlined text-sm">open_in_new</span>
-                            Open Related Request
-                        </a>
-                    </div>
+                    <!-- 'Open Related Page' action removed -->
                 </div>
             </div>
 
             <div class="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-5 shadow-sm">
                 <h3 class="text-sm font-black uppercase tracking-wider text-on-surface">Legend</h3>
                 <div class="mt-4 space-y-3 text-sm">
-                    <div class="flex items-center gap-3"><span class="h-3 w-3 rounded-full bg-[#0f4c81]"></span><span>Dispatched</span></div>
                     <div class="flex items-center gap-3"><span class="h-3 w-3 rounded-full bg-[#0b63a8]"></span><span>On Trip</span></div>
-                    <div class="flex items-center gap-3"><span class="h-3 w-3 rounded-full bg-[#7c3aed]"></span><span>For Evaluation</span></div>
-                    <div class="flex items-center gap-3"><span class="h-3 w-3 rounded-full bg-[#e3a11c]"></span><span>Signed</span></div>
                 </div>
             </div>
 
@@ -294,9 +285,8 @@
         const detailDriver = document.getElementById('calendar-detail-driver');
         const detailDestination = document.getElementById('calendar-detail-destination');
         const detailRange = document.getElementById('calendar-detail-range');
-        const detailAction = document.getElementById('calendar-detail-action');
 
-        if (!bars.length || !detailEmpty || !detailPanel || !detailFormId || !detailStatus || !detailVehicle || !detailDriver || !detailDestination || !detailRange || !detailAction) {
+        if (!bars.length || !detailEmpty || !detailPanel || !detailFormId || !detailStatus || !detailVehicle || !detailDriver || !detailDestination || !detailRange) {
             return;
         }
 
@@ -315,24 +305,7 @@
             }
         }
 
-        function relatedActionUrl(eventData) {
-            const requestId = Number(eventData.requestId || 0);
-            const status = String(eventData.status || '');
-
-            if (!requestId) {
-                return '{{ route('admin.vehicle_calendar') }}';
-            }
-
-            if (status === 'Signed') {
-                return `{{ route('admin.vehicle_assignment') }}?request=${requestId}`;
-            }
-
-            if (status === 'Dispatched' || status === 'On Trip' || status === 'For Evaluation') {
-                return `{{ route('admin.daily-trip-ticket') }}?request=${requestId}`;
-            }
-
-            return `{{ route('admin.transportation-request') }}?search=${encodeURIComponent(eventData.formId || '')}`;
-        }
+        // relatedActionUrl removed — 'Open Related Page' action was removed from the UI
 
         function showDetail(eventData) {
             detailEmpty.classList.add('hidden');
@@ -345,8 +318,6 @@
             detailDriver.textContent = String(eventData.driverName || 'N/A');
             detailDestination.textContent = String(eventData.destination || 'N/A');
             detailRange.textContent = `${String(eventData.rangeStart || '')} to ${String(eventData.rangeEnd || '')} • ${String(eventData.timeLabel || 'All day')}`;
-            detailAction.href = relatedActionUrl(eventData);
-            detailAction.textContent = 'Open Related Request';
         }
 
         bars.forEach(function (bar) {
