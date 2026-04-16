@@ -77,6 +77,18 @@
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
             vertical-align: middle;
         }
+
+        .assignment-native-select {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+        }
     </style>
 </head>
 <body class="bg-background text-on-background min-h-screen flex flex-col">
@@ -278,7 +290,9 @@
                                                         </div>
                                                         <div>
                                                             <p class="text-[10px] font-bold uppercase tracking-[0.24em] text-outline">Assignment Slot</p>
-                                                            <h3 class="text-lg font-extrabold tracking-tight text-primary">Vehicle Slot #{{ $slotIndex + 1 }}</h3>
+                                                            {{-- <h3 class="text-lg font-extrabold tracking-tight text-primary">Vehicle Slot #{{ $slotIndex + 1 }}</h3> --}}
+                                                            <h3 class="text-lg font-extrabold tracking-tight text-primary">Vehicle Slot</h3>
+
                                                         </div>
                                                     </div>
                                                     <span class="inline-flex items-center rounded-full bg-secondary-container px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-on-secondary-container">
@@ -292,7 +306,15 @@
                                                         Select Vehicle
                                                     </label>
                                                     <div class="relative">
-                                                        <select name="vehicle_codes[{{ $typeKey }}][]" class="w-full appearance-none rounded-2xl border border-outline-variant/40 bg-white/95 py-3 pl-4 pr-4 text-sm font-semibold text-on-surface shadow-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10" required>
+                                                        <select
+                                                            name="vehicle_codes[{{ $typeKey }}][]"
+                                                            class="assignment-native-select"
+                                                            data-assignment-custom-select="true"
+                                                            data-picker-title="Select Vehicle"
+                                                            data-placeholder="Choose an available vehicle"
+                                                            data-search-placeholder="Search vehicle code, type, driver, or status"
+                                                            required
+                                                        >
                                                             <option value="">Choose an available vehicle</option>
                                                         @foreach ($slotVehicleOptions as $vehicle)
                                                             <option value="{{ $vehicle->vehicle_code }}" @selected($oldSelectedCode === $vehicle->vehicle_code)>
@@ -318,7 +340,14 @@
                                                         Driver Override
                                                     </label>
                                                     <div class="relative">
-                                                        <select name="driver_overrides[{{ $typeKey }}][]" class="w-full appearance-none rounded-2xl border border-outline-variant/40 bg-white/95 py-3 pl-4 pr-4 text-sm font-semibold text-on-surface shadow-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10">
+                                                        <select
+                                                            name="driver_overrides[{{ $typeKey }}][]"
+                                                            class="assignment-native-select"
+                                                            data-assignment-custom-select="true"
+                                                            data-picker-title="Driver Override"
+                                                            data-placeholder="Use primary driver of selected vehicle"
+                                                            data-search-placeholder="Search replacement driver"
+                                                        >
                                                             <option value="" @selected($oldSelectedOverride === '')>Use primary driver of selected vehicle</option>
                                                         @foreach (($replacementDrivers ?? collect()) as $replacementDriver)
                                                             <option value="{{ $replacementDriver }}" @selected($oldSelectedOverride === $replacementDriver)>
@@ -380,6 +409,220 @@
 @include('layouts.admin_footer')
 <script>
     window.__emsHasCustomLiveRefresh = true;
+</script>
+<script>
+    (function () {
+        const nativeSelects = Array.from(document.querySelectorAll('select[data-assignment-custom-select="true"]'));
+        if (nativeSelects.length < 1) {
+            return;
+        }
+
+        let activeSelect = null;
+        let activeWrapper = null;
+
+        const pickerModal = document.createElement('div');
+        pickerModal.id = 'assignment-picker-modal';
+        pickerModal.className = 'fixed inset-0 z-[120] hidden items-center justify-center bg-black/50 p-4';
+        pickerModal.innerHTML = [
+            '<div class="w-full max-w-2xl rounded-3xl border border-outline-variant/20 bg-surface-container-lowest shadow-2xl">',
+                '<div class="flex items-center justify-between border-b border-outline-variant/20 px-5 py-4">',
+                    '<h3 id="assignment-picker-title" class="text-base font-black tracking-tight text-primary">Select Option</h3>',
+                    '<button id="assignment-picker-close" type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-outline-variant/30 text-outline hover:bg-surface-container-high">',
+                        '<span class="material-symbols-outlined text-[20px]">close</span>',
+                    '</button>',
+                '</div>',
+                '<div class="space-y-3 p-5">',
+                    '<div class="relative">',
+                        '<span class="pointer-events-none absolute inset-y-0 left-3 inline-flex items-center text-outline"><span class="material-symbols-outlined text-[18px]">search</span></span>',
+                        '<input id="assignment-picker-search" type="text" class="w-full rounded-2xl border border-outline-variant/35 bg-surface-container-lowest py-2.5 pl-10 pr-3 text-sm font-semibold text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10" placeholder="Search...">',
+                    '</div>',
+                    '<div id="assignment-picker-list" class="max-h-[55vh] space-y-1 overflow-auto rounded-2xl border border-outline-variant/20 bg-white p-2"></div>',
+                    '<p id="assignment-picker-empty" class="hidden rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-xs font-semibold text-outline">No matches found.</p>',
+                '</div>',
+            '</div>'
+        ].join('');
+        document.body.appendChild(pickerModal);
+
+        const pickerTitle = pickerModal.querySelector('#assignment-picker-title');
+        const pickerSearch = pickerModal.querySelector('#assignment-picker-search');
+        const pickerList = pickerModal.querySelector('#assignment-picker-list');
+        const pickerEmpty = pickerModal.querySelector('#assignment-picker-empty');
+        const pickerClose = pickerModal.querySelector('#assignment-picker-close');
+
+        function normalize(value) {
+            return String(value || '').toLowerCase().trim();
+        }
+
+        function closePickerModal() {
+            pickerModal.classList.add('hidden');
+            pickerModal.classList.remove('flex');
+            activeSelect = null;
+            activeWrapper = null;
+        }
+
+        function setTriggerLabel(select, labelEl, placeholder) {
+            const selectedIndex = Number(select.selectedIndex);
+            const selectedOption = selectedIndex >= 0 ? select.options[selectedIndex] : null;
+            const selectedValue = selectedOption ? String(selectedOption.value || '') : '';
+
+            if (selectedOption && selectedValue !== '') {
+                labelEl.textContent = String(selectedOption.textContent || '').trim();
+                labelEl.classList.remove('text-outline');
+                labelEl.classList.add('text-on-surface');
+                return;
+            }
+
+            labelEl.textContent = placeholder;
+            labelEl.classList.add('text-outline');
+            labelEl.classList.remove('text-on-surface');
+        }
+
+        function renderPickerOptions(query) {
+            if (!activeSelect || !pickerList || !pickerEmpty) {
+                return;
+            }
+
+            pickerList.innerHTML = '';
+
+            const normalizedQuery = normalize(query);
+            let visibleCount = 0;
+
+            Array.from(activeSelect.options).forEach(function (option) {
+                const value = String(option.value || '');
+                const label = String(option.textContent || '').trim();
+                const haystack = normalize(label + ' ' + value);
+
+                if (normalizedQuery !== '' && !haystack.includes(normalizedQuery)) {
+                    return;
+                }
+
+                visibleCount += 1;
+
+                const optionButton = document.createElement('button');
+                optionButton.type = 'button';
+                optionButton.className = [
+                    'flex w-full items-start justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm font-semibold transition-colors',
+                    value === String(activeSelect.value || '')
+                        ? 'border-primary/25 bg-primary/10 text-primary'
+                        : 'border-transparent text-on-surface hover:bg-surface-container-high'
+                ].join(' ');
+                optionButton.innerHTML = [
+                    '<span class="block leading-snug">' + label.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;') + '</span>',
+                    (value === String(activeSelect.value || '')
+                        ? '<span class="material-symbols-outlined text-[18px]">check</span>'
+                        : '<span class="material-symbols-outlined text-[18px] opacity-0">check</span>')
+                ].join('');
+
+                optionButton.addEventListener('click', function () {
+                    if (!activeSelect) {
+                        return;
+                    }
+
+                    activeSelect.value = value;
+                    activeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    closePickerModal();
+                });
+
+                pickerList.appendChild(optionButton);
+            });
+
+            pickerEmpty.classList.toggle('hidden', visibleCount > 0);
+        }
+
+        function openPickerModal(select, wrapper) {
+            activeSelect = select;
+            activeWrapper = wrapper;
+
+            const title = String(select.getAttribute('data-picker-title') || 'Select Option');
+            const searchPlaceholder = String(select.getAttribute('data-search-placeholder') || 'Search...');
+
+            if (pickerTitle) {
+                pickerTitle.textContent = title;
+            }
+
+            if (pickerSearch) {
+                pickerSearch.value = '';
+                pickerSearch.placeholder = searchPlaceholder;
+            }
+
+            renderPickerOptions('');
+            pickerModal.classList.remove('hidden');
+            pickerModal.classList.add('flex');
+
+            window.setTimeout(function () {
+                if (pickerSearch) {
+                    pickerSearch.focus();
+                }
+            }, 0);
+        }
+
+        function mountCustomSelect(select) {
+            if (!select || select.dataset.assignmentCustomSelectMounted === 'true') {
+                return;
+            }
+
+            const placeholder = String(select.getAttribute('data-placeholder') || 'Select an option');
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'assignment-custom-select relative';
+            wrapper.innerHTML = [
+                '<button type="button" data-role="trigger" class="flex w-full items-center justify-between rounded-2xl border border-outline-variant/40 bg-white/95 py-3 pl-4 pr-3 text-left text-sm font-semibold shadow-sm transition focus:outline-none focus:ring-4 focus:ring-primary/10">',
+                '<span data-role="label" class="block truncate text-outline"></span>',
+                '<span class="material-symbols-outlined text-[20px] text-outline">open_in_full</span>',
+                '</button>'
+            ].join('');
+
+            select.insertAdjacentElement('afterend', wrapper);
+
+            const trigger = wrapper.querySelector('[data-role="trigger"]');
+            const labelEl = wrapper.querySelector('[data-role="label"]');
+
+            setTriggerLabel(select, labelEl, placeholder);
+
+            trigger.addEventListener('click', function () {
+                openPickerModal(select, wrapper);
+            });
+
+            select.addEventListener('change', function () {
+                setTriggerLabel(select, labelEl, placeholder);
+
+                if (activeSelect === select) {
+                    renderPickerOptions((pickerSearch && pickerSearch.value) ? pickerSearch.value : '');
+                }
+            });
+
+            select.dataset.assignmentCustomSelectMounted = 'true';
+        }
+
+        nativeSelects.forEach(mountCustomSelect);
+
+        if (pickerSearch) {
+            pickerSearch.addEventListener('input', function () {
+                renderPickerOptions(pickerSearch.value || '');
+            });
+        }
+
+        if (pickerClose) {
+            pickerClose.addEventListener('click', closePickerModal);
+        }
+
+        document.addEventListener('click', function (event) {
+            if (pickerModal.classList.contains('hidden')) {
+                return;
+            }
+
+            if (event.target === pickerModal) {
+                closePickerModal();
+                return;
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closePickerModal();
+            }
+        });
+    })();
 </script>
 </body>
 </html>

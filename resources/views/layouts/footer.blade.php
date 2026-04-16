@@ -1084,4 +1084,161 @@ if (typeof window.emsLiveRefresh !== 'function') {
 }
 </script>
 
+<script>
+    (function () {
+        const shouldAutoClearOnSuccess = @json(
+            collect((array) session()->get('_flash.old', []))
+                ->filter(function ($key) {
+                    return is_string($key);
+                })
+                ->contains(function ($key) {
+                    return str_contains(strtolower($key), 'success');
+                })
+        );
+
+        function isPreserved(el) {
+            try {
+                return el && el.hasAttribute && el.hasAttribute('data-preserve') && String(el.getAttribute('data-preserve')) !== 'false';
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function isClearableInput(el) {
+            if (!el) {
+                return false;
+            }
+
+            if (el.disabled || el.readOnly) {
+                return false;
+            }
+
+            const tag = String(el.tagName || '').toLowerCase();
+
+            if (tag === 'textarea' || tag === 'select') {
+                return true;
+            }
+
+            if (tag !== 'input') {
+                return false;
+            }
+
+            const type = String(el.type || '').toLowerCase();
+            const skippedTypes = ['hidden', 'submit', 'button', 'reset', 'image'];
+
+            return !skippedTypes.includes(type);
+        }
+
+        function clearFormInputs(root) {
+            try {
+                if (!root) return;
+
+                // accept either form or any container element
+                const container = (root instanceof HTMLElement) ? root : (document.getElementById(String(root || '')) || null);
+                if (!container) return;
+
+                const elements = Array.from(container.querySelectorAll('input,textarea,select'));
+
+                elements.forEach(function (el) {
+                    if (isPreserved(el) || !isClearableInput(el)) {
+                        return;
+                    }
+
+                    const type = String(el.type || '').toLowerCase();
+
+                    if (type === 'checkbox' || type === 'radio') {
+                        el.checked = false;
+                        return;
+                    }
+
+                    if (el.tagName && String(el.tagName).toLowerCase() === 'select') {
+                        if (el.multiple) {
+                            Array.from(el.options || []).forEach(function (option) {
+                                option.selected = false;
+                            });
+                        } else {
+                            try { el.selectedIndex = 0; } catch (e) { /* ignore */ }
+                        }
+                        return;
+                    }
+
+                    if (type === 'file') {
+                        try { el.value = ''; } catch (e) { /* ignore file clear */ }
+                        // For file inputs, also clear any preview containers if data-preview-target set
+                        const preview = el.getAttribute && el.getAttribute('data-preview-target');
+                        if (preview) {
+                            const p = document.getElementById(preview);
+                            if (p) p.innerHTML = '';
+                        }
+                        return;
+                    }
+
+                    try { el.value = ''; } catch (e) { /* ignore */ }
+                });
+            } catch (error) {
+                // swallow errors - helper must be safe
+            }
+        }
+
+        // Expose globally for convenience
+        window.emsClearFormInputs = clearFormInputs;
+
+        // Helper to dispatch a clear-on-success event on a form element
+        window.emsDispatchClearOnSuccess = function (form) {
+            try {
+                if (!form) return;
+                const target = (form instanceof Event) ? (form.target || null) : form;
+                const el = (target && target instanceof HTMLElement) ? target : (document.getElementById(String(target || '')) || null);
+                if (!el) return;
+                clearFormInputs(el);
+            } catch (e) {
+                // ignore
+            }
+        };
+
+        function clearFormsAfterSuccessfulSubmit() {
+            if (!shouldAutoClearOnSuccess) {
+                return;
+            }
+
+            document.querySelectorAll('form').forEach(function (form) {
+                const method = String(form.getAttribute('method') || 'get').toLowerCase();
+                const action = String(form.getAttribute('action') || '').toLowerCase();
+
+                if (method === 'get') {
+                    return;
+                }
+
+                if (action.includes('/logout')) {
+                    return;
+                }
+
+                if (String(form.getAttribute('data-no-clear-on-success') || '').toLowerCase() === 'true') {
+                    return;
+                }
+
+                clearFormInputs(form);
+            });
+        }
+
+        document.addEventListener('ems:form-submitted-success', function (event) {
+            try {
+                const form = event && event.detail && event.detail.form;
+                if (!form) {
+                    return;
+                }
+                clearFormInputs(form);
+            } catch (e) {
+                // ignore
+            }
+        }, false);
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', clearFormsAfterSuccessfulSubmit);
+        } else {
+            clearFormsAfterSuccessfulSubmit();
+        }
+    })();
+</script>
+
 @include('layouts.partials.date_picker_enhancer')

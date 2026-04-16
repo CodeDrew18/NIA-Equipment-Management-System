@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Storage;
 
 class requestFormController extends Controller
 {
+    private const SYSADMIN_PERSONNEL_ID = '100001';
     private const REQUEST_FORM_ATTACHMENT_KEY = 'transportation_request_form_file';
 
     public function requestForm()
@@ -30,6 +31,7 @@ class requestFormController extends Controller
 
         $drivers = User::query()
             ->whereRaw("CONCAT(',', role, ',') LIKE '%,driver,%'")
+            ->where('personnel_id', '!=', self::SYSADMIN_PERSONNEL_ID)
             ->orderBy('name')
             ->get(['name']);
 
@@ -60,6 +62,7 @@ class requestFormController extends Controller
                 'digits:6',
                 Rule::exists('users', 'personnel_id')->where(function ($query) {
                     $query->whereRaw("CONCAT(',', role, ',') NOT LIKE '%,admin,%'");
+                    $query->where('personnel_id', '!=', self::SYSADMIN_PERSONNEL_ID);
                 }),
             ],
             'division_personnel.*.name' => ['required', 'string', 'max:255'],
@@ -335,6 +338,7 @@ class requestFormController extends Controller
         $user = User::query()
             ->select('personnel_id', 'name')
             ->where('personnel_id', $personnelId)
+            ->where('personnel_id', '!=', self::SYSADMIN_PERSONNEL_ID)
             ->first();
 
         if (!$user) {

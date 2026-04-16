@@ -495,6 +495,7 @@ Remove
     const confirmDownloadNo = document.getElementById('confirm-download-no');
     const downloadLoadingModal = document.getElementById('download-loading-modal');
     const downloadFrame = document.getElementById('request-form-download-frame');
+    const hasRequestFormSuccess = @json(session()->has('request_form_success'));
     const vehicleAvailabilityEndpoint = @json(route('vehicle-available.data'));
 
     let pendingDownloadAction = null;
@@ -661,6 +662,121 @@ function validateRequiredAttachments() {
       primaryDownloadTrigger.disabled = isBusy;
       primaryDownloadTrigger.classList.toggle('pointer-events-none', isBusy);
       primaryDownloadTrigger.classList.toggle('opacity-80', isBusy);
+    }
+
+    function resetRequestFormAfterSuccess() {
+      if (!requestForm) {
+        return;
+      }
+
+      if (typeof window.emsClearFormInputs === 'function') {
+        window.emsClearFormInputs(requestForm);
+      } else {
+        requestForm.reset();
+      }
+
+      if (requestDateInput) {
+        const now = new Date();
+        const year = String(now.getFullYear());
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        requestDateInput.value = year + '-' + month + '-' + day;
+      }
+
+      if (requestedByInput) {
+        requestedByInput.value = '';
+      }
+
+      if (destinationInput) {
+        destinationInput.value = '';
+      }
+
+      if (dateTimeFromInput) {
+        dateTimeFromInput.value = '';
+      }
+
+      if (dateTimeToInput) {
+        dateTimeToInput.value = '';
+      }
+
+      if (purposeInput) {
+        purposeInput.value = '';
+      }
+
+      if (requestingDivisionName) {
+        requestingDivisionName.value = '';
+      }
+
+      if (requestingDivisionPosition) {
+        requestingDivisionPosition.value = '';
+      }
+
+      if (downloadRequestFormInput) {
+        downloadRequestFormInput.value = '0';
+      }
+
+      vehicleRequestRows.forEach(function (row) {
+        const checkbox = row.querySelector('.vehicle-request-checkbox');
+        const quantityInput = row.querySelector('.vehicle-request-quantity');
+
+        if (checkbox && !checkbox.disabled) {
+          checkbox.checked = false;
+          checkbox.dispatchEvent(new Event('change'));
+        }
+
+        if (quantityInput) {
+          quantityInput.value = '1';
+        }
+      });
+
+      if (hasPersonnelSection) {
+        const rows = getPersonnelRows();
+
+        rows.forEach(function (row, index) {
+          if (index > 0) {
+            row.remove();
+          }
+        });
+
+        const firstRow = getPersonnelRows()[0] || null;
+        if (firstRow) {
+          const idInput = firstRow.querySelector('[data-role="personnel-id"]');
+          const nameInput = firstRow.querySelector('[data-role="personnel-name"]');
+
+          if (idInput) {
+            idInput.value = '';
+            idInput.classList.remove('ring-2', 'ring-error/40');
+          }
+
+          if (nameInput) {
+            nameInput.value = '';
+            nameInput.classList.remove('ring-2', 'ring-error/40');
+          }
+        }
+
+        reindexPersonnelRows();
+        updateRemoveButtons();
+        updatePersonnelCount();
+
+        if (addPersonnelError) {
+          addPersonnelError.classList.add('hidden');
+        }
+      }
+
+      if (input) {
+        try {
+          input.value = '';
+        } catch (e) {
+          // Ignore file input reset failures.
+        }
+      }
+
+      setAttachmentError('');
+      renderAttachedFiles();
+      setTopValidationBanner([]);
+      hideLoadingModal();
+      hasConfirmedSubmit = false;
+      requestForm.target = '';
     }
 
     function startBackgroundDownload(downloadUrl) {
@@ -1387,12 +1503,16 @@ function validateRequiredAttachments() {
             }
             requestForm.target = '';
             showDownloadSuccessBanner('Transportation request form downloaded successfully.');
+            resetRequestFormAfterSuccess();
           }, 2500);
         }
       });
     }
 
+    if (hasRequestFormSuccess) {
+      resetRequestFormAfterSuccess();
+    }
+
   })(); 
 </script>
-
 </body></html>

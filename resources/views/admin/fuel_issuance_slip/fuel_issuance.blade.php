@@ -1010,6 +1010,16 @@ async function fiDispatchRequest(dispatchUrl, requestId, triggerButton, canDispa
         }
 
         await fiRefresh(fiCurrentPage);
+
+        // Clear any input/copy state related to the dispatched request so the UI is fresh
+        try {
+            if (typeof window.emsClearFormInputs === 'function') {
+                // copiesContainer holds the editable copy inputs
+                window.emsClearFormInputs(fiEls.copiesContainer || fiEls.form);
+            }
+        } catch (e) {
+            // ignore
+        }
     } catch (error) {
         fiShowWarningModal(error.message || 'Unable to dispatch vehicle.');
     } finally {

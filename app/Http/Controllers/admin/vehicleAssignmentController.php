@@ -21,6 +21,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class vehicleAssignmentController extends Controller
 {
+    private const SYSADMIN_PERSONNEL_ID = '100001';
     private const VEHICLE_TYPES = ['coaster', 'van', 'pickup', 'other'];
     private const REQUEST_FORM_ATTACHMENT_KEY = 'transportation_request_form_file';
 
@@ -405,6 +406,7 @@ class vehicleAssignmentController extends Controller
 
         $matchedUsers = User::query()
             ->select(['id', 'name', 'fcm_token'])
+            ->where('personnel_id', '!=', self::SYSADMIN_PERSONNEL_ID)
             ->get()
             ->filter(function (User $user) use ($normalizedDriverNames) {
                 $normalizedUserName = $this->normalizePersonName((string) ($user->name ?? ''));
@@ -786,6 +788,7 @@ class vehicleAssignmentController extends Controller
 
         return User::query()
             ->whereRaw("CONCAT(',', role, ',') LIKE '%,driver,%'")
+            ->where('personnel_id', '!=', self::SYSADMIN_PERSONNEL_ID)
             ->orderBy('name')
             ->pluck('name')
             ->map(function ($name) {

@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Storage;
 
 class adminVehicleAvailabilityController extends Controller
 {
+    private const SYSADMIN_PERSONNEL_ID = '100001';
+
     public function index()
     {
         $vehicles = AdminVehicleAvailability::query()
@@ -19,6 +21,7 @@ class adminVehicleAvailabilityController extends Controller
 
         $drivers = User::query()
             ->whereRaw("CONCAT(',', role, ',') LIKE '%,driver,%'")
+            ->where('personnel_id', '!=', self::SYSADMIN_PERSONNEL_ID)
             ->orderBy('name')
             ->pluck('name');
 
