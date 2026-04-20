@@ -8,7 +8,8 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class monthlyTravelReportController extends Controller
@@ -25,75 +26,80 @@ class monthlyTravelReportController extends Controller
         $monthLabel = Carbon::createFromFormat('Y-m', $selectedMonth)->format('F Y');
         $driverName = (string) ($reportData['primaryDriver'] ?? 'N/A');
         $reportRows = collect($reportData['reportRows'] ?? []);
+        $templatePath = $this->resolveMonthlyTravelTemplatePath();
 
-        $driverSlug = Str::slug($driverName);
-        if ($driverSlug === '') {
-            $driverSlug = 'driver';
+        $fileName = 'monthly_official_travel_report_' . $selectedMonth .'_'. $driverName . '.xlsx';
+
+        $spreadsheet = IOFactory::load($templatePath);
+        $sheet = $spreadsheet->getActiveSheet();
+
+        $sheet->setCellValue('A9', 'For the month of ' . $monthLabel);
+        $sheet->setCellValue('C10', $this->formatTextForTemplate($reportData['vehiclePlate'] ?? null));
+        $sheet->setCellValue('C11', $this->formatTextForTemplate($driverName));
+        $sheet->setCellValue('M11', $this->formatTextForTemplate($reportData['propertyNumber'] ?? null));
+
+        $rowsByDay = $reportRows
+            ->filter(fn($row): bool => is_array($row))
+            ->keyBy(function (array $row): string {
+                return (string) ((int) ($row['day'] ?? 0));
+            });
+
+        for ($day = 1; $day <= 31; $day++) {
+            $templateRow = 13 + $day;
+            $row = (array) ($rowsByDay->get((string) $day, []));
+            $purchasedIssued = strtolower(trim((string) ($row['purchasedIssued'] ?? '')));
+
+            $sheet->setCellValue('B' . $templateRow, $this->formatMetricForTemplate($row['distance'] ?? null));
+            $sheet->setCellValue('C' . $templateRow, '');
+            $sheet->setCellValue('D' . $templateRow, $this->formatMetricForTemplate($row['diesel'] ?? null));
+            $sheet->setCellValue('E' . $templateRow, $this->formatMetricForTemplate($row['gasoline'] ?? null));
+            $sheet->setCellValue('F' . $templateRow, $this->formatMetricForTemplate($row['engineOil'] ?? null));
+            $sheet->setCellValue('G' . $templateRow, $this->formatMetricForTemplate($row['gearOil'] ?? null));
+            $sheet->setCellValue('H' . $templateRow, $this->formatMetricForTemplate($row['brakeFluid'] ?? null));
+            $sheet->setCellValue('I' . $templateRow, $this->formatMetricForTemplate($row['grease'] ?? null));
+            $sheet->setCellValue('J' . $templateRow, $purchasedIssued === 'purchased' ? 'X' : '');
+            $sheet->setCellValue('K' . $templateRow, $purchasedIssued === 'issued' ? 'X' : '');
+            $sheet->setCellValue('L' . $templateRow, $this->formatTextForTemplate($row['passenger'] ?? null));
+            $sheet->setCellValue('M' . $templateRow, $this->formatTextForTemplate($row['destination'] ?? null));
         }
 
-        $fileName = 'monthly_official_travel_report_' . $driverSlug . '_' . $selectedMonth . '.csv';
+        $sheet->setCellValue('B45', $this->formatMetricForTemplate($reportData['totalDistance'] ?? null));
+        $sheet->setCellValue('C45', '');
+        $sheet->setCellValue('D45', $this->formatMetricForTemplate($reportData['totalDiesel'] ?? null));
+        $sheet->setCellValue('E45', $this->formatMetricForTemplate($reportData['totalGasoline'] ?? null));
+        $sheet->setCellValue('F45', $this->formatMetricForTemplate($reportData['totalEngineOil'] ?? null));
+        $sheet->setCellValue('G45', $this->formatMetricForTemplate($reportData['totalGearOil'] ?? null));
+        $sheet->setCellValue('H45', $this->formatMetricForTemplate($reportData['totalBrakeFluid'] ?? null));
+        $sheet->setCellValue('I45', $this->formatMetricForTemplate($reportData['totalGrease'] ?? null));
 
-        return response()->streamDownload(function () use ($reportData, $monthLabel, $driverName, $reportRows) {
-            $handle = fopen('php://output', 'w');
+        $sheet->setCellValue('G48', $this->formatTextForTemplate($driverName));
+        $sheet->setCellValue('D50', $this->formatTextForTemplate($reportData['divisionManagerName'] ?? null));
+        $sheet->setCellValue('D51', $this->formatTextForTemplate($reportData['divisionManagerPosition'] ?? null));
 
-            fwrite($handle, "\xEF\xBB\xBF");
+        $writer = new Xlsx($spreadsheet);
 
-            fputcsv($handle, ['Monthly Official Travel Report']);
-            fputcsv($handle, ['Month', $monthLabel]);
-            fputcsv($handle, ['Driver', $driverName]);
-            fputcsv($handle, ['Vehicle Plate', (string) ($reportData['vehiclePlate'] ?? 'N/A')]);
-            fputcsv($handle, ['Property Number', (string) ($reportData['propertyNumber'] ?? 'N/A')]);
-            fputcsv($handle, []);
-
-            fputcsv($handle, [
-                'Date',
-                'Distance (Kms/Hrs)',
-                'Diesel (Ltrs)',
-                'Gasoline (Ltrs)',
-                'E.O (Ltrs)',
-                'G.O (Ltrs)',
-                'BF (Ltrs)',
-                'Grease (Kgs)',
-                'Purchased/Issued',
-                'Passenger',
-                'Destination/Place',
-            ]);
-
-            foreach ($reportRows as $row) {
-                fputcsv($handle, [
-                    (string) ($row['day'] ?? '—'),
-                    $this->formatMetricForExport($row['distance'] ?? null),
-                    $this->formatMetricForExport($row['diesel'] ?? null),
-                    $this->formatMetricForExport($row['gasoline'] ?? null),
-                    $this->formatMetricForExport($row['engineOil'] ?? null),
-                    $this->formatMetricForExport($row['gearOil'] ?? null),
-                    $this->formatMetricForExport($row['brakeFluid'] ?? null),
-                    $this->formatMetricForExport($row['grease'] ?? null),
-                    (string) ($row['purchasedIssued'] ?? '—'),
-                    (string) ($row['passenger'] ?? '—'),
-                    (string) ($row['destination'] ?? '—'),
-                ]);
-            }
-
-            fputcsv($handle, []);
-            fputcsv($handle, [
-                'Total',
-                $this->formatMetricForExport($reportData['totalDistance'] ?? null),
-                $this->formatMetricForExport($reportData['totalDiesel'] ?? null),
-                $this->formatMetricForExport($reportData['totalGasoline'] ?? null),
-                $this->formatMetricForExport($reportData['totalEngineOil'] ?? null),
-                $this->formatMetricForExport($reportData['totalGearOil'] ?? null),
-                $this->formatMetricForExport($reportData['totalBrakeFluid'] ?? null),
-                $this->formatMetricForExport($reportData['totalGrease'] ?? null),
-                '',
-                '',
-                'Consolidated Equipment Metrics',
-            ]);
-
-            fclose($handle);
+        return response()->streamDownload(function () use ($writer, $spreadsheet) {
+            $writer->save('php://output');
+            $spreadsheet->disconnectWorksheets();
         }, $fileName, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
+    }
+
+    private function resolveMonthlyTravelTemplatePath(): string
+    {
+        $candidatePaths = [
+            public_path('storage/forms/form_8_rev_07.xlsx'),
+            storage_path('app/public/forms/form_8_rev_07.xlsx'),
+        ];
+
+        foreach ($candidatePaths as $path) {
+            if (is_readable($path)) {
+                return $path;
+            }
+        }
+
+        abort(500, 'Monthly official travel report template not found: public/storage/forms/form_8_rev_07.xlsx');
     }
 
     private function buildReportData(Request $request): array
@@ -213,9 +219,9 @@ class monthlyTravelReportController extends Controller
                 'gearOil' => $this->finalizeMetric($gearOilMetric),
                 'brakeFluid' => $this->finalizeMetric($brakeFluidMetric),
                 'grease' => $this->finalizeMetric($greaseMetric),
-                'purchasedIssued' => $hasTrips ? ($isIssued ? 'Issued' : '—') : '—',
-                'passenger' => $passengers->isNotEmpty() ? $passengers->implode(', ') : '—',
-                'destination' => $destinations->isNotEmpty() ? $destinations->implode('; ') : '—',
+                'purchasedIssued' => $hasTrips ? ($isIssued ? 'Issued' : "\u{2014}") : "\u{2014}",
+                'passenger' => $passengers->isNotEmpty() ? $passengers->implode(', ') : "\u{2014}",
+                'destination' => $destinations->isNotEmpty() ? $destinations->implode('; ') : "\u{2014}",
             ];
         })->values();
 
@@ -282,13 +288,24 @@ class monthlyTravelReportController extends Controller
         return round((float) $total, 1);
     }
 
-    private function formatMetricForExport(mixed $metric): string
+    private function formatMetricForTemplate(mixed $metric): string
     {
         if (!is_numeric($metric)) {
-            return '—';
+            return '';
         }
 
         return number_format((float) $metric, 1, '.', '');
+    }
+
+    private function formatTextForTemplate(mixed $value): string
+    {
+        $text = trim((string) $value);
+
+        if ($text === '' || $text === 'N/A' || $text === '-' || $text === "\u{2014}") {
+            return '';
+        }
+
+        return $text;
     }
 
     private function resolveDurationHours(TransportationRequestFormModel $item): ?float

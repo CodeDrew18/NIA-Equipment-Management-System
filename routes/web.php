@@ -101,6 +101,7 @@ Route::middleware('auth')->group(function () {
         // Admin Fuel Issuance Slip
         Route::get("/admin/fuel-issuance-slip", [App\Http\Controllers\admin\fuelIssuanceController::class, 'index'])->name('admin.fuel_issuance_slip');
         Route::get('/admin/fuel-issuance-slip/data', [App\Http\Controllers\admin\fuelIssuanceController::class, 'data'])->name('admin.fuel_issuance_slip.data');
+        Route::get('/admin/fuel-issuance-slip/{fuelIssuance}/attachment', [App\Http\Controllers\admin\fuelIssuanceController::class, 'downloadAttachment'])->name('admin.fuel_issuance_slip.attachment.download');
         Route::post('/admin/fuel-issuance-slip/print', [App\Http\Controllers\admin\fuelIssuanceController::class, 'printOfficeCopy'])->name('admin.fuel_issuance_slip.print');
         Route::post('/admin/fuel-issuance-slip/{transportationRequest}/dispatch', [App\Http\Controllers\admin\fuelIssuanceController::class, 'dispatchVehicle'])->name('admin.fuel_issuance_slip.dispatch');
 

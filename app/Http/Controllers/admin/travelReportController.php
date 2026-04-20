@@ -481,7 +481,34 @@ class travelReportController extends Controller
 
         $this->appendDirectAttachmentLink($links, $issuance->attachment);
 
+        if ($links->isEmpty()) {
+            $this->appendFuelIssuanceFallbackAttachmentLink($links, $issuance);
+        }
+
         return $links;
+    }
+
+    private function appendFuelIssuanceFallbackAttachmentLink(Collection $links, FuelIssuance $issuance): void
+    {
+        $issuanceId = (int) ($issuance->id ?? 0);
+        if ($issuanceId <= 0) {
+            return;
+        }
+
+        $fallbackName = trim((string) data_get($issuance->attachment, 'file_name', ''));
+        if ($fallbackName === '') {
+            $ctrlNumber = trim((string) ($issuance->ctrl_number ?? ''));
+            $safeCtrlNumber = preg_replace('/[^A-Za-z0-9._-]/', '_', $ctrlNumber ?: 'FIS');
+            $fallbackName = 'Fuel_Issuance_' . $safeCtrlNumber . '.xlsx';
+        }
+
+        $this->appendAttachmentLink($links, [
+            'name' => $fallbackName,
+            'url' => route('admin.fuel_issuance_slip.attachment.download', [
+                'fuelIssuance' => $issuanceId,
+            ]),
+            'file_path' => '__fuel_issuance_record_' . $issuanceId,
+        ]);
     }
 
     private function buildRequestAttachmentLinks(?TransportationRequestFormModel $request, ?callable $filter = null): Collection

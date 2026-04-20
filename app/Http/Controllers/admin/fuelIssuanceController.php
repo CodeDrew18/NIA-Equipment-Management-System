@@ -375,7 +375,185 @@ class fuelIssuanceController extends Controller
         $this->persistFuelIssuanceAttachment($selectedRequest, $selectedCopy, $validated, $attachmentPayload);
         $selectedRequest->upsertAttachment($attachmentPayload);
 
-        return response()->download($outputPath, $safeFileName)->deleteFileAfterSend(true);
+        return response()->download($outputPath, $safeFileName);
+    }
+
+    public function downloadAttachment(FuelIssuance $fuelIssuance)
+    {
+        $fuelIssuance->loadMissing('transportationRequestForm');
+
+        $selectedRequest = $fuelIssuance->transportationRequestForm;
+        if (!$selectedRequest) {
+            abort(404);
+        }
+
+        $relativePath = trim((string) data_get($fuelIssuance->attachment, 'file_path', ''));
+        $fileName = trim((string) data_get($fuelIssuance->attachment, 'file_name', ''));
+
+        if ($relativePath !== '' && Storage::disk('public')->exists($relativePath)) {
+            $absolutePath = Storage::disk('public')->path($relativePath);
+
+            return response()->download($absolutePath, $fileName !== '' ? $fileName : basename($relativePath));
+        }
+
+        $selectedCopy = $this->resolveFuelIssuanceCopyFromRecord($selectedRequest, $fuelIssuance);
+
+        $generationInput = [
+            'dealer' => trim((string) ($fuelIssuance->dealer ?? '')),
+            'gasoline' => round((float) ($fuelIssuance->gasoline_quantity ?? 0), 2),
+            'diesel' => round((float) ($fuelIssuance->diesel_quantity ?? 0), 2),
+            'fuel_save' => round((float) ($fuelIssuance->fuel_save_quantity ?? 0), 2),
+            'v_power' => round((float) ($fuelIssuance->v_power_quantity ?? 0), 2),
+            'total_amount' => round((float) ($fuelIssuance->total_amount ?? 0), 2),
+        ];
+
+        $generatedAttachment = $this->generateFuelIssuanceAttachmentFile($selectedRequest, $selectedCopy, $generationInput);
+
+        $this->persistFuelIssuanceAttachment(
+            $selectedRequest,
+            $selectedCopy,
+            $generationInput,
+            $generatedAttachment['attachmentPayload']
+        );
+        $selectedRequest->upsertAttachment($generatedAttachment['attachmentPayload']);
+
+        return response()->download($generatedAttachment['absolutePath'], $generatedAttachment['fileName']);
+    }
+
+    private function resolveFuelIssuanceCopyFromRecord(
+        TransportationRequestFormModel $transportationRequest,
+        FuelIssuance $fuelIssuance
+    ): array {
+        $copyKey = trim((string) ($fuelIssuance->copy_key ?? ''));
+        $copyNumber = (int) ($fuelIssuance->copy_number ?? 0);
+
+        $resolvedCopy = collect($this->buildFuelIssuanceCopies($transportationRequest))
+            ->first(function (array $copy) use ($copyKey, $copyNumber): bool {
+                if ($copyKey !== '' && trim((string) ($copy['copyKey'] ?? '')) === $copyKey) {
+                    return true;
+                }
+
+                return $copyNumber > 0 && (int) ($copy['copyNumber'] ?? 0) === $copyNumber;
+            });
+
+        if (is_array($resolvedCopy)) {
+            return $resolvedCopy;
+        }
+
+        $baseCtrlNumber = 'FIS-' . optional($transportationRequest->request_date)->format('Y') . '-' . str_pad((string) $transportationRequest->id, 4, '0', STR_PAD_LEFT);
+        $resolvedCopyNumber = $copyNumber > 0 ? $copyNumber : 1;
+
+        return [
+            'copyKey' => $copyKey !== '' ? $copyKey : substr(md5((string) $fuelIssuance->id . '|fuel_issuance_fallback'), 0, 32),
+            'copyNumber' => $resolvedCopyNumber,
+            'ctrlNumber' => (string) ($fuelIssuance->ctrl_number ?: $baseCtrlNumber),
+            'vehicleId' => trim((string) ($fuelIssuance->vehicle_id ?: $transportationRequest->vehicle_id ?: '____________________________')),
+            'driverName' => trim((string) ($fuelIssuance->driver_name ?: $transportationRequest->driver_name ?: 'N/A')),
+        ];
+    }
+
+    private function generateFuelIssuanceAttachmentFile(
+        TransportationRequestFormModel $selectedRequest,
+        array $selectedCopy,
+        array $values
+    ): array {
+        $templatePath = storage_path('app/public/forms/form_2_rev_08.xlsx');
+        if (!is_readable($templatePath)) {
+            abort(500, 'Template file not found: form_2_rev_08.xlsx');
+        }
+
+        $spreadsheet = IOFactory::load($templatePath);
+        $sheet = $spreadsheet->getActiveSheet();
+        $assignatoryName = (string) (AssignatoryPersonnelResolver::resolve()['name'] ?? '');
+
+        $ctrlNumber = (string) ($selectedCopy['ctrlNumber'] ?? ('FIS-' . optional($selectedRequest->request_date)->format('Y') . '-' . str_pad((string) $selectedRequest->id, 4, '0', STR_PAD_LEFT)));
+        $requestDate = optional($selectedRequest->request_date)->format('M d, Y') ?: '';
+
+        $dealer = (string) ($values['dealer'] ?? '');
+        $gasoline = (string) ($values['gasoline'] ?? '');
+        $diesel = (string) ($values['diesel'] ?? '');
+        $fuelSave = (string) ($values['fuel_save'] ?? '');
+        $vPower = (string) ($values['v_power'] ?? '');
+        $totalAmount = (string) ($values['total_amount'] ?? '');
+        $vehicleId = (string) ($selectedCopy['vehicleId'] ?? '');
+        $driverName = (string) ($selectedCopy['driverName'] ?? '');
+
+        // Office Copy
+        $sheet->mergeCells('B10:C10');
+        $sheet->setCellValue('B10', $ctrlNumber);
+        $sheet->mergeCells('F11:G11');
+        $sheet->setCellValue('F11', $requestDate);
+        $sheet->mergeCells('C13:E13');
+        $sheet->setCellValue('C13', $dealer);
+        $sheet->mergeCells('D15:F15');
+        $sheet->setCellValue('D15', $vehicleId);
+        $sheet->mergeCells('E19:F19');
+        $sheet->setCellValue('E19', $gasoline);
+        $sheet->mergeCells('E20:F20');
+        $sheet->setCellValue('E20', $diesel);
+        $sheet->mergeCells('E21:F21');
+        $sheet->setCellValue('E21', $fuelSave);
+        $sheet->mergeCells('E22:F22');
+        $sheet->setCellValue('E22', $vPower);
+        $sheet->mergeCells('E24:F24');
+        $sheet->setCellValue('E24', $totalAmount);
+        $sheet->mergeCells('C27:E27');
+        $sheet->setCellValue('C27', $driverName);
+        $sheet->mergeCells('C32:E32');
+        $sheet->setCellValue('C32', $assignatoryName);
+
+        // Dealer's Copy
+        $sheet->mergeCells('J10:K10');
+        $sheet->setCellValue('J10', $ctrlNumber);
+        $sheet->mergeCells('N11:O11');
+        $sheet->setCellValue('N11', $requestDate);
+        $sheet->mergeCells('K13:M13');
+        $sheet->setCellValue('K13', $dealer);
+        $sheet->mergeCells('L15:N15');
+        $sheet->setCellValue('L15', $vehicleId);
+        $sheet->mergeCells('M19:N19');
+        $sheet->setCellValue('M19', $gasoline);
+        $sheet->mergeCells('M20:N20');
+        $sheet->setCellValue('M20', $diesel);
+        $sheet->mergeCells('M21:N21');
+        $sheet->setCellValue('M21', $fuelSave);
+        $sheet->mergeCells('M22:N22');
+        $sheet->setCellValue('M22', $vPower);
+        $sheet->mergeCells('M24:N24');
+        $sheet->setCellValue('M24', $totalAmount);
+        $sheet->mergeCells('K27:M27');
+        $sheet->setCellValue('K27', $driverName);
+        $sheet->mergeCells('K32:M32');
+        $sheet->setCellValue('K32', $assignatoryName);
+
+        $outputDirectory = storage_path('app/public/generated_forms');
+        if (!is_dir($outputDirectory)) {
+            mkdir($outputDirectory, 0755, true);
+        }
+
+        $baseFormId = $selectedRequest->form_id ?: 'REQUEST';
+        $safeFormId = preg_replace('/[^A-Za-z0-9._-]/', '_', $baseFormId) ?: 'REQUEST';
+        $copyNumber = (int) ($selectedCopy['copyNumber'] ?? 1);
+        $safeFileName = 'Fuel_Issuance_Office_Copy_' . $safeFormId . '_copy_' . $copyNumber . '_' . now()->format('Ymd_His_u') . '_' . Str::lower(Str::random(6)) . '.xlsx';
+        $outputPath = $outputDirectory . DIRECTORY_SEPARATOR . $safeFileName;
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($outputPath);
+
+        $attachmentPayload = [
+            'file_name' => $safeFileName,
+            'file_path' => 'generated_forms/' . $safeFileName,
+            'process' => 'fuel_issuance',
+            'process_key' => self::FUEL_ATTACHMENT_KEY_PREFIX . ((string) ($selectedCopy['copyKey'] ?? 'default')),
+            'source' => 'fuel_issuance_print',
+            'copy_key' => (string) ($selectedCopy['copyKey'] ?? ''),
+        ];
+
+        return [
+            'fileName' => $safeFileName,
+            'absolutePath' => $outputPath,
+            'attachmentPayload' => $attachmentPayload,
+        ];
     }
 
     private function buildRequestFormDataSnapshot(TransportationRequestFormModel $transportationRequest): array

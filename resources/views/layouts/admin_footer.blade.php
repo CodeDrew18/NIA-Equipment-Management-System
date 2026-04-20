@@ -47,6 +47,7 @@
         const userId = @json((int) ($adminPendingTransportationRequestUserId ?? 0));
         const endpoint = @json(route('admin.notifications.pending-transportation-requests'));
         const storageKey = `nia_ems_admin_pending_transportation_seen_signature_user_${userId}`;
+        const sessionStorageKey = `nia_ems_admin_pending_transportation_session_seen_user_${userId}`;
         let pendingTransportationCount = @json((int) ($adminPendingTransportationRequestCount ?? 0));
         let pendingTransportationSignature = @json((string) ($adminPendingTransportationRequestSignature ?? ''));
         let pendingTransportationLatestId = extractLatestPendingId(pendingTransportationSignature);
@@ -96,12 +97,38 @@
             }
         }
 
+        function readSeenPendingSignature() {
+            try {
+                return String(window.localStorage.getItem(storageKey) || '').trim();
+            } catch (error) {
+                return '';
+            }
+        }
+
         function persistSeenPendingId() {
             const currentSeenId = readSeenPendingId();
             const nextSeenId = Math.max(currentSeenId, pendingTransportationLatestId);
+            const signatureToPersist = String(pendingTransportationSignature || '').trim();
 
             try {
-                window.localStorage.setItem(storageKey, String(nextSeenId));
+                // Persist full signature so updates on the same request ID are detected.
+                window.localStorage.setItem(storageKey, signatureToPersist !== '' ? signatureToPersist : String(nextSeenId));
+            } catch (error) {
+                // Ignore storage failures.
+            }
+        }
+
+        function hasSeenPendingInSession() {
+            try {
+                return window.sessionStorage.getItem(sessionStorageKey) === '1';
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function markPendingSeenInSession() {
+            try {
+                window.sessionStorage.setItem(sessionStorageKey, '1');
             } catch (error) {
                 // Ignore storage failures.
             }
@@ -116,21 +143,32 @@
             modal.classList.add('hidden');
             modal.classList.remove('flex');
 
-            if (!markAsSeen || pendingTransportationLatestId <= 0) {
+            if (!markAsSeen || pendingTransportationCount <= 0) {
                 return;
             }
 
+            markPendingSeenInSession();
             persistSeenPendingId();
         }
 
         function shouldOpenModal() {
-            if (pendingTransportationCount <= 0 || pendingTransportationLatestId <= 0) {
+            if (pendingTransportationCount <= 0) {
                 return false;
+            }
+
+            const seenPendingSignature = readSeenPendingSignature();
+            if (pendingTransportationSignature !== '' && pendingTransportationSignature !== seenPendingSignature) {
+                return true;
             }
 
             const seenPendingId = readSeenPendingId();
 
-            return pendingTransportationLatestId > seenPendingId;
+            if (pendingTransportationLatestId > seenPendingId) {
+                return true;
+            }
+
+            // Keep reminding once per browser session while pending requests still exist.
+            return !hasSeenPendingInSession();
         }
 
         function applyStateAndToggleModal() {
@@ -171,6 +209,7 @@
                 const nextLatestId = extractLatestPendingId(nextSignature);
 
                 const hasChanged = normalizedCount !== pendingTransportationCount
+                    || nextSignature !== pendingTransportationSignature
                     || nextLatestId !== pendingTransportationLatestId;
 
                 pendingTransportationCount = normalizedCount;
@@ -204,8 +243,11 @@
             }
         });
 
-        const pollIntervalMs = 10000;
+        const pollIntervalMs = 5000;
         window.setInterval(refreshPendingTransportationState, pollIntervalMs);
+
+        // Fetch fresh state immediately so newly created pending requests show quickly.
+        refreshPendingTransportationState();
 
         document.addEventListener('visibilitychange', function () {
             if (!document.hidden) {
