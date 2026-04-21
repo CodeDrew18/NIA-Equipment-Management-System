@@ -385,6 +385,51 @@ class vehicleAssignmentController extends Controller
             ->with('admin_dtt_success', $successMessage);
     }
 
+    public function cancel(Request $request, TransportationRequestFormModel $transportationRequest)
+    {
+        $validated = $request->validate([
+            'cancel_transportation_request_id' => ['required', 'integer'],
+            'cancellation_reason' => ['required', 'string', 'max:2000'],
+        ]);
+
+        if ((int) $validated['cancel_transportation_request_id'] !== (int) $transportationRequest->id) {
+            throw ValidationException::withMessages([
+                'cancellation_reason' => 'Cancellation request mismatch. Please try again.',
+            ]);
+        }
+
+        if ((string) $transportationRequest->status !== 'Signed') {
+            throw ValidationException::withMessages([
+                'cancellation_reason' => 'Only signed requests can be cancelled from Vehicle Assignment Queue.',
+            ]);
+        }
+
+        $previousVehicleCodes = $this->extractVehicleCodes((string) $transportationRequest->vehicle_id);
+        $cancellationReason = trim((string) $validated['cancellation_reason']);
+
+        DB::transaction(function () use ($transportationRequest, $previousVehicleCodes, $cancellationReason) {
+            $transportationRequest->update([
+                'status' => 'Cancelled',
+                'rejection_reason' => $cancellationReason,
+                'vehicle_id' => null,
+                'driver_name' => null,
+            ]);
+
+            if (!empty($previousVehicleCodes)) {
+                AdminVehicleAvailability::query()
+                    ->whereIn('vehicle_code', $previousVehicleCodes)
+                    ->whereIn('status', ['On Business Trip', 'Reserved'])
+                    ->update([
+                        'status' => 'Available',
+                    ]);
+            }
+        });
+
+        return redirect()
+            ->route('admin.vehicle_assignment')
+            ->with('admin_vehicle_assignment_success', 'Request ' . ($transportationRequest->form_id ?: ('#' . $transportationRequest->id)) . ' was cancelled successfully.');
+    }
+
     private function sendAssignmentPushToDrivers(TransportationRequestFormModel $transportationRequest, array $assignedDriverNames, FcmPushService $fcmPushService): int
     {
         $normalizedDriverNames = collect($assignedDriverNames)

@@ -49,7 +49,7 @@ class vehicleAvailabilityController extends Controller
     private function syncUnusedVehiclesToAvailable(): void
     {
         $activeVehicleCodes = TransportationRequestFormModel::query()
-            ->whereIn('status', ['Signed', 'Dispatched', 'On Trip'])
+            ->whereIn('status', ['Signed', 'Dispatched', 'On Trip', 'For Evaluation', 'Completed'])
             ->whereNotNull('vehicle_id')
             ->where('vehicle_id', '!=', '')
             ->pluck('vehicle_id')

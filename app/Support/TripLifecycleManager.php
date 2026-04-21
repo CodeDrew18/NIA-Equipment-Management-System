@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\AdminVehicleAvailability;
+use App\Models\DailyDriversTripTicket;
 use App\Models\DriverPerformanceEvaluation;
 use App\Models\TransportationRequestFormModel;
 use Illuminate\Support\Facades\DB;
@@ -14,79 +15,102 @@ class TripLifecycleManager
     public function moveFinishedTripsToEvaluationQueue(): int
     {
         $nowInTripTimezone = now(self::TRIP_TIMEZONE)->toDateTimeString();
+        $movedTripsCount = 0;
 
-        $finishedTrips = TransportationRequestFormModel::query()
+        $dueTrips = TransportationRequestFormModel::query()
             ->where('status', 'On Trip')
             ->whereNotNull('date_time_to')
             ->where('date_time_to', '<=', $nowInTripTimezone)
-            ->get(['id', 'vehicle_id']);
+            ->get(['id', 'driver_name']);
 
-        if ($finishedTrips->isEmpty()) {
-            return 0;
+        if ($dueTrips->isNotEmpty()) {
+            DB::transaction(function () use ($dueTrips, &$movedTripsCount) {
+                $requestIds = $dueTrips->pluck('id')->all();
+
+                $movedTripsCount = TransportationRequestFormModel::query()
+                    ->whereIn('id', $requestIds)
+                    ->where('status', 'On Trip')
+                    ->update([
+                        'status' => 'For Evaluation',
+                        'updated_at' => now(),
+                    ]);
+
+                foreach ($dueTrips as $dueTrip) {
+                    $evaluationCopies = $this->buildEvaluationCopies(
+                        (int) $dueTrip->id,
+                        (string) ($dueTrip->driver_name ?? '')
+                    );
+
+                    foreach ($evaluationCopies as $copy) {
+                        DriverPerformanceEvaluation::query()->firstOrCreate(
+                            [
+                                'transportation_request_form_id' => (int) $dueTrip->id,
+                                'copy_key' => (string) ($copy['copy_key'] ?? ''),
+                            ],
+                            [
+                                'copy_number' => (int) ($copy['copy_number'] ?? 1),
+                                'driver_name' => (string) ($copy['driver_name'] ?? 'N/A'),
+                                'status' => 'Pending',
+                            ]
+                        );
+                    }
+                }
+            });
         }
 
-        DB::transaction(function () use ($finishedTrips) {
-            $requestIds = $finishedTrips->pluck('id')->all();
+        $releasableRequestIds = $this->resolveRequestsReadyForVehicleRelease($nowInTripTimezone);
+        if ($releasableRequestIds->isEmpty()) {
+            return $movedTripsCount;
+        }
 
-            TransportationRequestFormModel::query()
-                ->whereIn('id', $requestIds)
-                ->where('status', 'On Trip')
-                ->update([
-                    'status' => 'For Evaluation',
-                    'updated_at' => now(),
-                ]);
+        $vehicleCodes = TransportationRequestFormModel::query()
+            ->whereIn('id', $releasableRequestIds->all())
+            ->whereIn('status', ['For Evaluation', 'Completed'])
+            ->pluck('vehicle_id')
+            ->filter(function ($vehicleId) {
+                return trim((string) $vehicleId) !== '';
+            })
+            ->flatMap(function ($vehicleId) {
+                return $this->extractVehicleCodes((string) $vehicleId);
+            })
+            ->unique()
+            ->values()
+            ->all();
 
-            $requestDriverRows = TransportationRequestFormModel::query()
-                ->whereIn('id', $requestIds)
-                ->get(['id', 'driver_name']);
+        if (empty($vehicleCodes)) {
+            return $movedTripsCount;
+        }
 
-            foreach ($requestDriverRows as $requestDriverRow) {
-                $evaluationCopies = $this->buildEvaluationCopies(
-                    (int) $requestDriverRow->id,
-                    (string) ($requestDriverRow->driver_name ?? '')
-                );
+        AdminVehicleAvailability::query()
+            ->whereIn('vehicle_code', $vehicleCodes)
+            ->whereIn('status', ['On Business Trip', 'Reserved'])
+            ->update([
+                'status' => 'Available',
+                'updated_at' => now(),
+            ]);
 
-                foreach ($evaluationCopies as $copy) {
-                    DriverPerformanceEvaluation::query()->firstOrCreate(
-                        [
-                            'transportation_request_form_id' => (int) $requestDriverRow->id,
-                            'copy_key' => (string) ($copy['copy_key'] ?? ''),
-                        ],
-                        [
-                            'copy_number' => (int) ($copy['copy_number'] ?? 1),
-                            'driver_name' => (string) ($copy['driver_name'] ?? 'N/A'),
-                            'status' => 'Pending',
-                        ]
-                    );
-                }
-            }
+        return $movedTripsCount;
+    }
 
-            $vehicleCodes = $finishedTrips
-                ->pluck('vehicle_id')
-                ->filter(function ($vehicleId) {
-                    return trim((string) $vehicleId) !== '';
-                })
-                ->flatMap(function ($vehicleId) {
-                    return $this->extractVehicleCodes((string) $vehicleId);
-                })
-                ->unique()
-                ->values()
-                ->all();
+    private function resolveRequestsReadyForVehicleRelease(string $nowInTripTimezone)
+    {
+        $candidateRequestIds = TransportationRequestFormModel::query()
+            ->whereIn('status', ['For Evaluation', 'Completed'])
+            ->whereNotNull('date_time_to')
+            ->where('date_time_to', '<=', $nowInTripTimezone)
+            ->pluck('id');
 
-            if (empty($vehicleCodes)) {
-                return;
-            }
+        if ($candidateRequestIds->isEmpty()) {
+            return collect();
+        }
 
-            AdminVehicleAvailability::query()
-                ->whereIn('vehicle_code', $vehicleCodes)
-                ->whereIn('status', ['On Business Trip', 'Reserved'])
-                ->update([
-                    'status' => 'Available',
-                    'updated_at' => now(),
-                ]);
-        });
-
-        return $finishedTrips->count();
+        return DailyDriversTripTicket::query()
+            ->whereIn('transportation_request_form_id', $candidateRequestIds->all())
+            ->select('transportation_request_form_id')
+            ->groupBy('transportation_request_form_id')
+            ->havingRaw('COUNT(*) > 0')
+            ->havingRaw('COUNT(arrival_time_office) = COUNT(*)')
+            ->pluck('transportation_request_form_id');
     }
 
     private function extractVehicleCodes(string $vehicleIds): array

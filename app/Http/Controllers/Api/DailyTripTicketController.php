@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DailyDriversTripTicket;
 use App\Models\TransportationRequestFormModel;
 use App\Models\User;
+use App\Support\TripLifecycleManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -70,7 +71,7 @@ class DailyTripTicketController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, TripLifecycleManager $tripLifecycleManager): JsonResponse
     {
         $driverUser = $this->resolveDriverUser($request);
         if ($driverUser instanceof JsonResponse) {
@@ -216,6 +217,10 @@ class DailyTripTicketController extends Controller
             ],
             $updateData
         );
+
+        // Keep request/vehicle lifecycle aligned after any DTT update,
+        // including arrival_time_office completion.
+        $tripLifecycleManager->moveFinishedTripsToEvaluationQueue();
 
         return response()->json([
             'message' => $ticket->wasRecentlyCreated

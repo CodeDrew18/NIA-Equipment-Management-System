@@ -336,6 +336,7 @@
 
 		<a class="mobile-nav-link {{ request()->routeIs('admin.on_trip_vehicles') ? 'mobile-nav-link-active' : '' }}" href="{{ route('admin.on_trip_vehicles') }}">On Trip Vehicles</a>
 		<a class="mobile-nav-link {{ $assignatoriesActive ? 'mobile-nav-link-active' : '' }}" href="{{ route('admin.assignatories') }}">Assignatories</a>
+		<a class="mobile-nav-link {{ $auditLogActive ? 'mobile-nav-link-active' : '' }}" href="{{ route('audit-log') }}">Audit Logs</a>
 
 		<details class="mobile-nav-group" {{ $reportsActive ? 'open' : '' }}>
 			<summary class="mobile-nav-link {{ $reportsActive ? 'mobile-nav-link-active' : '' }} flex items-center justify-between cursor-pointer">

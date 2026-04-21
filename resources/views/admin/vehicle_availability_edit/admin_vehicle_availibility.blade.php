@@ -87,11 +87,116 @@ body { font-family: 'Public Sans', sans-serif; }
 <h1 class="text-4xl font-extrabold text-primary mb-2 tracking-tight">Admin Vehicle Availability</h1>
 <p class="text-on-surface-variant leading-relaxed">Update each vehicle's assigned driver and operational status.</p>
 </div>
-<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10 flex flex-col min-w-[170px]">
-<span class="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-1">Total Vehicles</span>
-<span class="text-3xl font-bold text-primary"><span id="ava-total-vehicles">{{ $totalVehicles }}</span> Units</span>
+<div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+    <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10 flex flex-col min-w-[170px]">
+        <span class="text-xs font-semibold text-primary/60 uppercase tracking-widest mb-1">Total Vehicles</span>
+        <span class="text-3xl font-bold text-primary"><span id="ava-total-vehicles">{{ $totalVehicles }}</span> Units</span>
+    </div>
+    <button id="ava-open-create-modal" type="button" class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary shadow-sm transition-colors hover:bg-primary-container">
+        <span class="material-symbols-outlined text-base">add_circle</span>
+        Add Vehicle
+    </button>
 </div>
 </section>
+
+<div id="ava-create-modal" class="fixed inset-0 z-[120] hidden items-center justify-center bg-black/45 p-4">
+    <div class="w-full max-w-2xl rounded-2xl border border-outline-variant/20 bg-surface-container-lowest p-6 shadow-2xl">
+        <div class="mb-5 flex items-start justify-between gap-4">
+            <div>
+                <h2 class="text-xl font-extrabold tracking-tight text-primary">Add New Vehicle</h2>
+                <p class="mt-1 text-sm text-on-surface-variant">Create a vehicle record, assign an unassigned driver, and upload a vehicle image.</p>
+            </div>
+            <button type="button" data-ava-create-close="true" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-outline-variant/30 text-outline hover:bg-surface-container-low">
+                <span class="material-symbols-outlined text-[20px]">close</span>
+            </button>
+        </div>
+
+        <form method="POST" action="{{ route('admin.vehicle-availability.store') }}" enctype="multipart/form-data" class="space-y-4">
+            @csrf
+
+            @if (
+                $errors->has('create_vehicle_code') ||
+                $errors->has('create_vehicle_type') ||
+                $errors->has('create_capacity_label') ||
+                $errors->has('create_driver_name') ||
+                $errors->has('create_status') ||
+                $errors->has('create_vehicle_image')
+            )
+                <div class="rounded-lg border border-error/30 bg-error-container px-4 py-3 text-sm font-semibold text-on-error-container">
+                    {{
+                        $errors->first('create_vehicle_code')
+                        ?: $errors->first('create_vehicle_type')
+                        ?: $errors->first('create_capacity_label')
+                        ?: $errors->first('create_driver_name')
+                        ?: $errors->first('create_status')
+                        ?: $errors->first('create_vehicle_image')
+                    }}
+                </div>
+            @endif
+
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                    <label for="create_vehicle_code" class="text-xs font-semibold uppercase tracking-wider text-primary/60">Vehicle Code</label>
+                    <input id="create_vehicle_code" name="create_vehicle_code" type="text" value="{{ old('create_vehicle_code') }}" required class="mt-1 block w-full rounded-lg border-outline-variant text-sm focus:border-primary focus:ring-primary" placeholder="e.g. NIA-TRK-001">
+                </div>
+                <div>
+                    <label for="create_vehicle_type" class="text-xs font-semibold uppercase tracking-wider text-primary/60">Vehicle Type</label>
+                    <select id="create_vehicle_type" name="create_vehicle_type" required class="mt-1 block w-full rounded-lg border-outline-variant text-sm focus:border-primary focus:ring-primary">
+                        <option value="">Select type</option>
+                        @foreach (['Coaster', 'Van', 'Pickup', 'Other'] as $vehicleTypeOption)
+                            <option value="{{ $vehicleTypeOption }}" @selected(old('create_vehicle_type') === $vehicleTypeOption)>{{ $vehicleTypeOption }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label for="create_capacity_label" class="text-xs font-semibold uppercase tracking-wider text-primary/60">Capacity Label</label>
+                    <input id="create_capacity_label" name="create_capacity_label" type="text" value="{{ old('create_capacity_label') }}" class="mt-1 block w-full rounded-lg border-outline-variant text-sm focus:border-primary focus:ring-primary" placeholder="e.g. 12-14 passengers">
+                </div>
+                <div>
+                    <label for="create_status" class="text-xs font-semibold uppercase tracking-wider text-primary/60">Initial Status</label>
+                    <select id="create_status" name="create_status" required class="mt-1 block w-full rounded-lg border-outline-variant text-sm focus:border-primary focus:ring-primary">
+                        @foreach (['Available', 'On Business Trip', 'Reserved', 'Maintenance', 'Unavailable'] as $statusOption)
+                            <option value="{{ $statusOption }}" @selected(old('create_status', 'Available') === $statusOption)>{{ $statusOption }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label for="create_driver_name" class="text-xs font-semibold uppercase tracking-wider text-primary/60">Assign Driver (Unassigned Only)</label>
+                <select id="create_driver_name" name="create_driver_name" required class="mt-1 block w-full rounded-lg border-outline-variant text-sm focus:border-primary focus:ring-primary">
+                    <option value="">Select unassigned driver</option>
+                    @foreach (($unassignedDrivers ?? collect()) as $driverName)
+                        <option value="{{ $driverName }}" @selected(old('create_driver_name') === $driverName)>{{ $driverName }}</option>
+                    @endforeach
+                </select>
+                @if (($unassignedDrivers ?? collect())->isEmpty())
+                    <p class="mt-1 text-xs font-semibold text-error">No unassigned drivers available right now.</p>
+                @endif
+            </div>
+
+            <div>
+                <label for="create_vehicle_image" class="text-xs font-semibold uppercase tracking-wider text-primary/60">Vehicle Image</label>
+                <label for="create_vehicle_image" class="mt-1 group relative block h-36 w-full cursor-pointer overflow-hidden rounded-lg border border-outline-variant/30 bg-surface-container-low hover:border-primary/60 transition-colors">
+                    <img id="create_vehicle_image_preview" src="" alt="Vehicle preview" class="hidden h-full w-full object-cover">
+                    <div id="create_vehicle_image_placeholder" class="flex h-full w-full items-center justify-center text-outline">
+                        <span class="material-symbols-outlined text-4xl">airport_shuttle</span>
+                    </div>
+                    <div class="absolute inset-0 flex items-center justify-center bg-black/35 text-xs font-semibold uppercase tracking-wider text-white opacity-0 transition-opacity group-hover:opacity-100">
+                        Click to Upload
+                    </div>
+                </label>
+                <input id="create_vehicle_image" name="create_vehicle_image" type="file" accept="image/png,image/jpeg,image/webp" required class="hidden">
+                <p class="mt-1 text-[10px] text-on-surface-variant">Accepted: JPG, PNG, WEBP (max 4MB).</p>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-1">
+                <button type="button" data-ava-create-close="true" class="rounded-lg border border-outline-variant/30 bg-surface-container-low px-4 py-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant hover:bg-surface-container-high">Close</button>
+                <button type="submit" @disabled(($unassignedDrivers ?? collect())->isEmpty()) class="rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-on-primary hover:bg-primary-container disabled:opacity-60 disabled:cursor-not-allowed">Create Vehicle</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 @forelse ($vehicles as $vehicle)
@@ -140,6 +245,19 @@ class="hidden"
 <label class="text-xs font-semibold uppercase tracking-wider text-primary/60" for="driver_name_{{ $vehicle->id }}">Driver Name</label>
 @php
     $selectedDriver = old('driver_name', $vehicle->driver_name);
+    $driverOptions = collect($unassignedDrivers ?? collect());
+    if (!empty($selectedDriver)) {
+        $driverOptions = $driverOptions->push($selectedDriver);
+    }
+    $driverOptions = $driverOptions
+        ->map(function ($driverName) {
+            return trim((string) $driverName);
+        })
+        ->filter(function (string $driverName) {
+            return $driverName !== '';
+        })
+        ->unique()
+        ->values();
 @endphp
 <select
 id="driver_name_{{ $vehicle->id }}"
@@ -147,12 +265,9 @@ name="driver_name"
 class="mt-1 block w-full rounded-lg border-outline-variant text-sm focus:border-primary focus:ring-primary"
 >
 <option value="">No assigned driver</option>
-@foreach (($drivers ?? collect()) as $driverName)
+@foreach ($driverOptions as $driverName)
 <option value="{{ $driverName }}" @selected($selectedDriver === $driverName)>{{ $driverName }}</option>
 @endforeach
-@if (!empty($selectedDriver) && !collect($drivers ?? [])->contains($selectedDriver))
-<option value="{{ $selectedDriver }}" selected>{{ $selectedDriver }}</option>
-@endif
 </select>
 </div>
 
@@ -188,6 +303,30 @@ No vehicle records found. Add vehicle records to the table first.
 
 @include('layouts.admin_footer')
 <script>
+function previewCreateVehicleImage(event) {
+    const input = event.target;
+    const file = input.files && input.files[0] ? input.files[0] : null;
+
+    const preview = document.getElementById('create_vehicle_image_preview');
+    const placeholder = document.getElementById('create_vehicle_image_placeholder');
+
+    if (!preview || !placeholder) {
+        return;
+    }
+
+    if (!file) {
+        preview.src = '';
+        preview.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+        return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    preview.src = objectUrl;
+    preview.classList.remove('hidden');
+    placeholder.classList.add('hidden');
+}
+
 function previewVehicleImage(event, vehicleId) {
     const input = event.target;
     const file = input.files && input.files[0] ? input.files[0] : null;
@@ -210,6 +349,66 @@ function previewVehicleImage(event, vehicleId) {
         placeholder.classList.add('hidden');
     }
 }
+
+(function () {
+    const modal = document.getElementById('ava-create-modal');
+    const openButton = document.getElementById('ava-open-create-modal');
+    const closeButtons = Array.from(document.querySelectorAll('[data-ava-create-close="true"]'));
+    const createImageInput = document.getElementById('create_vehicle_image');
+
+    if (!modal || !openButton) {
+        return;
+    }
+
+    function openModal() {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeModal() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    openButton.addEventListener('click', openModal);
+
+    closeButtons.forEach(function (button) {
+        button.addEventListener('click', closeModal);
+    });
+
+    modal.addEventListener('click', function (event) {
+        if (event.target === modal) {
+            closeModal();
+        }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            closeModal();
+        }
+    });
+
+    if (createImageInput) {
+        createImageInput.addEventListener('change', previewCreateVehicleImage);
+    }
+
+    const hasCreateFormErrors = @json(
+        $errors->has('create_vehicle_code') ||
+        $errors->has('create_vehicle_type') ||
+        $errors->has('create_capacity_label') ||
+        $errors->has('create_driver_name') ||
+        $errors->has('create_status') ||
+        $errors->has('create_vehicle_image')
+    );
+
+    if (hasCreateFormErrors) {
+        openModal();
+
+        if (createImageInput && createImageInput.files && createImageInput.files[0]) {
+            previewCreateVehicleImage({ target: createImageInput });
+        }
+    }
+})();
 
 (function () {
     const totalVehiclesEl = document.getElementById('ava-total-vehicles');

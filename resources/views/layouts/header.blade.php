@@ -294,9 +294,8 @@
 				<span class="mobile-nav-summary-caret">&#9662;</span>
 			</summary>
 			<div class="pt-1 pb-1 space-y-1">
+				<a class="mobile-nav-subitem {{ request()->routeIs('vehicle-available') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('vehicle-available') }}">Vehicle Availability</a>
 				<a class="mobile-nav-subitem {{ request()->routeIs('request-form') ? 'mobile-nav-subitem-active' : '' }}" href="{{ route('request-form') }}">Transportation Request</a>
-				<a class="mobile-nav-subitem" href="#">Daily Driver's Trip Ticket</a>
-				<a class="mobile-nav-subitem" href="#">Fuel Issuance Slips</a>
 			</div>
 		</details>
 

@@ -373,16 +373,28 @@
                     </td>
 
                     <td class="px-6 py-5 align-middle text-center">
-                        <button
-                            type="submit"
-                            form="{{ $assignmentFormId }}"
-                            name="assignment_action"
-                            value="assign_vehicles"
-                            class="mx-auto block rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-primary-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            @disabled($missingRequiredInventory)
-                        >
-                            Assign Vehicles
-                        </button>
+                        <div class="mx-auto flex w-full max-w-[180px] flex-col gap-2">
+                            <button
+                                type="submit"
+                                form="{{ $assignmentFormId }}"
+                                name="assignment_action"
+                                value="assign_vehicles"
+                                class="rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-primary-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                @disabled($missingRequiredInventory)
+                            >
+                                Assign Vehicles
+                            </button>
+                            <button
+                                type="button"
+                                data-assignment-cancel-trigger="true"
+                                data-cancel-url="{{ route('admin.vehicle_assignment.cancel', $item) }}"
+                                data-request-id="{{ $item->id }}"
+                                data-form-id="{{ $item->form_id ?: ('Request #' . $item->id) }}"
+                                class="rounded-lg bg-error px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:opacity-90 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                        </div>
                     </td>
                 </tr>
                 @empty
@@ -406,9 +418,142 @@
     </section>
 </main>
 
+<div id="assignment-cancel-modal" class="fixed inset-0 z-[130] hidden items-center justify-center bg-black/45 p-4">
+    <div class="w-full max-w-xl rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-2xl">
+        <div class="mb-4 flex items-start justify-between gap-4">
+            <div>
+                <h3 class="text-xl font-extrabold text-primary">Cancel Transportation Request</h3>
+                <p class="text-sm text-on-surface-variant">Provide the cancellation reason for <span id="assignment-cancel-request-label" class="font-bold text-on-surface">this request</span>.</p>
+            </div>
+            <button type="button" data-assignment-cancel-close="true" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-outline-variant/30 text-outline hover:bg-surface-container-low">
+                <span class="material-symbols-outlined text-[20px]">close</span>
+            </button>
+        </div>
+
+        <form id="assignment-cancel-form" method="POST" action="">
+            @csrf
+            <input type="hidden" name="cancel_transportation_request_id" id="assignment-cancel-request-id" value="{{ old('cancel_transportation_request_id') }}">
+            <input type="hidden" name="cancel_transportation_request_form_id" id="assignment-cancel-request-form-id" value="{{ old('cancel_transportation_request_form_id') }}">
+
+            <label for="assignment-cancel-reason" class="mb-2 block text-xs font-bold uppercase tracking-widest text-outline">Cancellation Reason</label>
+            <textarea
+                id="assignment-cancel-reason"
+                name="cancellation_reason"
+                rows="5"
+                maxlength="2000"
+                required
+                class="w-full rounded-xl border border-outline-variant/35 bg-surface-container-low px-3 py-2.5 text-sm text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                placeholder="Explain why this request is being cancelled"
+            >{{ old('cancellation_reason') }}</textarea>
+
+            @if ($errors->has('cancellation_reason'))
+                <p class="mt-2 text-xs font-semibold text-error">{{ $errors->first('cancellation_reason') }}</p>
+            @endif
+
+            <div class="mt-5 flex items-center justify-end gap-2">
+                <button type="button" data-assignment-cancel-close="true" class="rounded-lg border border-outline-variant/35 bg-surface-container-low px-4 py-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant hover:bg-surface-container-high">
+                    Close
+                </button>
+                <button type="submit" class="rounded-lg bg-error px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:opacity-90">
+                    Confirm Cancel
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @include('layouts.admin_footer')
 <script>
     window.__emsHasCustomLiveRefresh = true;
+</script>
+<script>
+    (function () {
+        const modal = document.getElementById('assignment-cancel-modal');
+        const form = document.getElementById('assignment-cancel-form');
+        const requestIdInput = document.getElementById('assignment-cancel-request-id');
+        const requestFormIdInput = document.getElementById('assignment-cancel-request-form-id');
+        const requestLabel = document.getElementById('assignment-cancel-request-label');
+        const reasonInput = document.getElementById('assignment-cancel-reason');
+        const closeButtons = Array.from(document.querySelectorAll('[data-assignment-cancel-close="true"]'));
+        const triggerButtons = Array.from(document.querySelectorAll('[data-assignment-cancel-trigger="true"]'));
+        const actionTemplate = @json(route('admin.vehicle_assignment.cancel', ['transportationRequest' => '__REQUEST_ID__']));
+
+        if (!modal || !form || !requestIdInput || !requestFormIdInput || !requestLabel || !reasonInput) {
+            return;
+        }
+
+        function resolveActionUrl(requestId) {
+            return String(actionTemplate || '').replace('__REQUEST_ID__', String(requestId || ''));
+        }
+
+        function openModal(config) {
+            const requestId = Number(config && config.requestId ? config.requestId : 0);
+            const formId = String((config && config.formId) ? config.formId : 'this request').trim();
+            const actionUrl = String((config && config.actionUrl) ? config.actionUrl : (requestId > 0 ? resolveActionUrl(requestId) : '')).trim();
+
+            if (requestId > 0) {
+                requestIdInput.value = String(Math.trunc(requestId));
+            }
+
+            requestFormIdInput.value = formId;
+            requestLabel.textContent = formId !== '' ? formId : 'this request';
+
+            if (actionUrl !== '') {
+                form.setAttribute('action', actionUrl);
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            window.setTimeout(function () {
+                reasonInput.focus();
+                reasonInput.setSelectionRange(reasonInput.value.length, reasonInput.value.length);
+            }, 0);
+        }
+
+        function closeModal() {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        triggerButtons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                openModal({
+                    requestId: Number(button.getAttribute('data-request-id') || 0),
+                    formId: String(button.getAttribute('data-form-id') || 'this request'),
+                    actionUrl: String(button.getAttribute('data-cancel-url') || ''),
+                });
+            });
+        });
+
+        closeButtons.forEach(function (button) {
+            button.addEventListener('click', closeModal);
+        });
+
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal) {
+                closeModal();
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        const oldRequestId = Number(@json((int) old('cancel_transportation_request_id', 0)));
+        const oldRequestFormId = String(@json((string) old('cancel_transportation_request_form_id', '')));
+        const hasCancellationError = @json($errors->has('cancellation_reason'));
+
+        if (oldRequestId > 0 || hasCancellationError) {
+            openModal({
+                requestId: oldRequestId,
+                formId: oldRequestFormId !== '' ? oldRequestFormId : 'this request',
+                actionUrl: oldRequestId > 0 ? resolveActionUrl(oldRequestId) : '',
+            });
+        }
+    })();
 </script>
 <script>
     (function () {

@@ -258,7 +258,7 @@ Fill Evaluation
 <span class="material-symbols-outlined text-sm">chevron_right</span>
 </span>
 @endif
-</div>
+</  d iv>
 </div>
 </section>
 
@@ -278,7 +278,7 @@ Fill Evaluation
 </div>
 <div class="space-y-1">
 <label class="text-label-md font-bold text-on-surface-variant uppercase tracking-wider block">Date of Evaluation</label>
-<input name="evaluation_date" class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-xl font-medium" type="date" value="{{ old('evaluation_date', $selectedEvaluationPayload['evaluation_date'] ?? optional($selectedEvaluationRecord?->evaluated_at)->toDateString() ?? now()->toDateString()) }}" {{ $canSubmitEvaluation ? '' : 'readonly' }}/>
+<input name="evaluation_date" class="w-full bg-transparent border-0 border-b border-outline-variant py-2 architectural-underline text-xl font-medium" type="date" value="{{ old('evaluation_date', $selectedEvaluationPayload['evaluation_date'] ?? optional($selectedEvaluationRecord?->evaluated_at)->toDateString() ?? now()->toDateString()) }}" {{ $canSubmitEvaluation ? '' : 'readonly' }} readonly/>
 </div>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">

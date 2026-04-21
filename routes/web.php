@@ -66,6 +66,7 @@ Route::middleware('auth')->group(function () {
 
         // Admin Operations
         Route::get("/admin/vehicle-availability", [App\Http\Controllers\admin\adminVehicleAvailabilityController::class, 'index'])->name('admin.vehicle-availability');
+        Route::post("/admin/vehicle-availability", [App\Http\Controllers\admin\adminVehicleAvailabilityController::class, 'store'])->name('admin.vehicle-availability.store');
         Route::post(
             '/admin/vehicle-availability/{vehicle}',
             [App\Http\Controllers\admin\adminVehicleAvailabilityController::class, 'update']
@@ -86,6 +87,7 @@ Route::middleware('auth')->group(function () {
         // Admin Vehicle Assignment
         Route::get("/admin/vehicle-assignment", [App\Http\Controllers\admin\vehicleAssignmentController::class, 'index'])->name('admin.vehicle_assignment');
         Route::post('/admin/vehicle-assignment/{transportationRequest}/assign', [App\Http\Controllers\admin\vehicleAssignmentController::class, 'assign'])->name('admin.vehicle_assignment.assign');
+        Route::post('/admin/vehicle-assignment/{transportationRequest}/cancel', [App\Http\Controllers\admin\vehicleAssignmentController::class, 'cancel'])->name('admin.vehicle_assignment.cancel');
 
         // Admin User Roles
         Route::get("/admin/user-roles", [App\Http\Controllers\admin\userRolesController::class, 'index'])->name('admin.user_roles');
