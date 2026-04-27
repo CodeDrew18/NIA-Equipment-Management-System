@@ -602,7 +602,7 @@ if (typeof window.emsLiveRefresh === 'function') {
   window.emsLiveRefresh(function () {
     return otvRefresh(otvCurrentPage);
   }, {
-    intervalMs: 3000,
+    intervalMs: 50000,
   });
 }
 </script>
