@@ -12,6 +12,12 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class travelReportController extends Controller
@@ -113,7 +119,9 @@ class travelReportController extends Controller
         }
 
         $rows = $query->get([
+            'id',
             'form_id',
+            'request_date',
             'requested_by',
             'destination',
             'date_time_from',
@@ -121,39 +129,374 @@ class travelReportController extends Controller
             'vehicle_type',
             'vehicle_id',
             'status',
+            'attachments',
         ]);
 
-        $fileName = 'travel_report_' . Carbon::parse($fromDate)->format('Ymd') . '_' . Carbon::parse($toDate)->format('Ymd') . '.csv';
+        $activeRequests = $rows->count();
+        $activeTripTickets = $this->countTripTickets($fromDate, $toDate, $selectedStatus, false);
+        $inTransitTrips = $this->countTripTickets($fromDate, $toDate, $selectedStatus, true);
+        $totalFuelReleased = $this->sumFuelReleasedLiters($fromDate, $toDate, $selectedStatus);
+        $topDrivers = $this->buildTopDrivers($fromDate, $toDate, $selectedStatus);
+        $averageEvaluationRating = $this->averagePerformanceRating($fromDate, $toDate, $selectedStatus);
+        $driverPerformanceScore = $averageEvaluationRating ?? (float) ($topDrivers[0]['score'] ?? 0.0);
+        $statusLabel = strtolower($selectedStatus) === 'all' ? 'All Statuses' : $selectedStatus;
 
-        return response()->streamDownload(function () use ($rows) {
-            $handle = fopen('php://output', 'w');
+        $spreadsheet = new Spreadsheet();
+        $reportSheet = $spreadsheet->getActiveSheet();
+        $reportSheet->setTitle('Travel Report');
 
-            fputcsv($handle, [
-                'Request ID',
-                'Requester',
-                'Destination',
-                'Schedule From',
-                'Schedule To',
-                'Equipment',
-                'Status',
-            ]);
+        $this->buildTravelReportExportSheet(
+            $reportSheet,
+            $rows,
+            $fromDate,
+            $toDate,
+            $statusLabel
+        );
 
-            foreach ($rows as $row) {
-                fputcsv($handle, [
-                    (string) ($row->form_id ?: 'N/A'),
-                    (string) ($row->requestor_name ?: $row->requested_by ?: 'N/A'),
-                    (string) ($row->destination ?: 'N/A'),
-                    optional($row->date_time_from)->format('M d, Y h:i A') ?: 'N/A',
-                    optional($row->date_time_to)->format('M d, Y h:i A') ?: 'N/A',
-                    (string) ($row->vehicle_id ?: $row->vehicle_type ?: 'N/A'),
-                    (string) ($row->status ?: 'N/A'),
+        $analyticsSheet = new Worksheet($spreadsheet, 'Analytics');
+        $spreadsheet->addSheet($analyticsSheet);
+
+        $this->buildTravelAnalyticsExportSheet(
+            $analyticsSheet,
+            $fromDate,
+            $toDate,
+            $statusLabel,
+            $activeRequests,
+            $totalFuelReleased,
+            $activeTripTickets,
+            $inTransitTrips,
+            $driverPerformanceScore,
+            $topDrivers
+        );
+
+        $spreadsheet->setActiveSheetIndex(0);
+
+        $fileName = 'summary_travel_report_' . Carbon::parse($fromDate)->format('Ymd') . '_' . Carbon::parse($toDate)->format('Ymd') . '.xlsx';
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+            $spreadsheet->disconnectWorksheets();
+        }, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'max-age=0',
+        ]);
+    }
+
+    private function buildTravelReportExportSheet(
+        Worksheet $sheet,
+        Collection $rows,
+        string $fromDate,
+        string $toDate,
+        string $statusLabel
+    ): void {
+        $sheet->mergeCells('A1:I1');
+        $sheet->setCellValue('A1', 'NIA Travel Report - Full Export');
+        $sheet->mergeCells('A2:I2');
+        $sheet->setCellValue('A2', 'Date Range: ' . Carbon::parse($fromDate)->format('M d, Y') . ' to ' . Carbon::parse($toDate)->format('M d, Y'));
+        $sheet->mergeCells('A3:I3');
+        $sheet->setCellValue('A3', 'Status Filter: ' . $statusLabel . ' | Generated: ' . now()->format('M d, Y h:i A'));
+
+        $sheet->getStyle('A1:I1')->applyFromArray([
+            'font' => [
+                'bold' => true,
+                'size' => 16,
+                'color' => ['argb' => 'FFFFFFFF'],
+            ],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+                'vertical' => Alignment::VERTICAL_CENTER,
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'color' => ['argb' => 'FF003466'],
+            ],
+        ]);
+
+        $sheet->getStyle('A2:I3')->applyFromArray([
+            'font' => [
+                'size' => 10,
+                'color' => ['argb' => 'FF424750'],
+            ],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_LEFT,
+                'vertical' => Alignment::VERTICAL_CENTER,
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'color' => ['argb' => 'FFF2F4F7'],
+            ],
+        ]);
+
+        $sheet->fromArray([
+            'Request ID',
+            'Request Date',
+            'Requester',
+            'Destination',
+            'Schedule From',
+            'Schedule To',
+            'Equipment',
+            'Status',
+            'Attachments',
+        ], null, 'A6');
+
+        $sheet->getStyle('A6:I6')->applyFromArray([
+            'font' => [
+                'bold' => true,
+                'color' => ['argb' => 'FF003466'],
+            ],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+                'vertical' => Alignment::VERTICAL_CENTER,
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'color' => ['argb' => 'FFE6EEF8'],
+            ],
+        ]);
+
+        $sheet->getRowDimension(1)->setRowHeight(28);
+        $sheet->getRowDimension(6)->setRowHeight(22);
+
+        $sheet->getColumnDimension('A')->setWidth(18);
+        $sheet->getColumnDimension('B')->setWidth(16);
+        $sheet->getColumnDimension('C')->setWidth(24);
+        $sheet->getColumnDimension('D')->setWidth(34);
+        $sheet->getColumnDimension('E')->setWidth(22);
+        $sheet->getColumnDimension('F')->setWidth(22);
+        $sheet->getColumnDimension('G')->setWidth(24);
+        $sheet->getColumnDimension('H')->setWidth(18);
+        $sheet->getColumnDimension('I')->setWidth(14);
+
+        $rowPointer = 7;
+        foreach ($rows as $index => $row) {
+            $requestAttachments = $this->buildTransportationRequestAttachmentLinks($row);
+
+            $sheet->fromArray([
+                (string) ($row->form_id ?: 'N/A'),
+                optional($row->request_date)->format('M d, Y') ?: 'N/A',
+                (string) ($row->requestor_name ?: $row->requested_by ?: 'N/A'),
+                (string) ($row->destination ?: 'N/A'),
+                optional($row->date_time_from)->format('M d, Y h:i A') ?: 'N/A',
+                optional($row->date_time_to)->format('M d, Y h:i A') ?: 'N/A',
+                (string) ($row->vehicle_id ?: $row->vehicle_type ?: 'N/A'),
+                (string) ($row->status ?: 'N/A'),
+                $requestAttachments->count() > 0
+                    ? $requestAttachments->count() . ' file(s)'
+                    : 'No attachment',
+            ], null, 'A' . $rowPointer);
+
+            if ($index % 2 === 1) {
+                $sheet->getStyle('A' . $rowPointer . ':I' . $rowPointer)->applyFromArray([
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'color' => ['argb' => 'FFF8FAFD'],
+                    ],
                 ]);
             }
 
-            fclose($handle);
-        }, $fileName, [
-            'Content-Type' => 'text/csv',
+            $rowPointer++;
+        }
+
+        if ($rows->isEmpty()) {
+            $sheet->mergeCells('A7:I7');
+            $sheet->setCellValue('A7', 'No travel records found for the selected date range and filters.');
+            $sheet->getStyle('A7')->applyFromArray([
+                'font' => [
+                    'bold' => true,
+                    'color' => ['argb' => 'FF737781'],
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+            ]);
+            $rowPointer = 8;
+        }
+
+        $lastDataRow = max(7, $rowPointer - 1);
+
+        $sheet->getStyle('A6:I' . $lastDataRow)->applyFromArray([
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                    'color' => ['argb' => 'FFD9DDE5'],
+                ],
+            ],
+            'alignment' => [
+                'vertical' => Alignment::VERTICAL_CENTER,
+            ],
         ]);
+
+        $sheet->getStyle('D7:D' . $lastDataRow)->getAlignment()->setWrapText(true);
+        $sheet->getStyle('A7:C' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+        $sheet->getStyle('E7:I' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        $sheet->setAutoFilter('A6:I6');
+        $sheet->freezePane('A7');
+    }
+
+    private function buildTravelAnalyticsExportSheet(
+        Worksheet $sheet,
+        string $fromDate,
+        string $toDate,
+        string $statusLabel,
+        int $activeRequests,
+        float $totalFuelReleased,
+        int $activeTripTickets,
+        int $inTransitTrips,
+        float $driverPerformanceScore,
+        array $topDrivers
+    ): void {
+        $sheet->mergeCells('A1:E1');
+        $sheet->setCellValue('A1', 'Travel Report Analytics Summary');
+        $sheet->mergeCells('A2:E2');
+        $sheet->setCellValue('A2', 'Date Range: ' . Carbon::parse($fromDate)->format('M d, Y') . ' to ' . Carbon::parse($toDate)->format('M d, Y'));
+        $sheet->mergeCells('A3:E3');
+        $sheet->setCellValue('A3', 'Status Filter: ' . $statusLabel);
+
+        $sheet->getStyle('A1:E1')->applyFromArray([
+            'font' => [
+                'bold' => true,
+                'size' => 15,
+                'color' => ['argb' => 'FFFFFFFF'],
+            ],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+                'vertical' => Alignment::VERTICAL_CENTER,
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'color' => ['argb' => 'FF003466'],
+            ],
+        ]);
+
+        $sheet->getStyle('A2:E3')->applyFromArray([
+            'font' => [
+                'size' => 10,
+                'color' => ['argb' => 'FF424750'],
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'color' => ['argb' => 'FFF2F4F7'],
+            ],
+        ]);
+
+        $sheet->fromArray(['Metric', 'Value'], null, 'A5');
+        $sheet->mergeCells('B5:E5');
+
+        $sheet->getStyle('A5:E5')->applyFromArray([
+            'font' => [
+                'bold' => true,
+                'color' => ['argb' => 'FF003466'],
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'color' => ['argb' => 'FFE6EEF8'],
+            ],
+        ]);
+
+        $metrics = [
+            ['Active Requests', number_format($activeRequests)],
+            ['Total Fuel Released (L)', number_format($totalFuelReleased, 1)],
+            ['Active Trip Tickets', number_format($activeTripTickets)],
+            ['In-Transit Trips', number_format($inTransitTrips)],
+            ['Driver Performance Score', number_format($driverPerformanceScore, 2)],
+        ];
+
+        $metricRow = 6;
+        foreach ($metrics as [$metricLabel, $metricValue]) {
+            $sheet->setCellValue('A' . $metricRow, $metricLabel);
+            $sheet->setCellValue('B' . $metricRow, $metricValue);
+            $sheet->mergeCells('B' . $metricRow . ':E' . $metricRow);
+            $metricRow++;
+        }
+
+        $sheet->setCellValue('A' . ($metricRow + 1), 'Top Drivers');
+        $sheet->mergeCells('A' . ($metricRow + 1) . ':E' . ($metricRow + 1));
+        $sheet->getStyle('A' . ($metricRow + 1) . ':E' . ($metricRow + 1))->applyFromArray([
+            'font' => [
+                'bold' => true,
+                'color' => ['argb' => 'FF003466'],
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'color' => ['argb' => 'FFE6EEF8'],
+            ],
+        ]);
+
+        $driverHeaderRow = $metricRow + 2;
+        $sheet->fromArray(['Rank', 'Driver', 'Score', 'Trips', 'Badge'], null, 'A' . $driverHeaderRow);
+        $sheet->getStyle('A' . $driverHeaderRow . ':E' . $driverHeaderRow)->applyFromArray([
+            'font' => [
+                'bold' => true,
+                'color' => ['argb' => 'FF003466'],
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'color' => ['argb' => 'FFF2F4F7'],
+            ],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+            ],
+        ]);
+
+        $driverRow = $driverHeaderRow + 1;
+        if (empty($topDrivers)) {
+            $sheet->mergeCells('A' . $driverRow . ':E' . $driverRow);
+            $sheet->setCellValue('A' . $driverRow, 'No ranked drivers available in selected range.');
+            $sheet->getStyle('A' . $driverRow)->applyFromArray([
+                'font' => [
+                    'italic' => true,
+                    'color' => ['argb' => 'FF737781'],
+                ],
+            ]);
+        } else {
+            foreach ($topDrivers as $index => $driver) {
+                $sheet->fromArray([
+                    '#' . ($index + 1),
+                    (string) ($driver['name'] ?? 'N/A'),
+                    (string) ($driver['scoreLabel'] ?? '0.00/5.0'),
+                    (string) ($driver['trips'] ?? 0),
+                    (string) ($driver['badge'] ?? 'ACTIVE'),
+                ], null, 'A' . $driverRow);
+
+                if ($index % 2 === 1) {
+                    $sheet->getStyle('A' . $driverRow . ':E' . $driverRow)->applyFromArray([
+                        'fill' => [
+                            'fillType' => Fill::FILL_SOLID,
+                            'color' => ['argb' => 'FFF8FAFD'],
+                        ],
+                    ]);
+                }
+
+                $driverRow++;
+            }
+        }
+
+        $lastRow = max($driverHeaderRow + 1, $driverRow);
+
+        $sheet->getStyle('A5:E' . $lastRow)->applyFromArray([
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                    'color' => ['argb' => 'FFD9DDE5'],
+                ],
+            ],
+            'alignment' => [
+                'vertical' => Alignment::VERTICAL_CENTER,
+            ],
+        ]);
+
+        $sheet->getColumnDimension('A')->setWidth(28);
+        $sheet->getColumnDimension('B')->setWidth(26);
+        $sheet->getColumnDimension('C')->setWidth(14);
+        $sheet->getColumnDimension('D')->setWidth(12);
+        $sheet->getColumnDimension('E')->setWidth(14);
+
+        $sheet->getStyle('A6:A' . $lastRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+        $sheet->getStyle('B6:E' . $lastRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->freezePane('A6');
     }
 
     private function resolveFilters(Request $request): array
