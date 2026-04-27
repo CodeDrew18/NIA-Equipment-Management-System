@@ -143,7 +143,7 @@ body { font-family: 'Public Sans', sans-serif; }
                     <label for="create_vehicle_type" class="text-xs font-semibold uppercase tracking-wider text-primary/60">Vehicle Type</label>
                     <select id="create_vehicle_type" name="create_vehicle_type" required class="mt-1 block w-full rounded-lg border-outline-variant text-sm focus:border-primary focus:ring-primary">
                         <option value="">Select type</option>
-                        @foreach (['Coaster', 'Van', 'Pickup', 'Other'] as $vehicleTypeOption)
+                        @foreach (['Coaster', 'Van', 'Pickup'] as $vehicleTypeOption)
                             <option value="{{ $vehicleTypeOption }}" @selected(old('create_vehicle_type') === $vehicleTypeOption)>{{ $vehicleTypeOption }}</option>
                         @endforeach
                     </select>
@@ -218,11 +218,14 @@ body { font-family: 'Public Sans', sans-serif; }
 </span>
 </div>
 
-<label for="vehicle_image_{{ $vehicle->id }}" class="group relative block h-32 rounded-lg overflow-hidden bg-surface-container-low mb-4 cursor-pointer border border-outline-variant/30 hover:border-primary/60 transition-colors" title="Click to upload vehicle image">
-@if ($vehicle->image_url)
-<img id="vehicle_image_preview_{{ $vehicle->id }}" src="{{ $vehicle->image_url }}" alt="{{ $vehicle->vehicle_code }}" class="w-full h-full object-cover"/>
+@php
+    $vehicleImageUrl = $vehicle->resolved_image_url;
+@endphp
+<label for="vehicle_image_{{ $vehicle->id }}" class="group relative block h-40 rounded-lg overflow-hidden bg-surface-container-low mb-4 cursor-pointer border border-outline-variant/30 hover:border-primary/60 transition-colors" title="Click to upload vehicle image">
+@if ($vehicleImageUrl)
+<img id="vehicle_image_preview_{{ $vehicle->id }}" src="{{ $vehicleImageUrl }}" alt="{{ $vehicle->vehicle_code }}" class="w-full h-full object-contain bg-surface-container-lowest"/>
 @else
-<img id="vehicle_image_preview_{{ $vehicle->id }}" src="" alt="{{ $vehicle->vehicle_code }}" class="hidden w-full h-full object-cover"/>
+<img id="vehicle_image_preview_{{ $vehicle->id }}" src="" alt="{{ $vehicle->vehicle_code }}" class="hidden w-full h-full object-contain bg-surface-container-lowest"/>
 <div id="vehicle_image_placeholder_{{ $vehicle->id }}" class="w-full h-full flex items-center justify-center text-outline">
 <span class="material-symbols-outlined text-4xl">airport_shuttle</span>
 </div>

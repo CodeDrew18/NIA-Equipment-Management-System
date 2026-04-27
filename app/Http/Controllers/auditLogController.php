@@ -70,6 +70,7 @@ class auditLogController extends Controller
             });
 
         $auditLogs = (clone $query)
+            ->with(['user:id,name,personnel_id'])
             ->orderByDesc('created_at')
             ->paginate(10)
             ->withQueryString();
@@ -141,10 +142,25 @@ class auditLogController extends Controller
                 'pageUrls' => $auditLogs->getUrlRange(1, $auditLogs->lastPage()),
             ],
             'rows' => $auditLogs->getCollection()->values()->map(function (AuditLog $log): array {
+                $resolvedUserName = trim((string) ($log->user_name ?? ''));
+                if ($resolvedUserName === '') {
+                    $linkedUserName = trim((string) ($log->user?->name ?? ''));
+
+                    if ($linkedUserName !== '') {
+                        $resolvedUserName = $linkedUserName;
+                    } elseif (trim((string) ($log->personnel_id ?? '')) !== '') {
+                        $resolvedUserName = 'Personnel ID ' . (string) $log->personnel_id;
+                    } elseif (!empty($log->user_id)) {
+                        $resolvedUserName = 'User #' . (string) $log->user_id;
+                    } else {
+                        $resolvedUserName = 'Guest';
+                    }
+                }
+
                 return [
                     'timestamp' => optional($log->created_at)->format('M d, Y h:i A') ?? 'N/A',
                     'personnelId' => (string) ($log->personnel_id ?: ('USR-' . $log->user_id)),
-                    'userName' => (string) ($log->user_name ?: 'Unknown User'),
+                    'userName' => $resolvedUserName,
                     'actionCategory' => (string) $log->action_category,
                     'activityDescription' => (string) ($log->activity_description ?? ''),
                     'ipAddress' => (string) ($log->ip_address ?: 'N/A'),

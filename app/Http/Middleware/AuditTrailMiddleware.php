@@ -22,12 +22,12 @@ class AuditTrailMiddleware
         }
 
         $routeName = (string) optional($request->route())->getName();
+        $method = strtoupper((string) $request->method());
 
-        if ($this->shouldSkipRoute($routeName)) {
+        if ($this->shouldSkipRoute($routeName, $method)) {
             return $response;
         }
 
-        $method = strtoupper((string) $request->method());
         $statusCode = (int) $response->getStatusCode();
 
         AuditLogger::record(
@@ -45,13 +45,17 @@ class AuditTrailMiddleware
         return $response;
     }
 
-    private function shouldSkipRoute(string $routeName): bool
+    private function shouldSkipRoute(string $routeName, string $method): bool
     {
+        if ($method === 'GET') {
+            return true;
+        }
+
         if ($routeName === '') {
             return false;
         }
 
-        if ($routeName === 'login.authenticate') {
+        if (in_array($routeName, ['login.authenticate', 'logout', 'audit-log'], true)) {
             return true;
         }
 

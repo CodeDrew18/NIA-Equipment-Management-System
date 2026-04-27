@@ -109,8 +109,8 @@ body { font-family: 'Public Sans', sans-serif; }
 </div>
 
 <div class="h-40 rounded-lg overflow-hidden bg-surface-container-low mb-4">
-@if ($vehicle->image_url)
-<img src="{{ $vehicle->image_url }}" alt="{{ $vehicle->vehicle_code }}" class="w-full h-full object-cover"/>
+@if ($vehicle->resolved_image_url)
+<img src="{{ $vehicle->resolved_image_url }}" alt="{{ $vehicle->vehicle_code }}" class="w-full h-full object-contain bg-surface-container-lowest"/>
 @else
 <div class="w-full h-full flex items-center justify-center text-outline">
 <span class="material-symbols-outlined text-4xl">airport_shuttle</span>
@@ -233,7 +233,7 @@ No vehicle records found.
 
     function vehicleCardMarkup(vehicle) {
         const imageSection = vehicle.image_url
-            ? `<img src="${escapeHtml(vehicle.image_url)}" alt="${escapeHtml(vehicle.vehicle_code)}" class="w-full h-full object-cover"/>`
+            ? `<img src="${escapeHtml(vehicle.image_url)}" alt="${escapeHtml(vehicle.vehicle_code)}" class="w-full h-full object-contain bg-surface-container-lowest"/>`
             : `<div class="w-full h-full flex items-center justify-center text-outline"><span class="material-symbols-outlined text-4xl">airport_shuttle</span></div>`;
 
         return `

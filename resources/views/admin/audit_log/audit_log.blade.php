@@ -144,6 +144,20 @@
   $category = strtoupper((string) $log->action_category);
   $status = strtoupper((string) $log->status);
   $name = trim((string) ($log->user_name ?? ''));
+  $resolvedName = $name;
+  if ($resolvedName === '') {
+    $linkedUserName = trim((string) ($log->user?->name ?? ''));
+
+    if ($linkedUserName !== '') {
+      $resolvedName = $linkedUserName;
+    } elseif (trim((string) ($log->personnel_id ?? '')) !== '') {
+      $resolvedName = 'Personnel ID ' . (string) $log->personnel_id;
+    } elseif (!empty($log->user_id)) {
+      $resolvedName = 'User #' . (string) $log->user_id;
+    } else {
+      $resolvedName = 'Guest';
+    }
+  }
   $method = strtoupper(trim((string) ($log->method ?? '')));
   $routeLabel = trim((string) ($log->route_name ?? ''));
   $requestPath = trim((string) ($log->request_path ?? ''));
@@ -177,7 +191,7 @@
 @endphp
 <tr class="{{ $rowClass }}">
 <td class="px-6 py-5 text-sm font-medium text-on-surface">{{ optional($log->created_at)->format('M d, Y h:i A') ?? 'N/A' }}</td>
-<td class="px-6 py-5 text-sm font-semibold text-primary">{{ $name !== '' ? $name : 'Unknown User' }}</td>
+<td class="px-6 py-5 text-sm font-semibold text-primary">{{ $resolvedName }}</td>
 <td class="px-6 py-5">
 <span class="{{ $categoryClass }} px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">{{ str_replace('_', ' ', $category) }}</span>
 </td>
@@ -452,12 +466,17 @@
     const rowClass = index % 2 === 1 ? 'bg-surface-container-low/30 hover:bg-surface-container-low transition-colors' : 'hover:bg-surface-container-low transition-colors';
     const category = String(item.actionCategory ?? '');
     const status = String(item.status ?? '');
+    const rawUserName = String(item.userName ?? item.name ?? '').trim();
+    const rawPersonnelId = String(item.personnelId ?? '').trim();
+    const displayName = rawUserName !== ''
+      ? rawUserName
+      : (rawPersonnelId !== '' ? `Personnel ID ${rawPersonnelId}` : 'Guest');
     const categoryClass = auditCategoryClass(category);
     const statusClass = auditStatusClass(status);
 
     return `<tr class="${rowClass}">
       <td class="px-6 py-5 text-sm font-medium text-on-surface">${auditEsc(item.timestamp)}</td>
-      <td class="px-6 py-5 text-sm font-semibold text-primary">${auditEsc(item.name || 'Unknown User')}</td>
+      <td class="px-6 py-5 text-sm font-semibold text-primary">${auditEsc(displayName)}</td>
       <td class="px-6 py-5"><span class="${categoryClass} px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">${auditEsc(String(category || '').replaceAll('_', ' '))}</span></td>
       <td class="px-6 py-5 text-sm text-on-surface-variant max-w-xs truncate">${auditEsc(item.activityDescription)}</td>
       <td class="px-6 py-5 text-xs text-outline"><span>${auditEsc(item.otherDetails || 'N/A')}</span></td>

@@ -38,7 +38,19 @@ class vehicleAvailabilityController extends Controller
                 'driver_name',
                 'status',
                 'image_url',
-            ]);
+            ])
+            ->map(function (AdminVehicleAvailability $vehicle): array {
+                return [
+                    'id' => $vehicle->id,
+                    'vehicle_code' => (string) ($vehicle->vehicle_code ?? ''),
+                    'vehicle_type' => (string) ($vehicle->vehicle_type ?? ''),
+                    'capacity_label' => (string) ($vehicle->capacity_label ?? ''),
+                    'driver_name' => (string) ($vehicle->driver_name ?? ''),
+                    'status' => (string) ($vehicle->status ?? ''),
+                    'image_url' => $vehicle->resolved_image_url,
+                ];
+            })
+            ->values();
 
         return response()->json([
             'totalVehicles' => $vehicles->count(),
