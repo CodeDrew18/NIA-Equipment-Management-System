@@ -126,6 +126,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/admin/notifications/pending-transportation-requests', [NotificationModalController::class, 'adminPendingTransportationRequests'])->name('admin.notifications.pending-transportation-requests');
 
         Route::get("/admin/monthly-official-travel-report", [App\Http\Controllers\admin\monthlyTravelReportController::class, 'index'])->name('admin.monthly-official-travel-report');
+        Route::get('/admin/monthly-official-travel-report/download', [App\Http\Controllers\admin\monthlyTravelReportController::class, 'download'])->name('admin.monthly-official-travel-report.download');
         //  Route::get("/audit-log", [App\Http\Controllers\admin\auditLogController::class, 'index'])->name('audit-log');
     });
 });

@@ -85,7 +85,7 @@
 </head>
 <body class="bg-surface font-body text-on-surface antialiased min-h-screen flex flex-col">
 <!-- TopNavBar -->
-@include('layouts.header')
+@include('layouts.admin_header')
 <main class="mt-24 mb-16 flex-grow w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12">
 <!-- Page Header -->
 <div class="max-w-[1920px] mx-auto mb-8 flex flex-col md:flex-row justify-between items-end gap-6">
@@ -97,8 +97,8 @@
 {{-- <button class="px-5 py-2.5 bg-secondary-container text-on-secondary-container font-semibold rounded-lg flex items-center gap-2 hover:opacity-90 transition-all">
 <span class="material-symbols-outlined text-lg">download</span> Export PDF
                 </button> --}}
-<button class="px-5 py-2.5 bg-primary text-on-primary font-semibold rounded-lg flex items-center gap-2 hover:opacity-90 transition-all" onclick="window.print()">
-<span class="material-symbols-outlined text-lg">print</span> Print Report
+<button class="px-5 py-2.5 bg-primary text-on-primary font-semibold rounded-lg flex items-center gap-2 hover:opacity-90 transition-all" id="monthly-report-download">
+<span class="material-symbols-outlined text-lg">download</span> Print Report
                 </button>
 </div>
 </div>
@@ -116,7 +116,11 @@
 <label class="block font-label text-[10px] font-bold text-outline uppercase tracking-widest mb-1">Assigned Driver</label>
 <select id="monthly-report-driver" class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold">
 @forelse ($driverOptions as $driverOption)
-<option value="{{ $driverOption }}" {{ $driverOption === $selectedDriver ? 'selected' : '' }}>{{ $driverOption }}</option>
+@php
+    $driverValue = (string) ($driverOption['value'] ?? '');
+    $driverLabel = (string) ($driverOption['label'] ?? $driverValue);
+@endphp
+<option value="{{ $driverValue }}" {{ $driverValue === $selectedDriver ? 'selected' : '' }}>{{ $driverLabel }}</option>
 @empty
 <option value="" selected>No drivers found</option>
 @endforelse
@@ -136,7 +140,11 @@
 <th class="px-4 py-4 border-r border-outline-variant/20">Date</th>
 <th class="px-4 py-4 border-r border-outline-variant/20">Distance (Kms/Hrs)</th>
 <th class="px-4 py-4 border-r border-outline-variant/20">Diesel (Ltrs)</th>
+<th class="px-4 py-4 border-r border-outline-variant/20">Diesel Purchased (Ltrs)</th>
+<th class="px-4 py-4 border-r border-outline-variant/20">Diesel Issued (Ltrs)</th>
+<th class="px-4 py-4 border-r border-outline-variant/20">Diesel Consumed (Ltrs)</th>
 <th class="px-4 py-4 border-r border-outline-variant/20">Gasoline (Ltrs)</th>
+<th class="px-4 py-4 border-r border-outline-variant/20">Diesel Balance After (Ltrs)</th>
 <th class="px-4 py-4 border-r border-outline-variant/20">E.O (Ltrs)</th>
 <th class="px-4 py-4 border-r border-outline-variant/20">G.O (Ltrs)</th>
 <th class="px-4 py-4 border-r border-outline-variant/20">BF (Ltrs)</th>
@@ -153,7 +161,11 @@
 <td class="px-4 py-3 border-r border-outline-variant/20 font-bold text-primary">{{ $row['day'] }}</td>
 <td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['distance']) ? number_format((float) $row['distance'], 1) : '—' }}</td>
 <td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['diesel']) ? number_format((float) $row['diesel'], 1) : '—' }}</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['dieselPurchased']) ? number_format((float) $row['dieselPurchased'], 1) : '—' }}</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['dieselIssued']) ? number_format((float) $row['dieselIssued'], 1) : '—' }}</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['dieselConsumed']) ? number_format((float) $row['dieselConsumed'], 1) : '—' }}</td>
 <td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['gasoline']) ? number_format((float) $row['gasoline'], 1) : '—' }}</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['dieselBalanceAfter']) ? number_format((float) $row['dieselBalanceAfter'], 1) : '—' }}</td>
 <td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['engineOil']) ? number_format((float) $row['engineOil'], 1) : '—' }}</td>
 <td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['gearOil']) ? number_format((float) $row['gearOil'], 1) : '—' }}</td>
 <td class="px-4 py-3 border-r border-outline-variant/20">{{ is_numeric($row['brakeFluid']) ? number_format((float) $row['brakeFluid'], 1) : '—' }}</td>
@@ -166,6 +178,10 @@
 @else
 <tr class="hover:bg-primary/5 transition-colors border-b border-outline-variant/10">
 <td class="px-4 py-3 border-r border-outline-variant/20 font-bold text-primary">—</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">—</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">—</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">—</td>
+<td class="px-4 py-3 border-r border-outline-variant/20">—</td>
 <td class="px-4 py-3 border-r border-outline-variant/20">—</td>
 <td class="px-4 py-3 border-r border-outline-variant/20">—</td>
 <td class="px-4 py-3 border-r border-outline-variant/20">—</td>
@@ -320,7 +336,11 @@
 <td class="px-4 py-4 uppercase text-[10px] tracking-widest border-r border-white/10">Total</td>
 <td class="px-4 py-4 border-r border-white/10">{{ number_format($totalDistance, 1) }}</td>
 <td class="px-4 py-4 border-r border-white/10">{{ number_format($totalDiesel, 1) }}</td>
+<td class="px-4 py-4 border-r border-white/10">{{ number_format($totalDieselPurchased, 1) }}</td>
+<td class="px-4 py-4 border-r border-white/10">{{ number_format($totalDieselIssued, 1) }}</td>
+<td class="px-4 py-4 border-r border-white/10">{{ number_format($totalDieselConsumed, 1) }}</td>
 <td class="px-4 py-4 border-r border-white/10">{{ number_format($totalGasoline, 1) }}</td>
+<td class="px-4 py-4 border-r border-white/10">{{ is_numeric($latestDieselBalanceAfter) ? number_format($latestDieselBalanceAfter, 1) : '—' }}</td>
 <td class="px-4 py-4 border-r border-white/10">{{ number_format($totalEngineOil, 1) }}</td>
 <td class="px-4 py-4 border-r border-white/10">{{ number_format($totalGearOil, 1) }}</td>
 <td class="px-4 py-4 border-r border-white/10">{{ number_format($totalBrakeFluid, 1) }}</td>
@@ -408,6 +428,25 @@
                 }
 
                 window.location.assign(nextUrl.toString());
+            });
+        }
+
+        const downloadButton = document.getElementById('monthly-report-download');
+        if (downloadButton) {
+            downloadButton.addEventListener('click', function () {
+                const downloadUrl = new URL("{{ route('admin.monthly-official-travel-report.download') }}");
+                const monthValue = String(monthInput?.value || '').trim();
+                const driverValue = String(driverSelect?.value || '').trim();
+
+                if (monthValue !== '') {
+                    downloadUrl.searchParams.set('month', monthValue);
+                }
+
+                if (driverValue !== '') {
+                    downloadUrl.searchParams.set('driver', driverValue);
+                }
+
+                window.location.assign(downloadUrl.toString());
             });
         }
 

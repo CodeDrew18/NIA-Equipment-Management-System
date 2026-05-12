@@ -3,12 +3,13 @@
 namespace App\Http\Controllers\admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\TransportationRequestFormModel;
+use App\Models\DailyDriversTripTicket;
+use App\Models\User;
 use App\Support\AssignatoryPersonnelResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -62,8 +63,8 @@ class monthlyTravelReportController extends Controller
             $sheet->setCellValue('I' . $templateRow, $this->formatMetricForTemplate($row['grease'] ?? null));
             $sheet->setCellValue('J' . $templateRow, $purchasedIssued === 'purchased' ? 'X' : '');
             $sheet->setCellValue('K' . $templateRow, $purchasedIssued === 'issued' ? 'X' : '');
-            $sheet->setCellValue('L' . $templateRow, $this->formatTextForTemplate($row['passenger'] ?? null));
-            $sheet->setCellValue('M' . $templateRow, $this->formatTextForTemplate($row['destination'] ?? null));
+            $sheet->setCellValue('M' . $templateRow, $this->formatTextForTemplate($row['passenger'] ?? null));
+            $sheet->setCellValue('N' . $templateRow, $this->formatTextForTemplate($row['destination'] ?? null));
         }
 
         $sheet->setCellValue('B45', $this->formatMetricForTemplate($reportData['totalDistance'] ?? null));
@@ -76,8 +77,7 @@ class monthlyTravelReportController extends Controller
         $sheet->setCellValue('I45', $this->formatMetricForTemplate($reportData['totalGrease'] ?? null));
 
         $sheet->setCellValue('G48', $this->formatTextForTemplate($driverName));
-        $sheet->setCellValue('D50', $this->formatTextForTemplate($reportData['divisionManagerName'] ?? null));
-        $sheet->setCellValue('D51', $this->formatTextForTemplate($reportData['divisionManagerPosition'] ?? null));
+        $sheet->setCellValue('D50', $this->formatTextForTemplate($reportData['primaryDriver'] ?? null));
 
         $writer = new Xlsx($spreadsheet);
 
@@ -92,8 +92,8 @@ class monthlyTravelReportController extends Controller
     private function resolveMonthlyTravelTemplatePath(): string
     {
         $candidatePaths = [
-            public_path('storage/forms/form_8_rev_07.xlsx'),
-            storage_path('app/public/forms/form_8_rev_07.xlsx'),
+            public_path('storage/forms/monthly_official_travel_report.xlsx'),
+            storage_path('app/public/forms/monthly_official_travel_report.xlsx'),
         ];
 
         foreach ($candidatePaths as $path) {
@@ -102,7 +102,7 @@ class monthlyTravelReportController extends Controller
             }
         }
 
-        abort(500, 'Monthly official travel report template not found: public/storage/forms/form_8_rev_07.xlsx');
+        abort(500, 'Monthly official travel report template not found: public/storage/forms/monthly_official_travel_report.xlsx');
     }
 
     private function buildReportData(Request $request): array
@@ -118,134 +118,145 @@ class monthlyTravelReportController extends Controller
         $monthStart = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
         $monthEnd = (clone $monthStart)->endOfMonth();
 
-        $candidateItems = TransportationRequestFormModel::query()
-            ->with([
-                'dailyDriversTripTicket:id,transportation_request_form_id,request_form_data,distance_travelled,odometer_start,odometer_end,fuel_total,fuel_issued_regional,fuel_purchased_trip,fuel_issued_nia,gear_oil_liters,engine_oil_liters,grease_kgs',
-            ])
-            ->whereDate('request_date', '>=', $monthStart->toDateString())
-            ->whereDate('request_date', '<=', $monthEnd->toDateString())
-            ->whereNotNull('driver_name')
-            ->where('driver_name', '!=', '')
-            ->orderBy('request_date')
+        $candidateTickets = DailyDriversTripTicket::query()
+            ->with(['transportationRequestForm:id,request_date,vehicle_type,vehicle_id,driver_name,status,date_time_from,date_time_to'])
+            ->whereHas('transportationRequestForm', function ($query) use ($monthStart, $monthEnd) {
+                $query->whereDate('request_date', '>=', $monthStart->toDateString())
+                    ->whereDate('request_date', '<=', $monthEnd->toDateString());
+            })
             ->orderBy('id')
             ->get([
                 'id',
-                'form_id',
-                'request_date',
-                'requested_by',
-                'destination',
-                'date_time_from',
-                'date_time_to',
-                'vehicle_id',
-                'driver_name',
-                'status',
-                'business_passengers',
+                'transportation_request_form_id',
+                'assigned_driver_name',
+                'assigned_vehicle_code',
+                'request_form_data',
+                'distance_travelled',
+                'odometer_start',
+                'odometer_end',
+                'fuel_balance_before',
+                'fuel_total',
+                'fuel_issued_regional',
+                'fuel_purchased_trip',
+                'fuel_issued_nia',
+                'fuel_used',
+                'fuel_balance_after',
+                'gear_oil_liters',
+                'engine_oil_liters',
+                'grease_kgs',
             ]);
 
-        $driverOptions = TransportationRequestFormModel::query()
-            ->whereNotNull('driver_name')
-            ->where('driver_name', '!=', '')
-            ->orderBy('driver_name')
-            ->pluck('driver_name')
-            ->flatMap(function ($driverName): array {
-                return $this->extractDriverNames((string) $driverName);
-            })
-            ->map(fn(string $name): string => trim($name))
-            ->filter()
-            ->unique(function (string $name): string {
-                return strtolower($name);
-            })
-            ->sort()
-            ->values();
+        $driverOptions = $this->buildDriverOptions();
+        $driverOptionValues = $driverOptions->pluck('value')->filter();
 
         $selectedDriver = $requestedDriver !== '' ? $requestedDriver : $loggedInUserName;
 
         if ($selectedDriver !== '') {
             $selectedDriverLower = strtolower($selectedDriver);
-            $normalizedOptions = $driverOptions->map(fn(string $name): string => strtolower($name));
+            $normalizedOptions = $driverOptionValues->map(fn(string $name): string => strtolower($name));
 
             if (!$normalizedOptions->contains($selectedDriverLower)) {
-                $selectedDriver = (string) ($driverOptions->first() ?? '');
+                $selectedDriver = (string) ($driverOptionValues->first() ?? '');
             } else {
-                $selectedDriver = (string) ($driverOptions->first(function (string $name) use ($selectedDriverLower): bool {
+                $selectedDriver = (string) ($driverOptionValues->first(function (string $name) use ($selectedDriverLower): bool {
                     return strtolower($name) === $selectedDriverLower;
                 }) ?? $selectedDriver);
             }
         } else {
-            $selectedDriver = (string) ($driverOptions->first() ?? '');
+            $selectedDriver = (string) ($driverOptionValues->first() ?? '');
         }
 
-        $reportItems = $selectedDriver !== ''
-            ? $candidateItems->filter(function (TransportationRequestFormModel $item) use ($selectedDriver): bool {
-                return $this->containsDriverName((string) ($item->driver_name ?? ''), $selectedDriver);
+        $reportTickets = $selectedDriver !== ''
+            ? $candidateTickets->filter(function (DailyDriversTripTicket $ticket) use ($selectedDriver): bool {
+                return $this->containsDriverName($this->resolveTripDriverName($ticket), $selectedDriver);
             })->values()
             : collect();
 
-        $groupedByDay = $reportItems->groupBy(function (TransportationRequestFormModel $item): string {
-            return optional($item->request_date)->format('d') ?? '--';
-        });
+        $groupedByDay = $reportTickets
+            ->map(function (DailyDriversTripTicket $ticket): ?array {
+                $requestDate = $this->resolveRequestDate($ticket);
+                if (!$requestDate) {
+                    return null;
+                }
+
+                return [
+                    'day' => $requestDate->format('d'),
+                    'ticket' => $ticket,
+                ];
+            })
+            ->filter()
+            ->groupBy('day')
+            ->map(function (Collection $items): Collection {
+                return $items->pluck('ticket');
+            });
 
         $reportRows = collect(range(1, (int) $monthEnd->day))->map(function (int $day) use ($groupedByDay): array {
             $dayLabel = str_pad((string) $day, 2, '0', STR_PAD_LEFT);
-            $dayItems = collect($groupedByDay->get($dayLabel, []));
-            $hasTrips = $dayItems->isNotEmpty();
+            $dayTickets = collect($groupedByDay->get($dayLabel, collect()));
+            $hasTrips = $dayTickets->isNotEmpty();
 
-            $distanceMetric = $this->aggregateMetric($dayItems, function (TransportationRequestFormModel $item): ?float {
-                return $this->resolveDistanceMetric($item);
+            $distanceMetric = $this->aggregateMetric($dayTickets, function (DailyDriversTripTicket $ticket): ?float {
+                return $this->resolveDistanceMetric($ticket);
             });
 
-            $dieselMetric = $this->aggregateMetric($dayItems, function (TransportationRequestFormModel $item): ?float {
-                return $this->resolveFuelLitersByKind($item, 'diesel');
+            $dieselMetric = $this->aggregateMetric($dayTickets, function (DailyDriversTripTicket $ticket): ?float {
+                return $this->resolveFuelLitersByKind($ticket, 'diesel');
             });
 
-            $gasolineMetric = $this->aggregateMetric($dayItems, function (TransportationRequestFormModel $item): ?float {
-                return $this->resolveFuelLitersByKind($item, 'gasoline');
+            $gasolineMetric = $this->aggregateMetric($dayTickets, function (DailyDriversTripTicket $ticket): ?float {
+                return $this->resolveFuelLitersByKind($ticket, 'gasoline');
             });
 
-            $engineOilMetric = $this->aggregateMetric($dayItems, function (TransportationRequestFormModel $item): ?float {
-                return $this->resolveEngineOilLiters($item);
+            $dieselPurchasedMetric = $this->aggregateMetric($dayTickets, function (DailyDriversTripTicket $ticket): ?float {
+                return $this->resolveDieselPurchasedLiters($ticket);
             });
 
-            $gearOilMetric = $this->aggregateMetric($dayItems, function (TransportationRequestFormModel $item): ?float {
-                return $this->resolveGearOilLiters($item);
+            $dieselIssuedMetric = $this->aggregateMetric($dayTickets, function (DailyDriversTripTicket $ticket): ?float {
+                return $this->resolveDieselIssuedLiters($ticket);
             });
 
-            $brakeFluidMetric = $this->aggregateMetric($dayItems, function (TransportationRequestFormModel $item): ?float {
-                return $this->resolveBrakeFluidLiters($item);
+            $dieselConsumedMetric = $this->aggregateMetric($dayTickets, function (DailyDriversTripTicket $ticket): ?float {
+                return $this->resolveDieselConsumedLiters($ticket);
             });
 
-            $greaseMetric = $this->aggregateMetric($dayItems, function (TransportationRequestFormModel $item): ?float {
-                return $this->resolveGreaseKilograms($item);
+            $dieselBalanceAfter = $this->resolveLatestMetric($dayTickets, function (DailyDriversTripTicket $ticket): ?float {
+                return $this->resolveDieselBalanceAfterLiters($ticket);
             });
 
-            $passengers = $dayItems
-                ->flatMap(function (TransportationRequestFormModel $item): array {
-                    $businessPassengers = is_array($item->business_passengers) ? $item->business_passengers : [];
+            $engineOilMetric = $this->aggregateMetric($dayTickets, function (DailyDriversTripTicket $ticket): ?float {
+                return $this->resolveEngineOilLiters($ticket);
+            });
 
-                    return collect($businessPassengers)
-                        ->map(function ($passenger): string {
-                            if (is_array($passenger)) {
-                                return trim((string) ($passenger['name'] ?? ''));
-                            }
+            $gearOilMetric = $this->aggregateMetric($dayTickets, function (DailyDriversTripTicket $ticket): ?float {
+                return $this->resolveGearOilLiters($ticket);
+            });
 
-                            return trim((string) $passenger);
-                        })
-                        ->filter()
-                        ->values()
-                        ->all();
+            $brakeFluidMetric = $this->aggregateMetric($dayTickets, function (DailyDriversTripTicket $ticket): ?float {
+                return $this->resolveBrakeFluidLiters($ticket);
+            });
+
+            $greaseMetric = $this->aggregateMetric($dayTickets, function (DailyDriversTripTicket $ticket): ?float {
+                return $this->resolveGreaseKilograms($ticket);
+            });
+
+            $passengers = $dayTickets
+                ->flatMap(function (DailyDriversTripTicket $ticket): array {
+                    return $this->resolvePassengerNames($ticket);
                 })
                 ->filter()
                 ->unique()
                 ->values();
 
-            $destinations = $dayItems
-                ->map(fn(TransportationRequestFormModel $item): string => trim((string) ($item->destination ?? '')))
+            $destinations = $dayTickets
+                ->map(function (DailyDriversTripTicket $ticket): string {
+                    return $this->resolveDestination($ticket);
+                })
                 ->filter()
                 ->unique()
                 ->values();
 
-            $isIssued = $dayItems->contains(function (TransportationRequestFormModel $item): bool {
-                return in_array((string) $item->status, ['Dispatched', 'On Trip', 'For Evaluation'], true);
+            $isIssued = $dayTickets->contains(function (DailyDriversTripTicket $ticket): bool {
+                return in_array($this->resolveTripStatus($ticket), ['Dispatched', 'On Trip', 'For Evaluation'], true);
             });
 
             return [
@@ -253,6 +264,10 @@ class monthlyTravelReportController extends Controller
                 'distance' => $this->finalizeMetric($distanceMetric),
                 'diesel' => $this->finalizeMetric($dieselMetric),
                 'gasoline' => $this->finalizeMetric($gasolineMetric),
+                'dieselPurchased' => $this->finalizeMetric($dieselPurchasedMetric),
+                'dieselIssued' => $this->finalizeMetric($dieselIssuedMetric),
+                'dieselConsumed' => $this->finalizeMetric($dieselConsumedMetric),
+                'dieselBalanceAfter' => $dieselBalanceAfter,
                 'engineOil' => $this->finalizeMetric($engineOilMetric),
                 'gearOil' => $this->finalizeMetric($gearOilMetric),
                 'brakeFluid' => $this->finalizeMetric($brakeFluidMetric),
@@ -263,8 +278,9 @@ class monthlyTravelReportController extends Controller
             ];
         })->values();
 
-        $driverNames = $reportItems->pluck('driver_name')
-            ->map(fn($name) => trim((string) $name))
+        $driverNames = $reportTickets->map(function (DailyDriversTripTicket $ticket): string {
+            return $this->resolveTripDriverName($ticket);
+        })
             ->filter()
             ->unique()
             ->values();
@@ -276,18 +292,25 @@ class monthlyTravelReportController extends Controller
         $divisionManagerName = (string) ($assignatory['name'] ?? 'N/A');
         $divisionManagerPosition = (string) ($assignatory['position'] ?? 'Division Manager');
 
+        $selectedDriverLower = strtolower($selectedDriver);
+        $selectedOption = $driverOptions->first(function (array $option) use ($selectedDriverLower): bool {
+            return strtolower((string) ($option['value'] ?? '')) === $selectedDriverLower;
+        });
+
         $vehiclePlate = (string) (
-            $reportItems->pluck('vehicle_id')
-            ->map(fn($vehicleId) => trim((string) $vehicleId))
-            ->first(fn($vehicleId) => $vehicleId !== '')
+            $reportTickets->map(function (DailyDriversTripTicket $ticket): string {
+                return $this->resolveVehiclePlate($ticket);
+            })->filter()->first()
+            ?? ($selectedOption['vehiclePlate'] ?? '')
             ?? 'N/A'
         );
 
         $propertyNumber = (string) (
-            $reportItems->pluck('form_id')
-            ->map(fn($formId) => trim((string) $formId))
-            ->first(fn($formId) => $formId !== '')
-            ?? 'N/A'
+            $reportTickets->map(function (DailyDriversTripTicket $ticket): string {
+                return $this->resolvePropertyNumber($ticket);
+            })->filter()->first()
+            ?? ($selectedOption['propertyNumber'] ?? '')
+            ?? ''
         );
 
         $totalDistance = (float) $reportRows->sum(function (array $row): float {
@@ -310,11 +333,99 @@ class monthlyTravelReportController extends Controller
             'totalDistance' => round($totalDistance, 1),
             'totalDiesel' => $this->sumReportRowsMetric($reportRows, 'diesel'),
             'totalGasoline' => $this->sumReportRowsMetric($reportRows, 'gasoline'),
+            'totalDieselPurchased' => $this->sumReportRowsMetric($reportRows, 'dieselPurchased'),
+            'totalDieselIssued' => $this->sumReportRowsMetric($reportRows, 'dieselIssued'),
+            'totalDieselConsumed' => $this->sumReportRowsMetric($reportRows, 'dieselConsumed'),
+            'latestDieselBalanceAfter' => $this->resolveLatestRowMetric($reportRows, 'dieselBalanceAfter'),
             'totalEngineOil' => $this->sumReportRowsMetric($reportRows, 'engineOil'),
             'totalGearOil' => $this->sumReportRowsMetric($reportRows, 'gearOil'),
             'totalBrakeFluid' => $this->sumReportRowsMetric($reportRows, 'brakeFluid'),
             'totalGrease' => $this->sumReportRowsMetric($reportRows, 'grease'),
         ];
+    }
+
+    private function buildDriverOptions(): Collection
+    {
+        $options = [];
+
+        $tickets = DailyDriversTripTicket::query()
+            ->with(['transportationRequestForm:id,vehicle_id,driver_name'])
+            ->orderByDesc('id')
+            ->get([
+                'id',
+                'transportation_request_form_id',
+                'assigned_driver_name',
+                'assigned_vehicle_code',
+                'request_form_data',
+            ]);
+
+        foreach ($tickets as $ticket) {
+            $baseDriver = $this->resolveTripDriverName($ticket);
+            $driverNamesFromTicket = $this->extractDriverNames($baseDriver);
+
+            foreach ($driverNamesFromTicket as $driverName) {
+                $normalized = strtolower($driverName);
+                if ($normalized === '' || isset($options[$normalized])) {
+                    continue;
+                }
+
+                $vehiclePlate = $this->resolveVehiclePlate($ticket);
+                $propertyNumber = $this->resolvePropertyNumber($ticket);
+
+                $options[$normalized] = [
+                    'value' => $driverName,
+                    'label' => $this->buildDriverOptionLabel($driverName, $vehiclePlate, $propertyNumber),
+                    'vehiclePlate' => $vehiclePlate,
+                    'propertyNumber' => $propertyNumber,
+                ];
+            }
+        }
+
+        $driverUsers = User::query()
+            ->whereRaw("CONCAT(',', role, ',') LIKE '%,driver,%'")
+            ->orderBy('name')
+            ->get(['name']);
+
+        foreach ($driverUsers as $driverUser) {
+            $driverName = trim((string) ($driverUser->name ?? ''));
+            $normalized = strtolower($driverName);
+            if ($normalized === '' || isset($options[$normalized])) {
+                continue;
+            }
+
+            $options[$normalized] = [
+                'value' => $driverName,
+                'label' => $driverName,
+                'vehiclePlate' => '',
+                'propertyNumber' => '',
+            ];
+        }
+
+        return collect($options)
+            ->sortBy(function (array $option): string {
+                return strtolower((string) ($option['value'] ?? ''));
+            })
+            ->values();
+    }
+
+    private function buildDriverOptionLabel(string $driverName, string $vehiclePlate, string $propertyNumber): string
+    {
+        $label = $driverName;
+        $details = [];
+
+        if ($vehiclePlate !== '') {
+            $details[] = 'Plate: ' . $vehiclePlate;
+        }
+
+        if ($propertyNumber !== '') {
+            $details[] = 'Property: ' . $propertyNumber;
+        }
+
+        if (!empty($details)) {
+            $label .= ' (' . implode(' | ', $details) . ')';
+        }
+
+        return $label;
     }
 
     private function sumReportRowsMetric(Collection $rows, string $key): float
@@ -348,14 +459,31 @@ class monthlyTravelReportController extends Controller
         return $text;
     }
 
-    private function resolveDurationHours(TransportationRequestFormModel $item): ?float
+    private function resolveRequestDate(DailyDriversTripTicket $ticket): ?Carbon
     {
-        if (!$item->date_time_from || !$item->date_time_to) {
-            return null;
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
+        $requestDate = $snapshot['request_date'] ?? $snapshot['requestDate'] ?? null;
+        $parsed = $this->parseDateValue($requestDate);
+
+        if ($parsed) {
+            return $parsed;
         }
 
-        $from = Carbon::parse($item->date_time_from);
-        $to = Carbon::parse($item->date_time_to);
+        return $this->parseDateValue($ticket->transportationRequestForm?->request_date);
+    }
+
+    private function resolveDurationHours(DailyDriversTripTicket $ticket): ?float
+    {
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
+        $fromValue = $snapshot['date_time_from'] ?? $snapshot['dateTimeFrom'] ?? null;
+        $toValue = $snapshot['date_time_to'] ?? $snapshot['dateTimeTo'] ?? null;
+
+        $from = $this->parseDateValue($fromValue) ?? $this->parseDateValue($ticket->transportationRequestForm?->date_time_from);
+        $to = $this->parseDateValue($toValue) ?? $this->parseDateValue($ticket->transportationRequestForm?->date_time_to);
+
+        if (!$from || !$to) {
+            return null;
+        }
 
         if (!$to->greaterThan($from)) {
             return null;
@@ -364,34 +492,32 @@ class monthlyTravelReportController extends Controller
         return round($from->floatDiffInHours($to), 1);
     }
 
-    private function resolveDistanceMetric(TransportationRequestFormModel $item): ?float
+    private function resolveDistanceMetric(DailyDriversTripTicket $ticket): ?float
     {
-        $ticket = $item->dailyDriversTripTicket;
-        $snapshot = $this->decodeSnapshot($ticket?->request_form_data);
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
 
-        $distance = $this->toNullableFloat($ticket?->distance_travelled)
+        $distance = $this->toNullableFloat($ticket->distance_travelled)
             ?? $this->readNumericFromArray($snapshot, ['distance_travelled', 'distanceTravelled', 'distance']);
 
         if ($distance !== null) {
             return $distance;
         }
 
-        $odometerStart = $this->toNullableFloat($ticket?->odometer_start)
+        $odometerStart = $this->toNullableFloat($ticket->odometer_start)
             ?? $this->readNumericFromArray($snapshot, ['odometer_start', 'odometerStart']);
-        $odometerEnd = $this->toNullableFloat($ticket?->odometer_end)
+        $odometerEnd = $this->toNullableFloat($ticket->odometer_end)
             ?? $this->readNumericFromArray($snapshot, ['odometer_end', 'odometerEnd']);
 
         if ($odometerStart !== null && $odometerEnd !== null) {
             return max(0.0, round($odometerEnd - $odometerStart, 2));
         }
 
-        return $this->resolveDurationHours($item);
+        return $this->resolveDurationHours($ticket);
     }
 
-    private function resolveFuelLitersByKind(TransportationRequestFormModel $item, string $fuelKind): ?float
+    private function resolveFuelLitersByKind(DailyDriversTripTicket $ticket, string $fuelKind): ?float
     {
-        $ticket = $item->dailyDriversTripTicket;
-        $snapshot = $this->decodeSnapshot($ticket?->request_form_data);
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
 
         $explicitFuel = $fuelKind === 'diesel'
             ? $this->readNumericFromArray($snapshot, ['diesel', 'diesel_liters', 'dieselFuelLiters', 'diesel_fuel_liters'])
@@ -401,12 +527,12 @@ class monthlyTravelReportController extends Controller
             return $explicitFuel;
         }
 
-        $fuelTotal = $this->toNullableFloat($ticket?->fuel_total);
+        $fuelTotal = $this->toNullableFloat($ticket->fuel_total);
         if ($fuelTotal === null) {
             $componentValues = [
-                $this->toNullableFloat($ticket?->fuel_issued_regional),
-                $this->toNullableFloat($ticket?->fuel_purchased_trip),
-                $this->toNullableFloat($ticket?->fuel_issued_nia),
+                $this->toNullableFloat($ticket->fuel_issued_regional),
+                $this->toNullableFloat($ticket->fuel_purchased_trip),
+                $this->toNullableFloat($ticket->fuel_issued_nia),
             ];
 
             $hasComponent = false;
@@ -429,7 +555,7 @@ class monthlyTravelReportController extends Controller
             return null;
         }
 
-        $inferredFuelKind = $this->inferFuelKind($item, $snapshot);
+        $inferredFuelKind = $this->inferFuelKind($ticket, $snapshot);
         if ($inferredFuelKind === null) {
             return $fuelKind === 'diesel' ? $fuelTotal : null;
         }
@@ -437,7 +563,7 @@ class monthlyTravelReportController extends Controller
         return $inferredFuelKind === $fuelKind ? $fuelTotal : null;
     }
 
-    private function inferFuelKind(TransportationRequestFormModel $item, array $snapshot): ?string
+    private function inferFuelKind(DailyDriversTripTicket $ticket, array $snapshot): ?string
     {
         $fuelType = strtolower(trim((string) ($snapshot['fuel_type'] ?? $snapshot['fuelType'] ?? $snapshot['fuel_kind'] ?? $snapshot['fuelKind'] ?? '')));
         if ($fuelType !== '') {
@@ -450,7 +576,7 @@ class monthlyTravelReportController extends Controller
             }
         }
 
-        $vehicleType = strtolower(trim((string) ($item->vehicle_type ?? $snapshot['vehicle_type'] ?? $snapshot['vehicleType'] ?? '')));
+        $vehicleType = strtolower(trim((string) ($snapshot['vehicle_type'] ?? $snapshot['vehicleType'] ?? $ticket->transportationRequestForm?->vehicle_type ?? '')));
         if ($vehicleType === '') {
             return null;
         }
@@ -466,38 +592,34 @@ class monthlyTravelReportController extends Controller
         return null;
     }
 
-    private function resolveEngineOilLiters(TransportationRequestFormModel $item): ?float
+    private function resolveEngineOilLiters(DailyDriversTripTicket $ticket): ?float
     {
-        $ticket = $item->dailyDriversTripTicket;
-        $snapshot = $this->decodeSnapshot($ticket?->request_form_data);
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
 
-        return $this->toNullableFloat($ticket?->engine_oil_liters)
+        return $this->toNullableFloat($ticket->engine_oil_liters)
             ?? $this->readNumericFromArray($snapshot, ['engine_oil_liters', 'engineOilLiters', 'engine_oil', 'engineOil']);
     }
 
-    private function resolveGearOilLiters(TransportationRequestFormModel $item): ?float
+    private function resolveGearOilLiters(DailyDriversTripTicket $ticket): ?float
     {
-        $ticket = $item->dailyDriversTripTicket;
-        $snapshot = $this->decodeSnapshot($ticket?->request_form_data);
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
 
-        return $this->toNullableFloat($ticket?->gear_oil_liters)
+        return $this->toNullableFloat($ticket->gear_oil_liters)
             ?? $this->readNumericFromArray($snapshot, ['gear_oil_liters', 'gearOilLiters', 'gear_oil', 'gearOil']);
     }
 
-    private function resolveBrakeFluidLiters(TransportationRequestFormModel $item): ?float
+    private function resolveBrakeFluidLiters(DailyDriversTripTicket $ticket): ?float
     {
-        $ticket = $item->dailyDriversTripTicket;
-        $snapshot = $this->decodeSnapshot($ticket?->request_form_data);
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
 
         return $this->readNumericFromArray($snapshot, ['brake_fluid_liters', 'brakeFluidLiters', 'brake_fluid', 'brakeFluid', 'bf']);
     }
 
-    private function resolveGreaseKilograms(TransportationRequestFormModel $item): ?float
+    private function resolveGreaseKilograms(DailyDriversTripTicket $ticket): ?float
     {
-        $ticket = $item->dailyDriversTripTicket;
-        $snapshot = $this->decodeSnapshot($ticket?->request_form_data);
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
 
-        return $this->toNullableFloat($ticket?->grease_kgs)
+        return $this->toNullableFloat($ticket->grease_kgs)
             ?? $this->readNumericFromArray($snapshot, ['grease_kgs', 'greaseKgs', 'grease']);
     }
 
@@ -616,5 +738,302 @@ class monthlyTravelReportController extends Controller
             ->unique()
             ->values()
             ->all();
+    }
+
+    private function resolveTripDriverName(DailyDriversTripTicket $ticket): string
+    {
+        $driver = trim((string) ($ticket->assigned_driver_name ?? ''));
+        if ($driver !== '') {
+            return $driver;
+        }
+
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
+        $driver = trim((string) ($snapshot['driver_name'] ?? $snapshot['driverName'] ?? ''));
+        if ($driver !== '') {
+            return $driver;
+        }
+
+        return trim((string) ($ticket->transportationRequestForm?->driver_name ?? ''));
+    }
+
+    private function resolveVehiclePlate(DailyDriversTripTicket $ticket): string
+    {
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
+        $vehiclePlate = $this->readTextFromArray($snapshot, [
+            'vehicle_plate_no',
+            'vehicle_plate',
+            'plate_no',
+            'plateNo',
+            'vehicle_id',
+        ]);
+
+        if ($vehiclePlate !== '') {
+            return $vehiclePlate;
+        }
+
+        $vehiclePlate = trim((string) ($ticket->assigned_vehicle_code ?? ''));
+        if ($vehiclePlate !== '') {
+            return $vehiclePlate;
+        }
+
+        return trim((string) ($ticket->transportationRequestForm?->vehicle_id ?? ''));
+    }
+
+    private function resolvePropertyNumber(DailyDriversTripTicket $ticket): string
+    {
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
+        $propertyNumber = $this->readTextFromArray($snapshot, [
+            'property_number',
+            'property_no',
+            'propertyNo',
+            'propertyNumber',
+        ]);
+
+        if ($propertyNumber !== '') {
+            return $propertyNumber;
+        }
+
+        $vehicleCode = trim((string) ($ticket->assigned_vehicle_code ?? ''));
+        $vehiclePlate = $this->resolveVehiclePlate($ticket);
+        if ($vehicleCode !== '' && $vehicleCode !== $vehiclePlate) {
+            return $vehicleCode;
+        }
+
+        return '';
+    }
+
+    private function resolveDieselPurchasedLiters(DailyDriversTripTicket $ticket): ?float
+    {
+        if ($this->shouldSkipDieselMetrics($ticket)) {
+            return null;
+        }
+
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
+
+        return $this->toNullableFloat($ticket->fuel_purchased_trip)
+            ?? $this->readNumericFromArray($snapshot, [
+                'fuel_purchased_trip',
+                'fuelPurchasedTrip',
+                'diesel_purchased_trip',
+                'dieselPurchasedTrip',
+                'diesel_purchased',
+                'dieselPurchased',
+            ]);
+    }
+
+    private function resolveDieselIssuedLiters(DailyDriversTripTicket $ticket): ?float
+    {
+        if ($this->shouldSkipDieselMetrics($ticket)) {
+            return null;
+        }
+
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
+
+        $issuedRegional = $this->toNullableFloat($ticket->fuel_issued_regional)
+            ?? $this->readNumericFromArray($snapshot, ['fuel_issued_regional', 'fuelIssuedRegional']);
+        $issuedNia = $this->toNullableFloat($ticket->fuel_issued_nia)
+            ?? $this->readNumericFromArray($snapshot, ['fuel_issued_nia', 'fuelIssuedNia']);
+        $explicitIssued = $this->readNumericFromArray($snapshot, ['diesel_issued', 'dieselIssued', 'fuel_issued', 'fuelIssued']);
+
+        $total = 0.0;
+        $hasValue = false;
+        foreach ([$issuedRegional, $issuedNia, $explicitIssued] as $value) {
+            if ($value === null) {
+                continue;
+            }
+
+            $hasValue = true;
+            $total += (float) $value;
+        }
+
+        return $hasValue ? $total : null;
+    }
+
+    private function resolveDieselConsumedLiters(DailyDriversTripTicket $ticket): ?float
+    {
+        if ($this->shouldSkipDieselMetrics($ticket)) {
+            return null;
+        }
+
+        $distance = $this->resolveDistanceMetric($ticket);
+        if ($distance === null) {
+            return null;
+        }
+
+        return round(((float) $distance) / 10, 1);
+    }
+
+    private function resolveDieselBalanceAfterLiters(DailyDriversTripTicket $ticket): ?float
+    {
+        if ($this->shouldSkipDieselMetrics($ticket)) {
+            return null;
+        }
+
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
+
+        $balanceBefore = $this->toNullableFloat($ticket->fuel_balance_before)
+            ?? $this->readNumericFromArray($snapshot, [
+                'fuel_balance_before',
+                'fuelBalanceBefore',
+                'diesel_balance_before',
+                'dieselBalanceBefore',
+                'balance_before',
+                'balanceBefore',
+            ]);
+
+        $purchased = $this->resolveDieselPurchasedLiters($ticket);
+        $issued = $this->resolveDieselIssuedLiters($ticket);
+        $consumed = $this->resolveDieselConsumedLiters($ticket);
+
+        if ($balanceBefore !== null || $purchased !== null || $issued !== null || $consumed !== null) {
+            $computed = (float) ($balanceBefore ?? 0)
+                + (float) ($purchased ?? 0)
+                + (float) ($issued ?? 0)
+                - (float) ($consumed ?? 0);
+
+            return round($computed, 1);
+        }
+
+        return $this->toNullableFloat($ticket->fuel_balance_after)
+            ?? $this->readNumericFromArray($snapshot, [
+                'fuel_balance_after',
+                'fuelBalanceAfter',
+                'diesel_balance_after',
+                'dieselBalanceAfter',
+                'balance_after',
+                'balanceAfter',
+            ]);
+    }
+
+    private function shouldSkipDieselMetrics(DailyDriversTripTicket $ticket): bool
+    {
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
+        $inferred = $this->inferFuelKind($ticket, $snapshot);
+
+        return $inferred === 'gasoline';
+    }
+
+    private function resolveLatestMetric(Collection $items, callable $resolver): ?float
+    {
+        $latest = null;
+
+        foreach ($items as $item) {
+            $resolved = $resolver($item);
+            if ($resolved === null) {
+                continue;
+            }
+
+            $latest = (float) $resolved;
+        }
+
+        return $latest === null ? null : round($latest, 1);
+    }
+
+    private function resolveLatestRowMetric(Collection $rows, string $key): ?float
+    {
+        $latest = null;
+
+        foreach ($rows as $row) {
+            $value = $row[$key] ?? null;
+            if (!is_numeric($value)) {
+                continue;
+            }
+
+            $latest = (float) $value;
+        }
+
+        return $latest === null ? null : round($latest, 1);
+    }
+
+    private function readTextFromArray(array $source, array $keys): string
+    {
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $source)) {
+                continue;
+            }
+
+            $value = trim((string) $source[$key]);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    private function resolvePassengerNames(DailyDriversTripTicket $ticket): array
+    {
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
+        $passengerValue = $snapshot['business_passengers']
+            ?? $snapshot['passengers']
+            ?? $snapshot['passenger_names']
+            ?? $snapshot['passenger']
+            ?? [];
+
+        if (is_string($passengerValue)) {
+            $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $passengerValue, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        } elseif (is_array($passengerValue)) {
+            $tokens = $passengerValue;
+        } else {
+            return [];
+        }
+
+        return collect($tokens)
+            ->map(function ($passenger): string {
+                if (is_array($passenger)) {
+                    return trim((string) ($passenger['name'] ?? $passenger['passenger'] ?? ''));
+                }
+
+                return trim((string) $passenger);
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function resolveDestination(DailyDriversTripTicket $ticket): string
+    {
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
+
+        return $this->readTextFromArray($snapshot, [
+            'destination',
+            'destination_place',
+            'destinationPlace',
+            'destinationLocation',
+        ]);
+    }
+
+    private function resolveTripStatus(DailyDriversTripTicket $ticket): string
+    {
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
+        $status = trim((string) ($snapshot['status'] ?? ''));
+
+        if ($status !== '') {
+            return $status;
+        }
+
+        return trim((string) ($ticket->transportationRequestForm?->status ?? ''));
+    }
+
+    private function parseDateValue(mixed $value): ?Carbon
+    {
+        if ($value instanceof Carbon) {
+            return $value;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return Carbon::instance($value);
+        }
+
+        $text = trim((string) $value);
+        if ($text === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($text);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }
