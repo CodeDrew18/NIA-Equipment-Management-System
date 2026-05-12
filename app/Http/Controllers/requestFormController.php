@@ -10,7 +10,6 @@ use App\Support\AssignatoryPersonnelResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -204,7 +203,10 @@ class requestFormController extends Controller
                 ->with('error', 'Transportation request was saved, but the spreadsheet template file could not be found.');
         }
 
-        $spreadsheet = IOFactory::load($templatePath);
+        $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
+        $reader->setReadDataOnly(false);
+        $reader->setIncludeCharts(false);
+        $spreadsheet = $reader->load($templatePath);
         $sheet = $spreadsheet->getActiveSheet();
 
         // Data's
@@ -288,6 +290,8 @@ class requestFormController extends Controller
             $filename = 'Transportation_Request_Form_' . now()->format('Ymd_His') . '.xlsx';
             $tempPath = $outputDirectory . DIRECTORY_SEPARATOR . $filename;
             $writer->save($tempPath);
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
 
             $transportationRequest->update([
                 'generated_filename' => $filename,

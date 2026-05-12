@@ -1320,7 +1320,7 @@ class travelReportController extends Controller
         if (is_array($decoded)) {
             $tokens = $decoded;
         } else {
-            $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $tokens = preg_split('/\s*\/\s*|\s*,\s*|\s*;\s*|\R+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
         }
 
         return collect($tokens)
@@ -1352,3 +1352,4 @@ class travelReportController extends Controller
         return ($first . $last) ?: '--';
     }
 }
+

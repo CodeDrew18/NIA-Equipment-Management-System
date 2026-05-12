@@ -114,7 +114,13 @@
 </div>
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
 <label class="block font-label text-[10px] font-bold text-outline uppercase tracking-widest mb-1">Assigned Driver</label>
-<input class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold" type="text" value="{{ $assignedDriver }}"/>
+<select id="monthly-report-driver" class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold">
+@forelse ($driverOptions as $driverOption)
+<option value="{{ $driverOption }}" {{ $driverOption === $selectedDriver ? 'selected' : '' }}>{{ $driverOption }}</option>
+@empty
+<option value="" selected>No drivers found</option>
+@endforelse
+</select>
 </div>
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
 <label class="block font-label text-[10px] font-bold text-outline uppercase tracking-widest mb-1">Property Number</label>
@@ -169,7 +175,7 @@
 <td class="px-4 py-3 border-r border-outline-variant/20">—</td>
 <td class="px-4 py-3 border-r border-outline-variant/20">—</td>
 <td class="px-4 py-3 border-r border-outline-variant/20 text-xs">—</td>
-<td class="px-4 py-3 text-xs italic">No trips found for your name in driver assignments this month.</td>
+<td class="px-4 py-3 text-xs italic">No trips found for {{ $selectedDriver !== '' ? $selectedDriver : 'the selected driver' }} this month.</td>
 </tr>
 @endif
 {{-- Legacy sample rows retained below to preserve template structure. --}}
@@ -331,7 +337,7 @@
 <p class="text-sm font-medium text-on-surface mb-10 italic border-l-4 border-primary pl-4">
                     "I hereby certify to the correctness of the above statement and that motor vehicle was used strictly official business only."
                 </p>
-<div class="grid grid-cols-1 md:grid-cols-3 gap-12 mt-12">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-12 mt-12">
 <!-- Approved By -->
 <div class="flex flex-col items-center">
 <div class="w-full border-b border-on-surface mb-2 h-12 flex items-end justify-center">
@@ -342,16 +348,9 @@
 <!-- Driver Name -->
 <div class="flex flex-col items-center">
 <div class="w-full border-b border-on-surface mb-2 h-12 flex items-end justify-center font-bold uppercase">
-                            {{ $primaryDriver }}
+                            {{ $selectedDriver !== '' ? $selectedDriver : $primaryDriver }}
                         </div>
 <span class="text-[10px] font-bold uppercase tracking-tighter text-outline">Name of the Driver</span>
-</div>
-<!-- Driver Signature -->
-<div class="flex flex-col items-center">
-<div class="w-full border-b border-on-surface mb-2 h-12 flex items-end justify-center">
-<!-- Digital Signature Placeholder -->
-</div>
-<span class="text-[10px] font-bold uppercase tracking-tighter text-outline">Signature of the Driver</span>
 </div>
 </div>
 <div class="mt-16 pt-8 border-t border-outline-variant/30 text-[11px] leading-relaxed text-on-surface-variant flex flex-col md:flex-row gap-8 items-start">
@@ -376,6 +375,7 @@
 <script>
     (function () {
         const monthInput = document.getElementById('monthly-report-month');
+        const driverSelect = document.getElementById('monthly-report-driver');
         const reportTable = document.getElementById('monthly-report-table');
         let refreshInFlight = false;
 
@@ -395,6 +395,21 @@
 
             window.location.assign(nextUrl.toString());
         });
+
+        if (driverSelect) {
+            driverSelect.addEventListener('change', function () {
+                const driverValue = String(driverSelect.value || '').trim();
+                const nextUrl = new URL(window.location.href);
+
+                if (driverValue !== '') {
+                    nextUrl.searchParams.set('driver', driverValue);
+                } else {
+                    nextUrl.searchParams.delete('driver');
+                }
+
+                window.location.assign(nextUrl.toString());
+            });
+        }
 
         if (!reportTable) {
             return;

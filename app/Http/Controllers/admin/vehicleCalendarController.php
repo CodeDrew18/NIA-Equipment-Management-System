@@ -338,7 +338,7 @@ class vehicleCalendarController extends Controller
      */
     private function extractVehicleCodes(string $vehicleId): array
     {
-        return collect(preg_split('/[\s,;]+/', $vehicleId) ?: [])
+        return collect(preg_split('/\s*,\s*|\s*;\s*|\R+/', $vehicleId, -1, PREG_SPLIT_NO_EMPTY) ?: [])
             ->map(function (string $value) {
                 return trim($value);
             })
@@ -352,7 +352,7 @@ class vehicleCalendarController extends Controller
      */
     private function extractDriverNames(string $driverName): array
     {
-        return collect(preg_split('/[\s,;]+/', $driverName) ?: [])
+        return collect(preg_split('/\s*\/\s*|\s*,\s*|\s*;\s*|\R+/', $driverName, -1, PREG_SPLIT_NO_EMPTY) ?: [])
             ->map(function (string $value) {
                 return trim($value);
             })

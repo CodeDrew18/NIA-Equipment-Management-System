@@ -11,7 +11,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class dailyTripTicketController extends Controller
@@ -103,29 +102,47 @@ class dailyTripTicketController extends Controller
             ]);
 
             if ($validated['status'] === 'Dispatched') {
-                // Get all assigned drivers
-                $assignedDriverNames = $this->parseDriverNames((string) ($transportationRequest->driver_name ?? ''));
+                $vehicleDriverMap = is_array($transportationRequest->vehicle_driver_map)
+                    ? $transportationRequest->vehicle_driver_map
+                    : [];
+                $assignedVehicleCodesList = $this->extractVehicleCodes((string) $transportationRequest->vehicle_id);
                 $requestFormDataSnapshot = $this->buildRequestFormDataSnapshot($transportationRequest);
 
-                // Create one DTT per driver
-                foreach ($assignedDriverNames as $driverName) {
-                    DailyDriversTripTicket::query()->updateOrCreate(
-                        [
-                            'transportation_request_form_id' => $transportationRequest->id,
-                            'assigned_driver_name' => trim($driverName),
-                        ],
-                        ['request_form_data' => $requestFormDataSnapshot]
-                    );
-                }
+                if (!empty($assignedVehicleCodesList)) {
+                    // Create one DTT per vehicle
+                    foreach ($assignedVehicleCodesList as $vehicleCode) {
+                        $driverForVehicle = trim((string) ($vehicleDriverMap[$vehicleCode] ?? ''));
 
-                // If no drivers are assigned, create one DTT without driver assignment
-                if (empty($assignedDriverNames)) {
+                        // Fallback: use full driver_name if map has no entry
+                        if ($driverForVehicle === '') {
+                            $driverForVehicle = trim((string) ($transportationRequest->driver_name ?? ''));
+                        }
+
+                        DailyDriversTripTicket::query()->updateOrCreate(
+                            [
+                                'transportation_request_form_id' => $transportationRequest->id,
+                                'assigned_vehicle_code' => $vehicleCode,
+                            ],
+                            [
+                                'assigned_driver_name' => $driverForVehicle !== '' ? $driverForVehicle : null,
+                                'request_form_data' => $requestFormDataSnapshot,
+                            ]
+                        );
+                    }
+                } else {
+                    // No vehicle codes: create a single DTT
+                    $assignedDriverNames = $this->parseDriverNames((string) ($transportationRequest->driver_name ?? ''));
+                    $driverForDtt = !empty($assignedDriverNames) ? implode(' / ', $assignedDriverNames) : null;
+
                     DailyDriversTripTicket::query()->updateOrCreate(
                         [
                             'transportation_request_form_id' => $transportationRequest->id,
-                            'assigned_driver_name' => null,
+                            'assigned_vehicle_code' => null,
                         ],
-                        ['request_form_data' => $requestFormDataSnapshot]
+                        [
+                            'assigned_driver_name' => $driverForDtt,
+                            'request_form_data' => $requestFormDataSnapshot,
+                        ]
                     );
                 }
             }
@@ -160,10 +177,6 @@ class dailyTripTicketController extends Controller
             abort(500, 'DTT template file not found: DRIVERS_TRIP_TICKET_FORM-1_rev_09.xlsx');
         }
 
-        $from = $transportationRequest->date_time_from;
-        $to = $transportationRequest->date_time_to;
-        $requestDate = $transportationRequest->request_date;
-
         $passengerNames = collect(is_array($transportationRequest->business_passengers) ? $transportationRequest->business_passengers : [])
             ->map(function ($row) {
                 if (is_array($row) && isset($row['name'])) {
@@ -176,76 +189,92 @@ class dailyTripTicketController extends Controller
             ->values()
             ->implode(', ');
 
-        $assignedDriverNames = $this->parseDriverNames((string) ($transportationRequest->driver_name ?? ''));
+        $assignedVehicleCodes = $this->extractVehicleCodes((string) $transportationRequest->vehicle_id);
+        $vehicleDriverMap = is_array($transportationRequest->vehicle_driver_map)
+            ? $transportationRequest->vehicle_driver_map
+            : [];
 
-        $requestedDriver = trim((string) request()->query('driver', ''));
-        if ($requestedDriver !== '') {
-            $targetDriver = collect($assignedDriverNames)
-                ->first(function (string $driverName) use ($requestedDriver) {
-                    return mb_strtolower(trim($driverName)) === mb_strtolower($requestedDriver);
-                });
-
-            if (!$targetDriver) {
-                abort(404, 'Requested driver is not assigned to this transportation request.');
+        $requestedVehicle = trim((string) request()->query('vehicle', ''));
+        if ($requestedVehicle !== '') {
+            if (!in_array($requestedVehicle, $assignedVehicleCodes, true)) {
+                abort(404, 'Requested vehicle is not assigned to this transportation request.');
             }
 
-            $this->generateDttForDriver(
+            $driverForVehicle = trim((string) ($vehicleDriverMap[$requestedVehicle] ?? ''));
+            if ($driverForVehicle === '') {
+                $driverForVehicle = trim((string) ($transportationRequest->driver_name ?? ''));
+            }
+
+            $target = $this->ensureDttAttachmentDownloadTarget(
                 $transportationRequest,
                 $templatePath,
-                $targetDriver,
+                $requestedVehicle,
+                $driverForVehicle !== '' ? $driverForVehicle : null,
                 $passengerNames
             );
 
-            $driverTicket = DailyDriversTripTicket::query()
-                ->where('transportation_request_form_id', $transportationRequest->id)
-                ->where('assigned_driver_name', $targetDriver)
-                ->first();
+            if ($target === null) {
+                abort(404, 'Vehicle DTT attachment not found.');
+            }
 
-            $driverFilePath = trim((string) data_get($driverTicket?->attachment, 'file_path', ''));
-            $driverFileName = trim((string) data_get($driverTicket?->attachment, 'file_name', ''));
+            return response()->download($target['absolutePath'], $target['downloadName']);
+        }
 
-            if ($driverFilePath !== '' && Storage::disk('public')->exists($driverFilePath)) {
-                return response()->download(
-                    Storage::disk('public')->path($driverFilePath),
-                    $driverFileName !== '' ? $driverFileName : basename($driverFilePath)
-                );
+        $requestedDriver = trim((string) request()->query('driver', ''));
+        if ($requestedDriver !== '') {
+            // Legacy: download by driver name query param
+            $target = $this->ensureDttAttachmentDownloadTarget(
+                $transportationRequest,
+                $templatePath,
+                null,
+                $requestedDriver,
+                $passengerNames
+            );
+
+            if ($target !== null) {
+                return response()->download($target['absolutePath'], $target['downloadName']);
             }
 
             abort(404, 'Driver DTT attachment not found.');
         }
 
         $downloadTargets = [];
-        $targetDrivers = !empty($assignedDriverNames) ? array_values($assignedDriverNames) : [null];
 
-        foreach ($targetDrivers as $driverName) {
-            $this->generateDttForDriver(
+        if (!empty($assignedVehicleCodes)) {
+            // Generate one DTT per vehicle
+            foreach ($assignedVehicleCodes as $vehicleCode) {
+                $driverForVehicle = trim((string) ($vehicleDriverMap[$vehicleCode] ?? ''));
+                if ($driverForVehicle === '') {
+                    $driverForVehicle = trim((string) ($transportationRequest->driver_name ?? ''));
+                }
+
+                $target = $this->ensureDttAttachmentDownloadTarget(
+                    $transportationRequest,
+                    $templatePath,
+                    $vehicleCode,
+                    $driverForVehicle !== '' ? $driverForVehicle : null,
+                    $passengerNames
+                );
+
+                if ($target === null) {
+                    continue;
+                }
+
+                $downloadTargets[] = $target;
+            }
+        } else {
+            // No vehicle codes: generate a single DTT
+            $target = $this->ensureDttAttachmentDownloadTarget(
                 $transportationRequest,
                 $templatePath,
-                $driverName,
+                null,
+                trim((string) ($transportationRequest->driver_name ?? '')) ?: null,
                 $passengerNames
             );
 
-            $ticketQuery = DailyDriversTripTicket::query()
-                ->where('transportation_request_form_id', $transportationRequest->id);
-
-            if ($driverName === null) {
-                $ticketQuery->whereNull('assigned_driver_name');
-            } else {
-                $ticketQuery->where('assigned_driver_name', $driverName);
+            if ($target !== null) {
+                $downloadTargets[] = $target;
             }
-
-            $ticket = $ticketQuery->first();
-            $relativePath = trim((string) data_get($ticket?->attachment, 'file_path', ''));
-            $fileName = trim((string) data_get($ticket?->attachment, 'file_name', ''));
-
-            if ($relativePath === '' || !Storage::disk('public')->exists($relativePath)) {
-                continue;
-            }
-
-            $downloadTargets[] = [
-                'absolutePath' => Storage::disk('public')->path($relativePath),
-                'downloadName' => $fileName !== '' ? $fileName : basename($relativePath),
-            ];
         }
 
         if (empty($downloadTargets)) {
@@ -258,27 +287,130 @@ class dailyTripTicketController extends Controller
         );
     }
 
-    private function generateDttForDriver(
+    private function ensureDttAttachmentDownloadTarget(
         TransportationRequestFormModel $transportationRequest,
         string $templatePath,
+        ?string $vehicleCode,
+        ?string $driverName,
+        string $passengerNames
+    ): ?array {
+        $expectedDriver = trim((string) ($driverName ?? ''));
+        $snapshot = $this->buildRequestFormDataSnapshot($transportationRequest);
+
+        $ticket = $this->resolveDttTicketQuery($transportationRequest->id, $vehicleCode)->first();
+        if ($this->canReuseDttAttachment($ticket, $snapshot, $expectedDriver, $vehicleCode)) {
+            $relativePath = trim((string) data_get($ticket?->attachment, 'file_path', ''));
+            $fileName = trim((string) data_get($ticket?->attachment, 'file_name', ''));
+
+            return [
+                'absolutePath' => Storage::disk('public')->path($relativePath),
+                'downloadName' => $fileName !== '' ? $fileName : basename($relativePath),
+            ];
+        }
+
+        $this->generateDttForVehicle(
+            $transportationRequest,
+            $templatePath,
+            $vehicleCode,
+            $expectedDriver !== '' ? $expectedDriver : null,
+            $passengerNames
+        );
+
+        $ticket = $this->resolveDttTicketQuery($transportationRequest->id, $vehicleCode)->first();
+        $relativePath = trim((string) data_get($ticket?->attachment, 'file_path', ''));
+        $fileName = trim((string) data_get($ticket?->attachment, 'file_name', ''));
+
+        if ($relativePath === '' || !Storage::disk('public')->exists($relativePath)) {
+            return null;
+        }
+
+        return [
+            'absolutePath' => Storage::disk('public')->path($relativePath),
+            'downloadName' => $fileName !== '' ? $fileName : basename($relativePath),
+        ];
+    }
+
+    private function resolveDttTicketQuery(int $transportationRequestId, ?string $vehicleCode)
+    {
+        $query = DailyDriversTripTicket::query()
+            ->where('transportation_request_form_id', $transportationRequestId);
+
+        if ($vehicleCode === null || trim((string) $vehicleCode) === '') {
+            return $query->whereNull('assigned_vehicle_code');
+        }
+
+        return $query->where('assigned_vehicle_code', trim((string) $vehicleCode));
+    }
+
+    private function canReuseDttAttachment(
+        ?DailyDriversTripTicket $ticket,
+        array $expectedSnapshot,
+        string $expectedDriver,
+        ?string $expectedVehicleCode
+    ): bool {
+        if (!$ticket) {
+            return false;
+        }
+
+        $relativePath = trim((string) data_get($ticket->attachment, 'file_path', ''));
+        if ($relativePath === '' || !Storage::disk('public')->exists($relativePath)) {
+            return false;
+        }
+
+        $storedVehicleCode = trim((string) ($ticket->assigned_vehicle_code ?? ''));
+        $normalizedExpectedVehicleCode = trim((string) ($expectedVehicleCode ?? ''));
+        if ($normalizedExpectedVehicleCode !== '' && $storedVehicleCode !== $normalizedExpectedVehicleCode) {
+            return false;
+        }
+
+        if ($normalizedExpectedVehicleCode === '' && $storedVehicleCode !== '') {
+            return false;
+        }
+
+        $storedDriver = trim((string) ($ticket->assigned_driver_name ?? ''));
+        if ($expectedDriver !== '' && $storedDriver !== $expectedDriver) {
+            return false;
+        }
+
+        $storedSnapshot = is_array($ticket->request_form_data)
+            ? $ticket->request_form_data
+            : [];
+
+        return $storedSnapshot === $expectedSnapshot;
+    }
+
+    /**
+     * Generate a DTT xlsx file for a specific vehicle (and its driver).
+     * vehicleCode=null means no specific vehicle (legacy single-vehicle flow).
+     */
+    private function generateDttForVehicle(
+        TransportationRequestFormModel $transportationRequest,
+        string $templatePath,
+        ?string $vehicleCode,
         ?string $driverName,
         string $passengerNames
     ): void {
-        $spreadsheet = IOFactory::load($templatePath);
+        // Use Xlsx reader directly to skip auto-detection overhead and disable charts/drawings
+        $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
+        $reader->setReadDataOnly(false);
+        $reader->setIncludeCharts(false);
+        $spreadsheet = $reader->load($templatePath);
         $sheet = $spreadsheet->getActiveSheet();
 
         $from = $transportationRequest->date_time_from;
         $to = $transportationRequest->date_time_to;
 
+        // Resolve vehicle ID to display: use vehicleCode if provided, otherwise full vehicle_id
+        $vehicleDisplay = $vehicleCode ?? ((string) ($transportationRequest->vehicle_id ?: 'N/A'));
+
         $sheet->mergeCells('S6:V6');
         $sheet->setCellValue('S6', (string) ($transportationRequest->form_id ?? 'N/A'));
 
         $sheet->mergeCells('E9:L9');
-        $sheet->setCellValue('E9', (string) ($transportationRequest->vehicle_id ?: $transportationRequest->vehicle_id ?: 'N/A'));
+        $sheet->setCellValue('E9', $vehicleDisplay);
 
         $sheet->mergeCells('O9:V9');
-        // Show only the assigned driver for this DTT, not all drivers
-        $sheet->setCellValue('O9', (string) ($driverName ?: (string) ($transportationRequest->driver_name ?: 'N/A')));
+        $sheet->setCellValue('O9', (string) ($driverName ?: 'N/A'));
 
         $sheet->mergeCells('E10:V10');
         $sheet->setCellValue('E10', (string) ($passengerNames !== '' ? $passengerNames : 'N/A'));
@@ -292,48 +424,47 @@ class dailyTripTicketController extends Controller
         $fromDate = $from ? Carbon::parse($from) : null;
         $toDate   = $to ? Carbon::parse($to) : null;
 
-        // FROM
         $sheet->mergeCells('H13:M13');
         $sheet->setCellValue('H13', $fromDate ? $fromDate->format('d/m/Y') : 'N/A');
         $sheet->mergeCells('P13:S13');
         $sheet->setCellValue('P13', $fromDate ? $fromDate->format('H:i') : 'N/A');
 
-        // TO
         $sheet->mergeCells('H15:M15');
         $sheet->setCellValue('H15', $toDate ? $toDate->format('d/m/Y') : 'N/A');
         $sheet->mergeCells('P15:S15');
         $sheet->setCellValue('P15', $toDate ? $toDate->format('H:i') : 'N/A');
 
-        // Driver Name
         $sheet->mergeCells('P49:V49');
-        $sheet->setCellValue('P49', (string) ($driverName ?: (string) ($transportationRequest->driver_name ?: 'N/A')));
+        $sheet->setCellValue('P49', (string) ($driverName ?: 'N/A'));
 
         $outputDirectory = Storage::disk('public')->path('generated_forms');
         if (!is_dir($outputDirectory)) {
             mkdir($outputDirectory, 0755, true);
         }
 
-        $driverSuffix = $driverName ? '_' . Str::slug(substr($driverName, 0, 10)) : '';
-        $fileName = 'DTT_' . ($transportationRequest->form_id ?: 'REQUEST') . $driverSuffix . '_' . now()->format('Ymd_His_u') . '_' . Str::lower(Str::random(6)) . '.xlsx';
+        $vehicleSuffix = $vehicleCode ? '_' . Str::slug(substr($vehicleCode, 0, 12)) : '';
+        $fileName = 'DTT_' . ($transportationRequest->form_id ?: 'REQUEST') . $vehicleSuffix . '_' . now()->format('Ymd_His_u') . '_' . Str::lower(Str::random(6)) . '.xlsx';
         $safeFileName = preg_replace('/[^A-Za-z0-9._-]/', '_', $fileName) ?: ('DTT_' . now()->format('Ymd_His_u') . '_' . Str::lower(Str::random(6)) . '.xlsx');
         $relativePath = 'generated_forms/' . $safeFileName;
         $outputPath = Storage::disk('public')->path($relativePath);
 
         $writer = new Xlsx($spreadsheet);
         $writer->save($outputPath);
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
 
         $attachmentPayload = [
             'file_name' => $safeFileName,
             'file_path' => $relativePath,
             'process' => 'daily_drivers_trip_ticket',
-            'process_key' => self::DTT_ATTACHMENT_KEY . '_' . ($driverName ? Str::slug($driverName) : 'unassigned'),
+            'process_key' => self::DTT_ATTACHMENT_KEY . '_' . ($vehicleCode ? Str::slug($vehicleCode) : 'unassigned'),
             'source' => 'daily_trip_ticket_download',
         ];
 
         $ticket = DailyDriversTripTicket::query()->updateOrCreate(
             [
                 'transportation_request_form_id' => $transportationRequest->id,
-                'assigned_driver_name' => $driverName,
+                'assigned_vehicle_code' => $vehicleCode,
             ],
             ['request_form_data' => $this->buildRequestFormDataSnapshot($transportationRequest)]
         );
@@ -348,6 +479,7 @@ class dailyTripTicketController extends Controller
         }
 
         $ticket->update([
+            'assigned_driver_name' => $driverName,
             'attachment' => $attachmentPayload,
         ]);
 
@@ -551,17 +683,30 @@ class dailyTripTicketController extends Controller
 
     private function hasPrintedDttAttachment(TransportationRequestFormModel $transportationRequest): bool
     {
-        // Check if any DTT for this request has a printed attachment
-        $ticket = DailyDriversTripTicket::query()
-            ->where('transportation_request_form_id', $transportationRequest->id)
-            ->whereNotNull('attachment')
-            ->first();
+        $assignedVehicleCodes = $this->extractVehicleCodes((string) ($transportationRequest->vehicle_id ?? ''));
 
-        if (!$ticket) {
-            return false;
+        if (!empty($assignedVehicleCodes)) {
+            foreach ($assignedVehicleCodes as $vehicleCode) {
+                $ticket = DailyDriversTripTicket::query()
+                    ->where('transportation_request_form_id', $transportationRequest->id)
+                    ->where('assigned_vehicle_code', $vehicleCode)
+                    ->first();
+
+                $relativePath = trim((string) data_get($ticket?->attachment, 'file_path', ''));
+                if ($relativePath === '' || !Storage::disk('public')->exists($relativePath)) {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
-        $relativePath = trim((string) data_get($ticket->attachment, 'file_path', ''));
+        $ticket = DailyDriversTripTicket::query()
+            ->where('transportation_request_form_id', $transportationRequest->id)
+            ->whereNull('assigned_vehicle_code')
+            ->first();
+
+        $relativePath = trim((string) data_get($ticket?->attachment, 'file_path', ''));
 
         return $relativePath !== '' && Storage::disk('public')->exists($relativePath);
     }
@@ -635,27 +780,33 @@ class dailyTripTicketController extends Controller
 
     private function buildDriverDownloadTargets(TransportationRequestFormModel $transportationRequest): array
     {
-        $driverNames = $this->parseDriverNames((string) ($transportationRequest->driver_name ?? ''));
+        $vehicleCodes = $this->extractVehicleCodes((string) ($transportationRequest->vehicle_id ?? ''));
+        $vehicleDriverMap = is_array($transportationRequest->vehicle_driver_map)
+            ? $transportationRequest->vehicle_driver_map
+            : [];
 
-        if (empty($driverNames)) {
-            return [[
-                'name' => 'Unassigned Driver',
-                'downloadUrl' => route('admin.daily-trip-ticket.download', $transportationRequest),
-            ]];
+        if (!empty($vehicleCodes)) {
+            return collect($vehicleCodes)
+                ->map(function (string $vehicleCode) use ($transportationRequest, $vehicleDriverMap) {
+                    $driverLabel = trim((string) ($vehicleDriverMap[$vehicleCode] ?? ''));
+                    $label = $vehicleCode . ($driverLabel !== '' ? ' - ' . $driverLabel : '');
+
+                    return [
+                        'name' => $label,
+                        'downloadUrl' => route('admin.daily-trip-ticket.download', [
+                            'transportationRequest' => $transportationRequest,
+                            'vehicle' => $vehicleCode,
+                        ]),
+                    ];
+                })
+                ->values()
+                ->all();
         }
 
-        return collect($driverNames)
-            ->map(function (string $driverName) use ($transportationRequest) {
-                return [
-                    'name' => $driverName,
-                    'downloadUrl' => route('admin.daily-trip-ticket.download', [
-                        'transportationRequest' => $transportationRequest,
-                        'driver' => $driverName,
-                    ]),
-                ];
-            })
-            ->values()
-            ->all();
+        return [[
+            'name' => 'Unassigned Vehicle',
+            'downloadUrl' => route('admin.daily-trip-ticket.download', $transportationRequest),
+        ]];
     }
 
     private function parseDriverNames(mixed $value): array
@@ -672,7 +823,7 @@ class dailyTripTicketController extends Controller
             if (is_array($decoded)) {
                 $tokens = $decoded;
             } else {
-                $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $stringValue, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                $tokens = preg_split('/\s*\/\s*|\s*,\s*|\s*;\s*|\R+/', $stringValue, -1, PREG_SPLIT_NO_EMPTY) ?: [];
             }
         }
 
@@ -691,3 +842,4 @@ class dailyTripTicketController extends Controller
             ->all();
     }
 }
+

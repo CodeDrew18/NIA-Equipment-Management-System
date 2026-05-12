@@ -16,7 +16,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class vehicleAssignmentController extends Controller
@@ -56,9 +55,12 @@ class vehicleAssignmentController extends Controller
                 (string) $requestItem->vehicle_type,
                 (int) ($requestItem->vehicle_quantity ?? 0)
             );
+            $assignmentVehicleMix = $this->buildAssignableVehicleMix($requestedVehicleMix);
 
             $requestItem->setAttribute('requested_vehicle_mix', $requestedVehicleMix);
             $requestItem->setAttribute('required_vehicle_total', array_sum($requestedVehicleMix));
+            $requestItem->setAttribute('assignment_vehicle_mix', $assignmentVehicleMix);
+            $requestItem->setAttribute('max_vehicle_total', array_sum($assignmentVehicleMix));
 
             return $requestItem;
         });
@@ -111,6 +113,9 @@ class vehicleAssignmentController extends Controller
             'driver_overrides' => ['nullable', 'array'],
             'driver_overrides.*' => ['array'],
             'driver_overrides.*.*' => ['nullable', 'string', 'max:255'],
+            'extra_driver_names' => ['nullable', 'array'],
+            'extra_driver_names.*' => ['array'],
+            'extra_driver_names.*.*' => ['nullable', 'string', 'max:255'],
         ]);
 
         if ((string) $transportationRequest->status !== 'Signed') {
@@ -166,21 +171,45 @@ class vehicleAssignmentController extends Controller
             })
             ->all();
 
+        $extraDriverNamesByType = collect(self::VEHICLE_TYPES)
+            ->mapWithKeys(function (string $type) use ($validated) {
+                $extras = $validated['extra_driver_names'][$type] ?? [];
+
+                if (!is_array($extras)) {
+                    return [$type => []];
+                }
+
+                $normalizedExtras = collect($extras)
+                    ->map(function ($name) {
+                        return trim((string) $name);
+                    })
+                    ->values()
+                    ->all();
+
+                return [$type => $normalizedExtras];
+            })
+            ->all();
+
         foreach ($requestedVehicleMix as $type => $requiredCount) {
             $selectedCount = count($selectedCodesByType[$type] ?? []);
-
-            if ($selectedCount !== $requiredCount) {
+            if ($requiredCount === 0 && $selectedCount > 0) {
                 throw ValidationException::withMessages([
-                    'vehicle_codes' => 'Select exactly ' . $requiredCount . ' vehicle slot' . ($requiredCount === 1 ? '' : 's') . ' for ' . $this->vehicleTypeLabel($type) . '.',
+                    'vehicle_codes' => 'No vehicle slots are expected for ' . $this->vehicleTypeLabel($type) . '.',
+                ]);
+            }
+
+            if ($selectedCount < $requiredCount) {
+                throw ValidationException::withMessages([
+                    'vehicle_codes' => 'Select at least ' . $requiredCount . ' vehicle slot' . ($requiredCount === 1 ? '' : 's') . ' for ' . $this->vehicleTypeLabel($type) . '.',
                 ]);
             }
         }
 
         $selectedVehicleCodes = collect($selectedCodesByType)->flatten(1)->values()->all();
 
-        if (count($selectedVehicleCodes) !== $requiredVehicleTotal) {
+        if (count($selectedVehicleCodes) < $requiredVehicleTotal) {
             throw ValidationException::withMessages([
-                'vehicle_codes' => 'Select exactly ' . $requiredVehicleTotal . ' vehicle' . ($requiredVehicleTotal === 1 ? '' : 's') . ' before continuing.',
+                'vehicle_codes' => 'Select at least ' . $requiredVehicleTotal . ' vehicle' . ($requiredVehicleTotal === 1 ? '' : 's') . ' before continuing.',
             ]);
         }
 
@@ -218,10 +247,13 @@ class vehicleAssignmentController extends Controller
 
         $allowedReplacementDrivers = $this->availableReplacementDriverNames();
 
+        // resolvedDriverNames: flat unique list for the transportation_request record
         $resolvedDriverNames = [];
+        // perVehicleDrivers: [vehicleCode => 'Driver1 / Driver2'] for DTT creation
+        $perVehicleDrivers = [];
 
         foreach ($selectedCodesByType as $type => $vehicleCodes) {
-            foreach ($vehicleCodes as $slotIndex => $vehicleCode) {
+            foreach (array_values($vehicleCodes) as $slotIndex => $vehicleCode) {
                 $vehicle = $vehiclesByCode->get($vehicleCode);
 
                 if (!$vehicle) {
@@ -230,6 +262,7 @@ class vehicleAssignmentController extends Controller
 
                 $primaryDriverName = trim((string) $vehicle->driver_name);
                 $overrideName = trim((string) ($selectedDriverOverridesByType[$type][$slotIndex] ?? ''));
+                $extraName = trim((string) ($extraDriverNamesByType[$type][$slotIndex] ?? ''));
 
                 if ($overrideName !== '' && !in_array($overrideName, $allowedReplacementDrivers, true)) {
                     throw ValidationException::withMessages([
@@ -237,15 +270,33 @@ class vehicleAssignmentController extends Controller
                     ]);
                 }
 
-                $resolvedName = $overrideName !== '' ? $overrideName : $primaryDriverName;
+                if ($extraName !== '' && !in_array($extraName, $allowedReplacementDrivers, true)) {
+                    throw ValidationException::withMessages([
+                        'driver_overrides' => 'Selected additional driver "' . $extraName . '" is not available for assignment.',
+                    ]);
+                }
 
-                if ($resolvedName === '') {
+                // Primary driver: override takes precedence over vehicle's own driver
+                $primaryResolved = $overrideName !== '' ? $overrideName : $primaryDriverName;
+
+                if ($primaryResolved === '') {
                     throw ValidationException::withMessages([
                         'driver_overrides' => 'Unable to resolve a driver for vehicle ' . $vehicle->vehicle_code . '. Choose a replacement driver.',
                     ]);
                 }
 
-                $resolvedDriverNames[] = $resolvedName;
+                // Build per-vehicle driver string (e.g. "Andrew B. Malubag / Vince C. Bautista")
+                $vehicleDriverParts = [$primaryResolved];
+                if ($extraName !== '' && $extraName !== $primaryResolved) {
+                    $vehicleDriverParts[] = $extraName;
+                }
+                $perVehicleDrivers[$vehicleCode] = implode(' / ', $vehicleDriverParts);
+
+                // Add all to the flat resolved list
+                $resolvedDriverNames[] = $primaryResolved;
+                if ($extraName !== '' && $extraName !== $primaryResolved) {
+                    $resolvedDriverNames[] = $extraName;
+                }
             }
         }
 
@@ -253,6 +304,9 @@ class vehicleAssignmentController extends Controller
             ->filter()
             ->unique()
             ->values();
+
+        // Build the combined driver string: all unique drivers joined with " / "
+        $combinedDriverName = $driverNames->implode(' / ');
 
         // Schedule conflict checks: ensure selected vehicle/driver are not already scheduled
         // for an overlapping transportation request (Signed, Dispatched, On Trip).
@@ -332,12 +386,13 @@ class vehicleAssignmentController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($transportationRequest, $selectedVehicleCodes, $driverNames, $previousVehicleCodes) {
+        DB::transaction(function () use ($transportationRequest, $selectedVehicleCodes, $combinedDriverName, $previousVehicleCodes, $perVehicleDrivers) {
             $vehicleCodesToRelease = array_values(array_diff($previousVehicleCodes, $selectedVehicleCodes));
 
             $transportationRequest->update([
                 'vehicle_id' => implode(', ', $selectedVehicleCodes),
-                'driver_name' => $driverNames->implode(', '),
+                'driver_name' => $combinedDriverName,
+                'vehicle_driver_map' => $perVehicleDrivers,
             ]);
 
             if (!empty($vehicleCodesToRelease)) {
@@ -648,6 +703,33 @@ class vehicleAssignmentController extends Controller
         return $mix;
     }
 
+    private function buildAssignableVehicleMix(array $requestedVehicleMix): array
+    {
+        $assignmentMix = [
+            'coaster' => (int) ($requestedVehicleMix['coaster'] ?? 0),
+            'van' => (int) ($requestedVehicleMix['van'] ?? 0),
+            'pickup' => (int) ($requestedVehicleMix['pickup'] ?? 0),
+            'other' => (int) ($requestedVehicleMix['other'] ?? 0),
+        ];
+
+        // Keep one optional extra slot for the initial UI state when the request requires one vehicle.
+        // Additional slots can be added dynamically in the view.
+        if (array_sum($assignmentMix) !== 1) {
+            return $assignmentMix;
+        }
+
+        foreach (self::VEHICLE_TYPES as $type) {
+            if (($assignmentMix[$type] ?? 0) > 0) {
+                $assignmentMix[$type] = 2;
+                return $assignmentMix;
+            }
+        }
+
+        $assignmentMix['other'] = 2;
+
+        return $assignmentMix;
+    }
+
     private function extractVehicleCodes(string $vehicleIds): array
     {
         $value = trim($vehicleIds);
@@ -685,7 +767,10 @@ class vehicleAssignmentController extends Controller
             throw new \RuntimeException('Transportation request template file not found.');
         }
 
-        $spreadsheet = IOFactory::load($templatePath);
+        $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
+        $reader->setReadDataOnly(false);
+        $reader->setIncludeCharts(false);
+        $spreadsheet = $reader->load($templatePath);
         $sheet = $spreadsheet->getActiveSheet();
 
         $requestDate = optional($transportationRequest->request_date)->toDateString() ?: '';
@@ -774,6 +859,8 @@ class vehicleAssignmentController extends Controller
 
         $writer = new Xlsx($spreadsheet);
         $writer->save($absolutePath);
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
 
         $transportationRequest->update([
             'generated_filename' => $safeFileName,
@@ -819,18 +906,8 @@ class vehicleAssignmentController extends Controller
 
     private function availableReplacementDriverNames(): array
     {
-        $primaryDriverNames = AdminVehicleAvailability::query()
-            ->pluck('driver_name')
-            ->map(function ($name) {
-                return trim((string) $name);
-            })
-            ->filter(function (string $name) {
-                return $name !== '';
-            })
-            ->unique()
-            ->values()
-            ->all();
-
+        // Return ALL users with driver role (including primary vehicle drivers)
+        // so any driver can be selected as override or additional driver
         return User::query()
             ->whereRaw("CONCAT(',', role, ',') LIKE '%,driver,%'")
             ->where('personnel_id', '!=', self::SYSADMIN_PERSONNEL_ID)
@@ -841,9 +918,6 @@ class vehicleAssignmentController extends Controller
             })
             ->filter(function (string $name) {
                 return $name !== '';
-            })
-            ->reject(function (string $name) use ($primaryDriverNames) {
-                return in_array($name, $primaryDriverNames, true);
             })
             ->values()
             ->all();

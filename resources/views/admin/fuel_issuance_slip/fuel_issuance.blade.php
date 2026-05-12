@@ -1196,6 +1196,10 @@ async function fiPrintOfficeCopy(copyKey, options = {}) {
             completeDownloadUI();
         }
 
+        function handleFrameLoad() {
+            completeDownloadUI();
+        }
+
         if (printButton) {
             printButton.disabled = true;
         }
@@ -1203,6 +1207,7 @@ async function fiPrintOfficeCopy(copyKey, options = {}) {
             fiShowLoadingModal(loadingMessage);
         }
         window.addEventListener('focus', handleWindowFocus);
+        frame.addEventListener('load', handleFrameLoad, { once: true });
 
         document.body.appendChild(form);
         form.submit();
@@ -1210,7 +1215,7 @@ async function fiPrintOfficeCopy(copyKey, options = {}) {
 
         setTimeout(function () {
             completeDownloadUI();
-        }, 2000);
+        }, 1200);
     });
 }
 

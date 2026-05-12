@@ -14,7 +14,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class fuelIssuanceController extends Controller
@@ -273,7 +272,10 @@ class fuelIssuanceController extends Controller
             abort(500, 'Template file not found: form_2_rev_08.xlsx');
         }
 
-        $spreadsheet = IOFactory::load($templatePath);
+        $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
+        $reader->setReadDataOnly(false);
+        $reader->setIncludeCharts(false);
+        $spreadsheet = $reader->load($templatePath);
         $sheet = $spreadsheet->getActiveSheet();
         $assignatoryName = AssignatoryPersonnelResolver::resolve()['name'];
 
@@ -362,6 +364,8 @@ class fuelIssuanceController extends Controller
 
         $writer = new Xlsx($spreadsheet);
         $writer->save($outputPath);
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
 
         $attachmentPayload = [
             'file_name' => $safeFileName,
@@ -462,7 +466,10 @@ class fuelIssuanceController extends Controller
             abort(500, 'Template file not found: form_2_rev_08.xlsx');
         }
 
-        $spreadsheet = IOFactory::load($templatePath);
+        $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
+        $reader->setReadDataOnly(false);
+        $reader->setIncludeCharts(false);
+        $spreadsheet = $reader->load($templatePath);
         $sheet = $spreadsheet->getActiveSheet();
         $assignatoryName = (string) (AssignatoryPersonnelResolver::resolve()['name'] ?? '');
 
@@ -539,6 +546,8 @@ class fuelIssuanceController extends Controller
 
         $writer = new Xlsx($spreadsheet);
         $writer->save($outputPath);
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
 
         $attachmentPayload = [
             'file_name' => $safeFileName,
@@ -897,6 +906,9 @@ class fuelIssuanceController extends Controller
         $baseCtrlNumber = 'FIS-' . optional($transportationRequest->request_date)->format('Y') . '-' . str_pad((string) $transportationRequest->id, 4, '0', STR_PAD_LEFT);
         $vehicleCodes = $this->extractVehicleCodes((string) $transportationRequest->vehicle_id);
         $driverNames = $this->extractNameTokens((string) $transportationRequest->driver_name);
+        $vehicleDriverMap = is_array($transportationRequest->vehicle_driver_map)
+            ? $transportationRequest->vehicle_driver_map
+            : [];
 
         if (empty($vehicleCodes)) {
             $fallbackVehicle = trim((string) ($transportationRequest->vehicle_id ?: '____________________________'));
@@ -920,8 +932,11 @@ class fuelIssuanceController extends Controller
 
         return collect($vehicleCodes)
             ->values()
-            ->map(function (string $vehicleCode, int $index) use ($transportationRequest, $vehiclesByCode, $driverNames, $baseCtrlNumber, $hasMultipleCopies) {
-                $resolvedDriver = trim((string) optional($vehiclesByCode->get($vehicleCode))->driver_name);
+            ->map(function (string $vehicleCode, int $index) use ($transportationRequest, $vehiclesByCode, $vehicleDriverMap, $driverNames, $baseCtrlNumber, $hasMultipleCopies) {
+                $resolvedDriver = trim((string) ($vehicleDriverMap[$vehicleCode] ?? ''));
+                if ($resolvedDriver === '') {
+                    $resolvedDriver = trim((string) optional($vehiclesByCode->get($vehicleCode))->driver_name);
+                }
                 if ($resolvedDriver === '') {
                     $resolvedDriver = trim((string) ($driverNames[$index] ?? ''));
                 }
@@ -985,7 +1000,7 @@ class fuelIssuanceController extends Controller
         if (is_array($decoded)) {
             $tokens = $decoded;
         } else {
-            $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $tokens = preg_split('/\s*\/\s*|\s*,\s*|\s*;\s*|\R+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
         }
 
         return collect($tokens)

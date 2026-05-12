@@ -1,0 +1,290 @@
+<?php
+
+namespace App\Http\Controllers\admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\AdminVehicleAvailability;
+use App\Models\AssignatoryPersonnel;
+use App\Models\DailyDriversTripTicket;
+use App\Support\AssignatoryPersonnelResolver;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
+
+class monthlyEquipmentUtilizationReportController extends Controller
+{
+    public function index(Request $request)
+    {
+        $validated = $request->validate([
+            'month' => ['nullable', 'date_format:Y-m'],
+            'prepared_id' => ['nullable', 'integer'],
+            'attested_id' => ['nullable', 'integer'],
+            'approved_id' => ['nullable', 'integer'],
+        ]);
+
+        $selectedMonth = (string) ($validated['month'] ?? now()->format('Y-m'));
+        $monthStart = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
+        $monthEnd = (clone $monthStart)->endOfMonth();
+        $daysInMonth = (int) $monthStart->daysInMonth;
+
+        $distanceMap = $this->buildDistanceMap($monthStart, $monthEnd);
+        $vehicleRows = $this->buildVehicleRows($distanceMap, $daysInMonth);
+
+        $assignatories = $this->loadAssignatories();
+        $defaultAssignatory = AssignatoryPersonnelResolver::resolve();
+
+        $preparedBy = $this->resolveSignatory($assignatories, $validated['prepared_id'] ?? null, $defaultAssignatory);
+        $attestedBy = $this->resolveSignatory($assignatories, $validated['attested_id'] ?? null, $defaultAssignatory);
+        $approvedBy = $this->resolveSignatory($assignatories, $validated['approved_id'] ?? null, $defaultAssignatory);
+
+        return view('admin.monthly_equipment_utilization_report.monthly_ulitization_report_screen', [
+            'selectedMonth' => $selectedMonth,
+            'monthLabel' => strtoupper($monthStart->format('F Y')),
+            'monthRangeLabel' => $monthStart->format('F j') . '-' . $monthEnd->format('j, Y'),
+            'daysInMonth' => $daysInMonth,
+            'vehicleRows' => $vehicleRows,
+            'grandTotalDistance' => $vehicleRows->sum('totalDistance'),
+            'assignatories' => $assignatories,
+            'selectedPreparedId' => (int) ($validated['prepared_id'] ?? 0),
+            'selectedAttestedId' => (int) ($validated['attested_id'] ?? 0),
+            'selectedApprovedId' => (int) ($validated['approved_id'] ?? 0),
+            'preparedBy' => $preparedBy,
+            'attestedBy' => $attestedBy,
+            'approvedBy' => $approvedBy,
+        ]);
+    }
+
+    private function buildDistanceMap(Carbon $monthStart, Carbon $monthEnd): array
+    {
+        $tickets = DailyDriversTripTicket::query()
+            ->with(['transportationRequestForm:id,request_date,vehicle_id'])
+            ->whereHas('transportationRequestForm', function ($query) use ($monthStart, $monthEnd) {
+                $query->whereDate('request_date', '>=', $monthStart->toDateString())
+                    ->whereDate('request_date', '<=', $monthEnd->toDateString());
+            })
+            ->get();
+
+        $distanceMap = [];
+
+        foreach ($tickets as $ticket) {
+            $vehicleCode = $this->resolveVehicleCode($ticket);
+            if ($vehicleCode === '') {
+                continue;
+            }
+
+            $requestDate = $this->resolveRequestDate($ticket);
+            if (!$requestDate) {
+                continue;
+            }
+
+            if ($requestDate->lt($monthStart) || $requestDate->gt($monthEnd)) {
+                continue;
+            }
+
+            $distance = $this->resolveDistance($ticket);
+            if ($distance === null) {
+                continue;
+            }
+
+            $day = (int) $requestDate->day;
+
+            if (!isset($distanceMap[$vehicleCode])) {
+                $distanceMap[$vehicleCode] = [];
+            }
+
+            $distanceMap[$vehicleCode][$day] = ($distanceMap[$vehicleCode][$day] ?? 0) + $distance;
+        }
+
+        return $distanceMap;
+    }
+
+    private function buildVehicleRows(array $distanceMap, int $daysInMonth): Collection
+    {
+        $vehicles = AdminVehicleAvailability::query()
+            ->orderBy('vehicle_type')
+            ->orderBy('vehicle_code')
+            ->get();
+
+        $rows = $vehicles->map(function (AdminVehicleAvailability $vehicle) use ($distanceMap, $daysInMonth) {
+            $vehicleCode = trim((string) ($vehicle->vehicle_code ?? ''));
+            $vehicleType = trim((string) ($vehicle->vehicle_type ?? ''));
+            $capacityLabel = trim((string) ($vehicle->capacity_label ?? ''));
+
+            $typeLabel = $vehicleType !== '' ? $vehicleType : 'N/A';
+            if ($capacityLabel !== '') {
+                $typeLabel .= ' (' . $capacityLabel . ')';
+            }
+
+            $days = [];
+            for ($day = 1; $day <= $daysInMonth; $day++) {
+                $days[] = (float) ($distanceMap[$vehicleCode][$day] ?? 0);
+            }
+
+            return [
+                'vehicleCode' => $vehicleCode,
+                'typeLabel' => $typeLabel,
+                'serialLabel' => 'N/A',
+                'propPlateLabel' => $vehicleCode !== '' ? $vehicleCode : 'N/A',
+                'days' => $days,
+                'totalDistance' => array_sum($days),
+            ];
+        });
+
+        $knownCodes = $rows->pluck('vehicleCode')->filter()->all();
+
+        foreach (array_keys($distanceMap) as $vehicleCode) {
+            if (!in_array($vehicleCode, $knownCodes, true)) {
+                $days = [];
+                for ($day = 1; $day <= $daysInMonth; $day++) {
+                    $days[] = (float) ($distanceMap[$vehicleCode][$day] ?? 0);
+                }
+
+                $rows->push([
+                    'vehicleCode' => $vehicleCode,
+                    'typeLabel' => 'Unregistered',
+                    'serialLabel' => 'N/A',
+                    'propPlateLabel' => $vehicleCode,
+                    'days' => $days,
+                    'totalDistance' => array_sum($days),
+                ]);
+            }
+        }
+
+        return $rows
+            ->sortBy(function (array $row) {
+                return strtolower($row['typeLabel'] . '|' . $row['propPlateLabel']);
+            })
+            ->values();
+    }
+
+    private function resolveRequestDate(DailyDriversTripTicket $ticket): ?Carbon
+    {
+        $requestDate = $ticket->transportationRequestForm?->request_date;
+        if ($requestDate) {
+            return Carbon::parse($requestDate);
+        }
+
+        $snapshotDate = trim((string) data_get($ticket->request_form_data, 'request_date', ''));
+        if ($snapshotDate !== '') {
+            try {
+                return Carbon::parse($snapshotDate);
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveVehicleCode(DailyDriversTripTicket $ticket): string
+    {
+        $vehicleCode = trim((string) ($ticket->assigned_vehicle_code ?? ''));
+        if ($vehicleCode !== '') {
+            return $vehicleCode;
+        }
+
+        $vehicleId = data_get($ticket->request_form_data, 'vehicle_id');
+        if ($vehicleId === null) {
+            $vehicleId = $ticket->transportationRequestForm?->vehicle_id;
+        }
+
+        $vehicleCodes = $this->extractVehicleCodes((string) $vehicleId);
+        if (count($vehicleCodes) === 1) {
+            return $vehicleCodes[0];
+        }
+
+        return '';
+    }
+
+    private function resolveDistance(DailyDriversTripTicket $ticket): ?float
+    {
+        $distance = $this->toNullableFloat($ticket->distance_travelled);
+        if ($distance !== null) {
+            return $distance;
+        }
+
+        $odometerStart = $this->toNullableFloat($ticket->odometer_start);
+        $odometerEnd = $this->toNullableFloat($ticket->odometer_end);
+
+        if ($odometerStart !== null && $odometerEnd !== null) {
+            return max(0.0, round($odometerEnd - $odometerStart, 2));
+        }
+
+        return null;
+    }
+
+    private function toNullableFloat(mixed $value): ?float
+    {
+        return is_numeric($value) ? (float) $value : null;
+    }
+
+    private function extractVehicleCodes(string $vehicleIds): array
+    {
+        $value = trim($vehicleIds);
+        if ($value === '') {
+            return [];
+        }
+
+        $decoded = json_decode($value, true);
+        if (is_array($decoded)) {
+            $tokens = $decoded;
+        } else {
+            $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        }
+
+        return collect($tokens)
+            ->map(function ($token) {
+                if (is_array($token)) {
+                    return trim((string) ($token['vehicle_code'] ?? $token['code'] ?? ''));
+                }
+
+                return trim((string) $token);
+            })
+            ->filter(function (string $code) {
+                return $code !== '';
+            })
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function loadAssignatories(): Collection
+    {
+        if (!Schema::hasTable('assignatory_personnel')) {
+            return collect();
+        }
+
+        $query = AssignatoryPersonnel::query();
+
+        if (Schema::hasColumn('assignatory_personnel', 'is_active')) {
+            $query->orderByDesc('is_active');
+        }
+
+        return $query
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->get(['id', 'name', 'position', 'is_active']);
+    }
+
+    private function resolveSignatory(Collection $assignatories, ?int $assignatoryId, array $fallback): array
+    {
+        if ($assignatoryId) {
+            $target = $assignatories->firstWhere('id', $assignatoryId);
+            if ($target) {
+                $name = trim((string) ($target->name ?? ''));
+                $position = trim((string) ($target->position ?? ''));
+
+                return [
+                    'name' => $name !== '' ? $name : (string) ($fallback['name'] ?? 'N/A'),
+                    'position' => $position !== '' ? $position : (string) ($fallback['position'] ?? 'N/A'),
+                ];
+            }
+        }
+
+        return [
+            'name' => (string) ($fallback['name'] ?? 'N/A'),
+            'position' => (string) ($fallback['position'] ?? 'N/A'),
+        ];
+    }
+}

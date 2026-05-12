@@ -29,6 +29,7 @@ class TransportationRequestFormModel extends Model
         'division_personnel',
         'vehicle_id',
         'driver_name',
+        'vehicle_driver_map',
         'attachments',
         'status',
         'rejection_reason',
@@ -42,6 +43,7 @@ class TransportationRequestFormModel extends Model
         'business_passengers' => 'array',
         'division_personnel' => 'array',
         'attachments' => 'array',
+        'vehicle_driver_map' => 'array',
     ];
 
     public function normalizeAttachments(mixed $attachments = null): array
@@ -195,6 +197,11 @@ class TransportationRequestFormModel extends Model
     public function dailyDriversTripTicket(): HasOne
     {
         return $this->hasOne(DailyDriversTripTicket::class, 'transportation_request_form_id');
+    }
+
+    public function dailyDriversTripTickets(): HasMany
+    {
+        return $this->hasMany(DailyDriversTripTicket::class, 'transportation_request_form_id');
     }
 
     public function fuelIssuanceRecords(): HasMany

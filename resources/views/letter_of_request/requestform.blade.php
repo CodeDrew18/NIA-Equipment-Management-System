@@ -1493,9 +1493,20 @@ function validateRequiredAttachments() {
           }
 
           hasConfirmedSubmit = true;
-          requestForm.requestSubmit();
+          let downloadUiCompleted = false;
+          let downloadFallbackTimer = null;
 
-          window.setTimeout(function () {
+          function completeDownloadUi() {
+            if (downloadUiCompleted) {
+              return;
+            }
+
+            downloadUiCompleted = true;
+            if (downloadFallbackTimer !== null) {
+              window.clearTimeout(downloadFallbackTimer);
+              downloadFallbackTimer = null;
+            }
+
             hideLoadingModal();
             setPrimaryButtonBusy(false);
             if (downloadRequestFormInput) {
@@ -1504,7 +1515,17 @@ function validateRequiredAttachments() {
             requestForm.target = '';
             showDownloadSuccessBanner('Transportation request form downloaded successfully.');
             resetRequestFormAfterSuccess();
-          }, 2500);
+          }
+
+          if (downloadFrame) {
+            downloadFrame.addEventListener('load', completeDownloadUi, { once: true });
+          }
+
+          downloadFallbackTimer = window.setTimeout(function () {
+            completeDownloadUi();
+          }, 1200);
+
+          requestForm.requestSubmit();
         }
       });
     }

@@ -197,7 +197,7 @@ class DriverPerformanceEvaluationController extends Controller
             if (is_array($decoded)) {
                 $tokens = $decoded;
             } else {
-                $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $stringValue, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                $tokens = preg_split('/\s*\/\s*|\s*,\s*|\s*;\s*|\R+/', $stringValue, -1, PREG_SPLIT_NO_EMPTY) ?: [];
             }
         }
 
@@ -221,3 +221,4 @@ class DriverPerformanceEvaluationController extends Controller
         return strtolower(trim(preg_replace('/\s+/', ' ', $name) ?? ''));
     }
 }
+

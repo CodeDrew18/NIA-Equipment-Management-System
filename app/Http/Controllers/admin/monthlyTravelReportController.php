@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\admin;
 
+use App\Http\Controllers\Controller;
 use App\Models\TransportationRequestFormModel;
 use App\Support\AssignatoryPersonnelResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Collection;
-use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -16,7 +16,7 @@ class monthlyTravelReportController extends Controller
 {
     public function index(Request $request)
     {
-        return view('monthly_official_travel_report.monthly_travel_report', $this->buildReportData($request));
+        return view('admin.monthly_official_travel_report.monthly_travel_report', $this->buildReportData($request));
     }
 
     public function download(Request $request): StreamedResponse
@@ -24,13 +24,16 @@ class monthlyTravelReportController extends Controller
         $reportData = $this->buildReportData($request);
         $selectedMonth = (string) ($reportData['selectedMonth'] ?? now()->format('Y-m'));
         $monthLabel = Carbon::createFromFormat('Y-m', $selectedMonth)->format('F Y');
-        $driverName = (string) ($reportData['primaryDriver'] ?? 'N/A');
+        $driverName = (string) ($reportData['selectedDriver'] ?? $reportData['primaryDriver'] ?? 'N/A');
         $reportRows = collect($reportData['reportRows'] ?? []);
         $templatePath = $this->resolveMonthlyTravelTemplatePath();
 
-        $fileName = 'monthly_official_travel_report_' . $selectedMonth .'_'. $driverName . '.xlsx';
+        $fileName = 'monthly_official_travel_report_' . $selectedMonth . '_' . $driverName . '.xlsx';
 
-        $spreadsheet = IOFactory::load($templatePath);
+        $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
+        $reader->setReadDataOnly(false);
+        $reader->setIncludeCharts(false);
+        $spreadsheet = $reader->load($templatePath);
         $sheet = $spreadsheet->getActiveSheet();
 
         $sheet->setCellValue('A9', 'For the month of ' . $monthLabel);
@@ -106,10 +109,12 @@ class monthlyTravelReportController extends Controller
     {
         $validated = $request->validate([
             'month' => ['nullable', 'date_format:Y-m'],
+            'driver' => ['nullable', 'string'],
         ]);
 
         $selectedMonth = (string) ($validated['month'] ?? now()->format('Y-m'));
         $loggedInUserName = trim((string) ($request->user()?->name ?? Auth::user()?->name ?? ''));
+        $requestedDriver = trim((string) ($validated['driver'] ?? ''));
         $monthStart = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
         $monthEnd = (clone $monthStart)->endOfMonth();
 
@@ -137,9 +142,42 @@ class monthlyTravelReportController extends Controller
                 'business_passengers',
             ]);
 
-        $reportItems = $loggedInUserName !== ''
-            ? $candidateItems->filter(function (TransportationRequestFormModel $item) use ($loggedInUserName): bool {
-                return $this->containsDriverName((string) ($item->driver_name ?? ''), $loggedInUserName);
+        $driverOptions = TransportationRequestFormModel::query()
+            ->whereNotNull('driver_name')
+            ->where('driver_name', '!=', '')
+            ->orderBy('driver_name')
+            ->pluck('driver_name')
+            ->flatMap(function ($driverName): array {
+                return $this->extractDriverNames((string) $driverName);
+            })
+            ->map(fn(string $name): string => trim($name))
+            ->filter()
+            ->unique(function (string $name): string {
+                return strtolower($name);
+            })
+            ->sort()
+            ->values();
+
+        $selectedDriver = $requestedDriver !== '' ? $requestedDriver : $loggedInUserName;
+
+        if ($selectedDriver !== '') {
+            $selectedDriverLower = strtolower($selectedDriver);
+            $normalizedOptions = $driverOptions->map(fn(string $name): string => strtolower($name));
+
+            if (!$normalizedOptions->contains($selectedDriverLower)) {
+                $selectedDriver = (string) ($driverOptions->first() ?? '');
+            } else {
+                $selectedDriver = (string) ($driverOptions->first(function (string $name) use ($selectedDriverLower): bool {
+                    return strtolower($name) === $selectedDriverLower;
+                }) ?? $selectedDriver);
+            }
+        } else {
+            $selectedDriver = (string) ($driverOptions->first() ?? '');
+        }
+
+        $reportItems = $selectedDriver !== ''
+            ? $candidateItems->filter(function (TransportationRequestFormModel $item) use ($selectedDriver): bool {
+                return $this->containsDriverName((string) ($item->driver_name ?? ''), $selectedDriver);
             })->values()
             : collect();
 
@@ -232,7 +270,7 @@ class monthlyTravelReportController extends Controller
             ->values();
 
         $derivedPrimaryDriver = (string) ($driverNames->first() ?? 'N/A');
-        $primaryDriver = $loggedInUserName !== '' ? $loggedInUserName : $derivedPrimaryDriver;
+        $primaryDriver = $selectedDriver !== '' ? $selectedDriver : $derivedPrimaryDriver;
         $assignedDriver = $primaryDriver;
         $assignatory = AssignatoryPersonnelResolver::resolve();
         $divisionManagerName = (string) ($assignatory['name'] ?? 'N/A');
@@ -260,6 +298,8 @@ class monthlyTravelReportController extends Controller
 
         return [
             'selectedMonth' => $selectedMonth,
+            'selectedDriver' => $selectedDriver,
+            'driverOptions' => $driverOptions,
             'vehiclePlate' => $vehiclePlate,
             'assignedDriver' => $assignedDriver,
             'primaryDriver' => $primaryDriver,
@@ -559,7 +599,7 @@ class monthlyTravelReportController extends Controller
         if (is_array($decoded)) {
             $tokens = $decoded;
         } else {
-            $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $trimmed, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $tokens = preg_split('/\s*\/\s*|\s*,\s*|\s*;\s*|\R+/', $trimmed, -1, PREG_SPLIT_NO_EMPTY) ?: [];
         }
 
         return collect($tokens)

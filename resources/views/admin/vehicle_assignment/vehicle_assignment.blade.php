@@ -176,6 +176,9 @@
                             'pickup' => 0,
                             'other' => max(1, (int) ($item->vehicle_quantity ?? 1)),
                         ];
+                    $assignmentMix = is_array($item->assignment_vehicle_mix ?? null)
+                        ? $item->assignment_vehicle_mix
+                        : $requestedMix;
 
                     $vehicleLabels = [
                         'coaster' => 'Coaster',
@@ -244,13 +247,10 @@
                             @foreach ($displayVehicleTypeKeys as $typeKey)
                                 @php
                                     $requiredCount = (int) ($requestedMix[$typeKey] ?? 0);
+                                    $baseSlotCount = (int) ($assignmentMix[$typeKey] ?? $requiredCount);
                                     $vehicleOptions = $typeKey === 'other'
                                         ? $availableVehicles
                                         : ($availableVehiclesByType[$typeKey] ?? collect());
-
-                                    $slotVehicleOptions = $requiredCount > 0
-                                        ? $availableVehicles
-                                        : $vehicleOptions;
 
                                     $oldSelections = $oldRequestId === (int) $item->id
                                         ? (array) old('vehicle_codes.' . $typeKey, [])
@@ -260,12 +260,28 @@
                                         ? (array) old('driver_overrides.' . $typeKey, [])
                                         : [];
 
-                                    if ($requiredCount > 0 && $slotVehicleOptions->isEmpty()) {
+                                    $oldExtraDrivers = $oldRequestId === (int) $item->id
+                                        ? (array) old('extra_driver_names.' . $typeKey, [])
+                                        : [];
+
+                                    $slotCount = max(
+                                        $baseSlotCount,
+                                        count($oldSelections),
+                                        count($oldDriverOverrides),
+                                        count($oldExtraDrivers)
+                                    );
+                                    $canAddOptionalSlot = $requiredCount === 1 && $slotCount >= 2;
+
+                                    $slotVehicleOptions = $slotCount > 0
+                                        ? $availableVehicles
+                                        : $vehicleOptions;
+
+                                    if ($slotCount > 0 && $slotVehicleOptions->isEmpty()) {
                                         $missingRequiredInventory = true;
                                     }
                                 @endphp
 
-                                @continue($requiredCount < 1)
+                                @continue($slotCount < 1)
 
                                 @if ($slotVehicleOptions->isEmpty())
                                     <div class="rounded-xl border border-error/30 bg-error-container p-4 mb-4">
@@ -275,13 +291,25 @@
                                         </p>
                                     </div>
                                 @else
-                                    <div class="mx-auto grid w-full max-w-4xl grid-cols-1 gap-4">
-                                        @for ($slotIndex = 0; $slotIndex < $requiredCount; $slotIndex++)
+                                    <div class="mx-auto w-full max-w-4xl" @if($canAddOptionalSlot) data-assignment-optional-slot-group="true" @endif>
+                                        <div class="grid grid-cols-1 gap-4" @if($canAddOptionalSlot) data-assignment-slot-list="true" @endif>
+                                        @for ($slotIndex = 0; $slotIndex < $slotCount; $slotIndex++)
                                             @php
                                                 $oldSelectedCode = (string) ($oldSelections[$slotIndex] ?? '');
                                                 $oldSelectedOverride = (string) ($oldDriverOverrides[$slotIndex] ?? '');
+                                                $oldExtraDriver = (string) ($oldExtraDrivers[$slotIndex] ?? '');
+                                                $isRequiredSlot = $slotIndex < $requiredCount;
+                                                $isOptionalAdditionalSlot = $canAddOptionalSlot && !$isRequiredSlot;
+                                                $showOptionalAdditionalSlot = !$isOptionalAdditionalSlot
+                                                    || $oldSelectedCode !== ''
+                                                    || $oldSelectedOverride !== ''
+                                                    || $oldExtraDriver !== '';
                                             @endphp
-                                            <div class="relative overflow-hidden rounded-3xl border border-primary/10 bg-gradient-to-br from-white via-surface-container-low to-surface-container-high shadow-lg p-5 md:p-6 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl">
+                                            <div
+                                                class="relative overflow-hidden rounded-3xl border border-primary/10 bg-gradient-to-br from-white via-surface-container-low to-surface-container-high shadow-lg p-5 md:p-6 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl {{ $showOptionalAdditionalSlot ? '' : 'hidden' }}"
+                                                @if($isOptionalAdditionalSlot) data-assignment-optional-slot="true" @endif
+                                                @if($isOptionalAdditionalSlot && $slotIndex === $requiredCount) data-assignment-slot-template="true" @endif
+                                            >
                                                 <div class="pointer-events-none absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-primary/5 blur-2xl"></div>
                                                 <div class="relative flex items-start justify-between gap-4 mb-4">
                                                     <div class="flex items-center gap-3">
@@ -313,7 +341,8 @@
                                                             data-picker-title="Select Vehicle"
                                                             data-placeholder="Choose an available vehicle"
                                                             data-search-placeholder="Search vehicle code, type, driver, or status"
-                                                            required
+                                                            {{ $isRequiredSlot ? 'required' : '' }}
+                                                            {{ (!$showOptionalAdditionalSlot && $isOptionalAdditionalSlot) ? 'disabled' : '' }}
                                                         >
                                                             <option value="">Choose an available vehicle</option>
                                                         @foreach ($slotVehicleOptions as $vehicle)
@@ -347,6 +376,7 @@
                                                             data-picker-title="Driver Override"
                                                             data-placeholder="Use primary driver of selected vehicle"
                                                             data-search-placeholder="Search replacement driver"
+                                                            {{ (!$showOptionalAdditionalSlot && $isOptionalAdditionalSlot) ? 'disabled' : '' }}
                                                         >
                                                             <option value="" @selected($oldSelectedOverride === '')>Use primary driver of selected vehicle</option>
                                                         @foreach (($replacementDrivers ?? collect()) as $replacementDriver)
@@ -360,8 +390,54 @@
                                                         <p class="mt-1 text-[10px] font-semibold text-outline">No replacement drivers available yet.</p>
                                                     @endif
                                                 </div>
+
+                                                <div class="relative mt-4 space-y-2">
+                                                    <label class="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.18em] text-outline">
+                                                        <span class="material-symbols-outlined text-[18px]">person_add</span>
+                                                        Additional Driver <span class="ml-1 font-normal normal-case tracking-normal text-outline/70">(optional)</span>
+                                                    </label>
+                                                    <div class="relative">
+                                                        <select
+                                                            name="extra_driver_names[{{ $typeKey }}][]"
+                                                            class="assignment-native-select"
+                                                            data-assignment-custom-select="true"
+                                                            data-picker-title="Additional Driver"
+                                                            data-placeholder="None (single driver)"
+                                                            data-search-placeholder="Search additional driver"
+                                                            {{ (!$showOptionalAdditionalSlot && $isOptionalAdditionalSlot) ? 'disabled' : '' }}
+                                                        >
+                                                            <option value="" @selected($oldExtraDriver === '')>None (single driver)</option>
+                                                        @foreach (($replacementDrivers ?? collect()) as $replacementDriver)
+                                                            <option value="{{ $replacementDriver }}" @selected($oldExtraDriver === $replacementDriver)>
+                                                                {{ $replacementDriver }}
+                                                            </option>
+                                                        @endforeach
+                                                        </select>
+                                                    </div>
+                                                </div>
                                             </div>
                                         @endfor
+                                        </div>
+                                        @if ($canAddOptionalSlot)
+                                            <div class="mt-3 flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    data-assignment-add-slot="true"
+                                                    class="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-primary hover:bg-primary/10"
+                                                >
+                                                    <span class="material-symbols-outlined text-[16px]">add</span>
+                                                    Add another vehicle
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    data-assignment-remove-slot="true"
+                                                    class="hidden inline-flex items-center gap-1 rounded-lg border border-outline-variant/35 bg-surface-container-low px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-on-surface-variant hover:bg-surface-container-high"
+                                                >
+                                                    <span class="material-symbols-outlined text-[16px]">remove</span>
+                                                    Remove last vehicle
+                                                </button>
+                                            </div>
+                                        @endif
                                     </div>
                                 @endif
                             @endforeach
@@ -739,6 +815,8 @@
             select.dataset.assignmentCustomSelectMounted = 'true';
         }
 
+        window.assignmentMountCustomSelect = mountCustomSelect;
+
         nativeSelects.forEach(mountCustomSelect);
 
         if (pickerSearch) {
@@ -765,6 +843,165 @@
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape') {
                 closePickerModal();
+            }
+        });
+    })();
+</script>
+<script>
+    (function () {
+        const slotGroups = Array.from(document.querySelectorAll('[data-assignment-optional-slot-group="true"]'));
+
+        if (slotGroups.length < 1) {
+            return;
+        }
+
+        function toggleCustomWrapper(selectEl, isVisible) {
+            if (!selectEl) {
+                return;
+            }
+
+            const wrapper = selectEl.nextElementSibling;
+            if (!wrapper || !wrapper.classList.contains('assignment-custom-select')) {
+                return;
+            }
+
+            const trigger = wrapper.querySelector('[data-role="trigger"]');
+            if (!trigger) {
+                return;
+            }
+
+            trigger.disabled = !isVisible;
+            trigger.classList.toggle('opacity-60', !isVisible);
+            trigger.classList.toggle('cursor-not-allowed', !isVisible);
+        }
+
+        function getOptionalSlots(groupEl) {
+            return Array.from(groupEl.querySelectorAll('[data-assignment-optional-slot="true"]'));
+        }
+
+        function setSlotVisibility(slotEl, isVisible, shouldResetValues) {
+            const inputs = Array.from(slotEl.querySelectorAll('select'));
+
+            if (shouldResetValues) {
+                inputs.forEach(function (inputEl) {
+                    inputEl.value = '';
+                    inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+            }
+
+            slotEl.classList.toggle('hidden', !isVisible);
+
+            inputs.forEach(function (inputEl) {
+                inputEl.disabled = !isVisible;
+                toggleCustomWrapper(inputEl, isVisible);
+            });
+        }
+
+        function initializeClonedOptionalSlot(slotEl) {
+            const existingWrappers = Array.from(slotEl.querySelectorAll('.assignment-custom-select'));
+            existingWrappers.forEach(function (wrapper) {
+                wrapper.remove();
+            });
+
+            const inputs = Array.from(slotEl.querySelectorAll('select'));
+            inputs.forEach(function (inputEl) {
+                delete inputEl.dataset.assignmentCustomSelectMounted;
+                inputEl.disabled = false;
+                inputEl.value = '';
+
+                if (typeof window.assignmentMountCustomSelect === 'function') {
+                    window.assignmentMountCustomSelect(inputEl);
+                }
+
+                inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        }
+
+        function updateGroupState(groupEl) {
+            const addButton = groupEl.querySelector('[data-assignment-add-slot="true"]');
+            const removeButton = groupEl.querySelector('[data-assignment-remove-slot="true"]');
+            const optionalSlots = getOptionalSlots(groupEl);
+            const visibleOptionalSlots = optionalSlots.filter(function (slotEl) {
+                return !slotEl.classList.contains('hidden');
+            });
+
+            if (addButton) {
+                addButton.classList.remove('hidden');
+            }
+
+            if (removeButton) {
+                removeButton.classList.toggle('hidden', visibleOptionalSlots.length < 1);
+            }
+        }
+
+        function addOptionalSlot(groupEl) {
+            const optionalSlots = getOptionalSlots(groupEl);
+            const hiddenSlot = optionalSlots.find(function (slotEl) {
+                return slotEl.classList.contains('hidden');
+            });
+
+            if (hiddenSlot) {
+                setSlotVisibility(hiddenSlot, true, false);
+                updateGroupState(groupEl);
+                return;
+            }
+
+            const templateSlot = groupEl.querySelector('[data-assignment-slot-template="true"]') || optionalSlots[0];
+            const slotList = groupEl.querySelector('[data-assignment-slot-list="true"]');
+            if (!templateSlot || !slotList) {
+                return;
+            }
+
+            const clonedSlot = templateSlot.cloneNode(true);
+            clonedSlot.removeAttribute('data-assignment-slot-template');
+            slotList.appendChild(clonedSlot);
+
+            initializeClonedOptionalSlot(clonedSlot);
+            setSlotVisibility(clonedSlot, true, false);
+            updateGroupState(groupEl);
+        }
+
+        function removeOptionalSlot(groupEl) {
+            const optionalSlots = getOptionalSlots(groupEl);
+            const visibleOptionalSlots = optionalSlots.filter(function (slotEl) {
+                return !slotEl.classList.contains('hidden');
+            });
+
+            if (visibleOptionalSlots.length < 1) {
+                return;
+            }
+
+            const slotToRemove = visibleOptionalSlots[visibleOptionalSlots.length - 1];
+            if (slotToRemove.hasAttribute('data-assignment-slot-template')) {
+                setSlotVisibility(slotToRemove, false, true);
+            } else {
+                slotToRemove.remove();
+            }
+
+            updateGroupState(groupEl);
+        }
+
+        slotGroups.forEach(function (groupEl) {
+            const addButton = groupEl.querySelector('[data-assignment-add-slot="true"]');
+            const removeButton = groupEl.querySelector('[data-assignment-remove-slot="true"]');
+
+            getOptionalSlots(groupEl).forEach(function (optionalSlot) {
+                const isVisible = !optionalSlot.classList.contains('hidden');
+                setSlotVisibility(optionalSlot, isVisible, false);
+            });
+
+            updateGroupState(groupEl);
+
+            if (addButton) {
+                addButton.addEventListener('click', function () {
+                    addOptionalSlot(groupEl);
+                });
+            }
+
+            if (removeButton) {
+                removeButton.addEventListener('click', function () {
+                    removeOptionalSlot(groupEl);
+                });
             }
         });
     })();

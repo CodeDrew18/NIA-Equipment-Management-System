@@ -15,6 +15,7 @@ class DailyDriversTripTicket extends Model
     protected $fillable = [
         'transportation_request_form_id',
         'assigned_driver_name',
+        'assigned_vehicle_code',
         'request_form_data',
         'attachment',
         'departure_time',
