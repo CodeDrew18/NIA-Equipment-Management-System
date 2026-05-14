@@ -177,18 +177,6 @@ class dailyTripTicketController extends Controller
             abort(500, 'DTT template file not found: DRIVERS_TRIP_TICKET_FORM-1_rev_09.xlsx');
         }
 
-        $passengerNames = collect(is_array($transportationRequest->business_passengers) ? $transportationRequest->business_passengers : [])
-            ->map(function ($row) {
-                if (is_array($row) && isset($row['name'])) {
-                    return trim((string) $row['name']);
-                }
-
-                return is_string($row) ? trim($row) : '';
-            })
-            ->filter()
-            ->values()
-            ->implode(', ');
-
         $assignedVehicleCodes = $this->extractVehicleCodes((string) $transportationRequest->vehicle_id);
         $vehicleDriverMap = is_array($transportationRequest->vehicle_driver_map)
             ? $transportationRequest->vehicle_driver_map
@@ -209,8 +197,7 @@ class dailyTripTicketController extends Controller
                 $transportationRequest,
                 $templatePath,
                 $requestedVehicle,
-                $driverForVehicle !== '' ? $driverForVehicle : null,
-                $passengerNames
+                $driverForVehicle !== '' ? $driverForVehicle : null
             );
 
             if ($target === null) {
@@ -227,8 +214,7 @@ class dailyTripTicketController extends Controller
                 $transportationRequest,
                 $templatePath,
                 null,
-                $requestedDriver,
-                $passengerNames
+                $requestedDriver
             );
 
             if ($target !== null) {
@@ -252,8 +238,7 @@ class dailyTripTicketController extends Controller
                     $transportationRequest,
                     $templatePath,
                     $vehicleCode,
-                    $driverForVehicle !== '' ? $driverForVehicle : null,
-                    $passengerNames
+                    $driverForVehicle !== '' ? $driverForVehicle : null
                 );
 
                 if ($target === null) {
@@ -268,8 +253,7 @@ class dailyTripTicketController extends Controller
                 $transportationRequest,
                 $templatePath,
                 null,
-                trim((string) ($transportationRequest->driver_name ?? '')) ?: null,
-                $passengerNames
+                trim((string) ($transportationRequest->driver_name ?? '')) ?: null
             );
 
             if ($target !== null) {
@@ -291,8 +275,7 @@ class dailyTripTicketController extends Controller
         TransportationRequestFormModel $transportationRequest,
         string $templatePath,
         ?string $vehicleCode,
-        ?string $driverName,
-        string $passengerNames
+        ?string $driverName
     ): ?array {
         $expectedDriver = trim((string) ($driverName ?? ''));
         $snapshot = $this->buildRequestFormDataSnapshot($transportationRequest);
@@ -308,12 +291,17 @@ class dailyTripTicketController extends Controller
             ];
         }
 
+        $ticketSnapshot = $ticket && is_array($ticket->request_form_data) ? $ticket->request_form_data : $snapshot;
+        $passengerNames = $this->resolvePassengerNames($ticketSnapshot);
+        $destination = trim((string) ($ticketSnapshot['destination'] ?? ''));
+
         $this->generateDttForVehicle(
             $transportationRequest,
             $templatePath,
             $vehicleCode,
             $expectedDriver !== '' ? $expectedDriver : null,
-            $passengerNames
+            $passengerNames,
+            $destination
         );
 
         $ticket = $this->resolveDttTicketQuery($transportationRequest->id, $vehicleCode)->first();
@@ -388,7 +376,8 @@ class dailyTripTicketController extends Controller
         string $templatePath,
         ?string $vehicleCode,
         ?string $driverName,
-        string $passengerNames
+        string $passengerNames,
+        string $destination
     ): void {
         // Use Xlsx reader directly to skip auto-detection overhead and disable charts/drawings
         $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
@@ -416,7 +405,7 @@ class dailyTripTicketController extends Controller
         $sheet->setCellValue('E10', (string) ($passengerNames !== '' ? $passengerNames : 'N/A'));
 
         $sheet->mergeCells('E11:V11');
-        $sheet->setCellValue('E11', (string) ($transportationRequest->destination ?: 'N/A'));
+        $sheet->setCellValue('E11', (string) ($destination !== '' ? $destination : 'N/A'));
 
         $sheet->mergeCells('E12:V12');
         $sheet->setCellValue('E12', (string) ($transportationRequest->purpose ?: 'N/A'));
@@ -671,6 +660,7 @@ class dailyTripTicketController extends Controller
             'requested_by' => (string) ($transportationRequest->requested_by ?? ''),
             'requestor_name' => (string) ($transportationRequest->requestor_name ?? ''),
             'destination' => (string) ($transportationRequest->destination ?? ''),
+            'business_passengers' => is_array($transportationRequest->business_passengers) ? $transportationRequest->business_passengers : [],
             'date_time_from' => optional($transportationRequest->date_time_from)->toDateTimeString(),
             'date_time_to' => optional($transportationRequest->date_time_to)->toDateTimeString(),
             'vehicle_type' => (string) ($transportationRequest->vehicle_type ?? ''),
@@ -679,6 +669,30 @@ class dailyTripTicketController extends Controller
             'driver_name' => (string) ($transportationRequest->driver_name ?? ''),
             'status' => (string) ($transportationRequest->status ?? ''),
         ];
+    }
+
+    private function resolvePassengerNames(array $snapshot): string
+    {
+        $passengerValue = $snapshot['business_passengers'] ?? $snapshot['passengers'] ?? $snapshot['passenger_names'] ?? $snapshot['passenger'] ?? [];
+
+        if (is_string($passengerValue)) {
+            $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $passengerValue, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        } elseif (is_array($passengerValue)) {
+            $tokens = $passengerValue;
+        } else {
+            $tokens = [];
+        }
+
+        return collect($tokens)
+            ->map(function ($row) {
+                if (is_array($row) && isset($row['name'])) {
+                    return trim((string) $row['name']);
+                }
+                return is_string($row) ? trim((string) $row) : '';
+            })
+            ->filter()
+            ->values()
+            ->implode(', ');
     }
 
     private function hasPrintedDttAttachment(TransportationRequestFormModel $transportationRequest): bool

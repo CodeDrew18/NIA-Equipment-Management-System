@@ -3,7 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DailyTripTicketController;
 use App\Http\Controllers\Api\DriverPerformanceEvaluationController;
-use App\Http\Controllers\monthlyTravelReportController;
+use App\Http\Controllers\admin\monthlyTravelReportController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);

@@ -117,7 +117,7 @@
 </div>
 </div>
 </header>
-<form id="request-form" class="space-y-10 px-4" method="POST" action="{{route('request-form.submit')}}" enctype="multipart/form-data">
+<form id="request-form" class="space-y-10 px-4" method="POST" action="{{ route('request-form.submit', [], false) }}" enctype="multipart/form-data">
 <input type="hidden" name="download_request_form" value="0" />
 <!-- Section 1: Requestor & Trip Core Info -->
   @csrf
@@ -601,6 +601,153 @@ function validateRequiredAttachments() {
       window.setTimeout(function () {
         downloadSuccessBanner.classList.add('hidden');
       }, 5000);
+    }
+
+    function showFormErrorMessage(message) {
+      if (!formValidationBanner) {
+        return;
+      }
+
+      formValidationBanner.textContent = message || 'Download failed. Please check required fields and try again.';
+      formValidationBanner.classList.remove('hidden');
+      formValidationBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function parseRequestFormFileName(contentDisposition, fallback) {
+      if (!contentDisposition) {
+        return fallback;
+      }
+
+      const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+      if (utf8Match && utf8Match[1]) {
+        try {
+          return decodeURIComponent(utf8Match[1]).replace(/[\\/:*?"<>|]/g, '_');
+        } catch (error) {
+          return utf8Match[1].replace(/[\\/:*?"<>|]/g, '_');
+        }
+      }
+
+      const simpleMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+      if (simpleMatch && simpleMatch[1]) {
+        return simpleMatch[1].replace(/[\\/:*?"<>|]/g, '_');
+      }
+
+      return fallback;
+    }
+
+    function triggerRequestFormDownload(blob, fileName) {
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+
+      link.href = objectUrl;
+      link.download = fileName;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.setTimeout(function () {
+        window.URL.revokeObjectURL(objectUrl);
+      }, 1000);
+    }
+
+    async function resolveRequestFormErrorMessage(response) {
+      const statusCode = Number(response.status || 0);
+      const redirectedUrl = String(response.url || '').toLowerCase();
+      if (response.redirected && (redirectedUrl.includes('login') || redirectedUrl.includes('signin'))) {
+        return 'Session expired. Please refresh the page and try again.';
+      }
+
+      if (statusCode === 401 || statusCode === 403) {
+        return 'You are not authorized to download this request. Please sign in again.';
+      }
+
+      if (statusCode === 404) {
+        return 'Download endpoint was not found. Please contact support.';
+      }
+
+      if (statusCode === 419) {
+        return 'Session expired. Please refresh the page and try again.';
+      }
+
+      if (statusCode >= 500) {
+        return 'Server error while generating the request form. Please try again.';
+      }
+
+      const contentType = response.headers.get('Content-Type') || '';
+
+      if (contentType.includes('application/json')) {
+        try {
+          const payload = await response.json();
+          const errorMessages = payload && payload.errors
+            ? Object.values(payload.errors).flat().map(function (message) {
+              return String(message || '').trim();
+            }).filter(Boolean)
+            : [];
+
+          if (errorMessages.length > 0) {
+            return errorMessages.join(' ');
+          }
+
+          if (payload && payload.message) {
+            return String(payload.message || '').trim();
+          }
+        } catch (error) {
+          // Ignore JSON parse failures and fall back to generic message.
+        }
+      }
+
+      try {
+        const text = await response.text();
+        const normalized = text.toLowerCase();
+        if (normalized.includes('csrf') || normalized.includes('page expired')) {
+          return 'Session expired. Please refresh the page and try again.';
+        }
+      } catch (error) {
+        // Ignore body read failures.
+      }
+
+      return 'Download failed. Please check required fields and try again.';
+    }
+
+    async function downloadRequestFormFile() {
+      if (!requestForm) {
+        return false;
+      }
+
+      const formData = new FormData(requestForm);
+      formData.set('download_request_form', '1');
+
+      const csrfTokenValue = String(formData.get('_token') || '').trim();
+      const requestHeaders = {
+        'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      };
+      if (csrfTokenValue !== '') {
+        requestHeaders['X-CSRF-TOKEN'] = csrfTokenValue;
+      }
+
+      const response = await fetch(requestForm.action, {
+        method: 'POST',
+        body: formData,
+        headers: requestHeaders,
+        credentials: 'same-origin',
+      });
+
+      const contentDisposition = response.headers.get('Content-Disposition') || '';
+      const contentType = response.headers.get('Content-Type') || '';
+      const isAttachment = /attachment/i.test(contentDisposition)
+        || contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+      if (!response.ok || !isAttachment) {
+        const message = await resolveRequestFormErrorMessage(response);
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const fileName = parseRequestFormFileName(contentDisposition, 'Transportation_Request_Form.xlsx');
+      triggerRequestFormDownload(blob, fileName);
+      return true;
     }
 
     function markInputError(inputElement, hasError) {
@@ -1464,7 +1611,7 @@ function validateRequiredAttachments() {
     }
 
     if (confirmDownloadYes) {
-      confirmDownloadYes.addEventListener('click', function () {
+      confirmDownloadYes.addEventListener('click', async function () {
         const action = pendingDownloadAction;
 
         if (!action) {
@@ -1481,51 +1628,29 @@ function validateRequiredAttachments() {
 
         if (action.type === 'download') {
           hideConfirmModal();
+          if (!validateFormBeforeSubmission()) {
+            return;
+          }
+
           showLoadingModal();
           setPrimaryButtonBusy(true);
+          let didDownload = false;
 
-          if (downloadRequestFormInput) {
-            downloadRequestFormInput.value = '1';
-          }
-
-          if (downloadFrame) {
-            requestForm.target = downloadFrame.name;
-          }
-
-          hasConfirmedSubmit = true;
-          let downloadUiCompleted = false;
-          let downloadFallbackTimer = null;
-
-          function completeDownloadUi() {
-            if (downloadUiCompleted) {
-              return;
+          try {
+            didDownload = await downloadRequestFormFile();
+            if (didDownload) {
+              showDownloadSuccessBanner('Transportation request form downloaded successfully.');
+              resetRequestFormAfterSuccess();
             }
-
-            downloadUiCompleted = true;
-            if (downloadFallbackTimer !== null) {
-              window.clearTimeout(downloadFallbackTimer);
-              downloadFallbackTimer = null;
+          } catch (error) {
+            showFormErrorMessage(error && error.message ? error.message : 'Download failed. Please try again.');
+          } finally {
+            if (!didDownload) {
+              hideLoadingModal();
+              setPrimaryButtonBusy(false);
+              hasConfirmedSubmit = false;
             }
-
-            hideLoadingModal();
-            setPrimaryButtonBusy(false);
-            if (downloadRequestFormInput) {
-              downloadRequestFormInput.value = '0';
-            }
-            requestForm.target = '';
-            showDownloadSuccessBanner('Transportation request form downloaded successfully.');
-            resetRequestFormAfterSuccess();
           }
-
-          if (downloadFrame) {
-            downloadFrame.addEventListener('load', completeDownloadUi, { once: true });
-          }
-
-          downloadFallbackTimer = window.setTimeout(function () {
-            completeDownloadUi();
-          }, 1200);
-
-          requestForm.requestSubmit();
         }
       });
     }

@@ -110,7 +110,7 @@
 </div>
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
 <label class="block font-label text-[10px] font-bold text-outline uppercase tracking-widest mb-1">Vehicle Plate No.</label>
-<input class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold" type="text" value="{{ $vehiclePlate }}"/>
+<input class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold opacity-70 cursor-not-allowed" type="text" value="{{ $vehiclePlate }}" readonly/>
 </div>
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
 <label class="block font-label text-[10px] font-bold text-outline uppercase tracking-widest mb-1">Assigned Driver</label>
@@ -128,7 +128,7 @@
 </div>
 <div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
 <label class="block font-label text-[10px] font-bold text-outline uppercase tracking-widest mb-1">Property Number</label>
-<input class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold" type="text" value="{{ $propertyNumber }}"/>
+<input class="w-full bg-surface-container-low border-none rounded focus:ring-0 focus:border-primary border-b-2 border-transparent text-on-surface font-semibold opacity-70 cursor-not-allowed" type="text" value="{{ $propertyNumber }}" readonly/>
 </div>
 </section>
 <!-- Main Report Table -->

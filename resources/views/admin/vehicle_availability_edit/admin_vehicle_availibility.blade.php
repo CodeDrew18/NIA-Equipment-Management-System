@@ -120,7 +120,8 @@ body { font-family: 'Public Sans', sans-serif; }
                 $errors->has('create_capacity_label') ||
                 $errors->has('create_driver_name') ||
                 $errors->has('create_status') ||
-                $errors->has('create_vehicle_image')
+                $errors->has('create_vehicle_image') ||
+                $errors->has('create_rental_rate')
             )
                 <div class="rounded-lg border border-error/30 bg-error-container px-4 py-3 text-sm font-semibold text-on-error-container">
                     {{
@@ -130,6 +131,7 @@ body { font-family: 'Public Sans', sans-serif; }
                         ?: $errors->first('create_driver_name')
                         ?: $errors->first('create_status')
                         ?: $errors->first('create_vehicle_image')
+                        ?: $errors->first('create_rental_rate')
                     }}
                 </div>
             @endif
@@ -159,6 +161,10 @@ body { font-family: 'Public Sans', sans-serif; }
                             <option value="{{ $statusOption }}" @selected(old('create_status', 'Available') === $statusOption)>{{ $statusOption }}</option>
                         @endforeach
                     </select>
+                </div>
+                <div>
+                    <label for="create_rental_rate" class="text-xs font-semibold uppercase tracking-wider text-primary/60">Rental Rate (per km)</label>
+                    <input id="create_rental_rate" name="create_rental_rate" type="number" step="0.01" value="{{ old('create_rental_rate') }}" class="mt-1 block w-full rounded-lg border-outline-variant text-sm focus:border-primary focus:ring-primary" placeholder="e.g. 17.36">
                 </div>
             </div>
 
@@ -287,6 +293,19 @@ class="mt-1 block w-full rounded-lg border-outline-variant text-sm focus:border-
 </select>
 </div>
 
+<div>
+<label class="text-xs font-semibold uppercase tracking-wider text-primary/60" for="rental_rate_{{ $vehicle->id }}">Rental Rate (per km)</label>
+<input
+id="rental_rate_{{ $vehicle->id }}"
+name="rental_rate"
+type="number"
+step="0.01"
+value="{{ old('rental_rate', $vehicle->rental_rate) }}"
+class="mt-1 block w-full rounded-lg border-outline-variant text-sm focus:border-primary focus:ring-primary"
+placeholder="e.g. 17.36"
+/>
+</div>
+
 {{-- <p class="-mt-2 text-[10px] text-on-surface-variant">Accepted: JPG, PNG, WEBP (max 4MB). Click the image area to select a file.</p> --}}
 
 <div class="text-xs text-on-surface-variant">{{ $vehicle->capacity_label ?: 'No capacity set' }}</div>
@@ -401,7 +420,8 @@ function previewVehicleImage(event, vehicleId) {
         $errors->has('create_capacity_label') ||
         $errors->has('create_driver_name') ||
         $errors->has('create_status') ||
-        $errors->has('create_vehicle_image')
+        $errors->has('create_vehicle_image') ||
+        $errors->has('create_rental_rate')
     );
 
     if (hasCreateFormErrors) {

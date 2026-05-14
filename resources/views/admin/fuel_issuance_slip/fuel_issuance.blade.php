@@ -1082,6 +1082,71 @@ function fiFormatCurrency(value) {
     });
 }
 
+function fiParseDownloadFileName(contentDisposition, fallback) {
+    if (!contentDisposition) {
+        return fallback;
+    }
+
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match && utf8Match[1]) {
+        try {
+            return decodeURIComponent(utf8Match[1]).replace(/[\\/:*?"<>|]/g, '_');
+        } catch (error) {
+            return utf8Match[1].replace(/[\\/:*?"<>|]/g, '_');
+        }
+    }
+
+    const simpleMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+    if (simpleMatch && simpleMatch[1]) {
+        return simpleMatch[1].replace(/[\\/:*?"<>|]/g, '_');
+    }
+
+    return fallback;
+}
+
+function fiTriggerDownload(blob, fileName) {
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = objectUrl;
+    link.download = fileName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.setTimeout(function () {
+        window.URL.revokeObjectURL(objectUrl);
+    }, 1000);
+}
+
+async function fiResolveDownloadErrorMessage(response) {
+    const contentType = response.headers.get('Content-Type') || '';
+
+    if (contentType.includes('application/json')) {
+        try {
+            const payload = await response.json();
+            const errorMessages = payload && payload.errors
+                ? Object.values(payload.errors).flat().map(function (message) {
+                    return String(message || '').trim();
+                }).filter(Boolean)
+                : [];
+
+            if (errorMessages.length > 0) {
+                return errorMessages.join(' ');
+            }
+
+            if (payload && payload.message) {
+                return String(payload.message || '').trim();
+            }
+        } catch (error) {
+            // Ignore JSON parse failures and fall back to generic message.
+        }
+    }
+
+    return 'Download failed. Please review the fuel issuance fields and try again.';
+}
+
 function fiPrintActionLabel() {
     return fiCurrentCopies.length > 1 ? 'Print All' : 'Print';
 }
@@ -1112,7 +1177,7 @@ function fiHideConfirmPrintModal() {
 
 async function fiPrintOfficeCopy(copyKey, options = {}) {
     if (!fiSelectedRequestId || !copyKey) {
-        return;
+        return false;
     }
 
     const manageLoading = options.manageLoading !== false;
@@ -1123,11 +1188,11 @@ async function fiPrintOfficeCopy(copyKey, options = {}) {
     const copy = fiFindCopy(copyKey);
     if (!copy) {
         fiShowWarningModal('The selected transportation copy is no longer available.');
-        return;
+        return false;
     }
 
     if (!fiValidateSingleCopyFields(copyKey, true, 'Dealer, all fuel quantities, and all fuel prices per liter are required.')) {
-        return;
+        return false;
     }
 
     const copyState = fiGetCopyState(copyKey);
@@ -1150,73 +1215,56 @@ async function fiPrintOfficeCopy(copyKey, options = {}) {
         ? fiEls.copiesContainer.querySelector(`.fi-print-copy[data-copy-key="${copyKey}"]`)
         : null;
 
-    const iframeId = 'fi-download-frame';
-    let frame = document.getElementById(iframeId);
-    if (!frame) {
-        frame = document.createElement('iframe');
-        frame.id = iframeId;
-        frame.name = iframeId;
-        frame.style.display = 'none';
-        document.body.appendChild(frame);
+    if (printButton) {
+        printButton.disabled = true;
     }
 
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = fiPrintUrl;
-    form.target = iframeId;
-    form.style.display = 'none';
+    if (manageLoading) {
+        fiShowLoadingModal(loadingMessage);
+    }
 
-    Object.entries(payload).forEach(function ([key, value]) {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = key;
-        input.value = value;
-        form.appendChild(input);
-    });
+    try {
+        const formData = new FormData();
+        Object.entries(payload).forEach(function ([key, value]) {
+            formData.append(key, value);
+        });
 
-    let isCompleted = false;
-    await new Promise(function (resolve) {
-        function completeDownloadUI() {
-            if (isCompleted) {
-                return;
-            }
+        const response = await fetch(fiPrintUrl, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+        });
 
-            isCompleted = true;
-            if (manageLoading) {
-                fiHideLoadingModal();
-            }
-            if (printButton) {
-                printButton.disabled = false;
-            }
-            window.removeEventListener('focus', handleWindowFocus);
-            resolve();
+        const contentDisposition = response.headers.get('Content-Disposition') || '';
+        const contentType = response.headers.get('Content-Type') || '';
+        const isAttachment = /attachment/i.test(contentDisposition)
+            || contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        if (!response.ok || !isAttachment) {
+            const message = await fiResolveDownloadErrorMessage(response);
+            throw new Error(message);
         }
 
-        function handleWindowFocus() {
-            completeDownloadUI();
-        }
-
-        function handleFrameLoad() {
-            completeDownloadUI();
-        }
-
-        if (printButton) {
-            printButton.disabled = true;
-        }
+        const blob = await response.blob();
+        const fallbackName = 'Fuel_Issuance_Office_Copy_' + String(copy.copyNumber || '1') + '.xlsx';
+        const fileName = fiParseDownloadFileName(contentDisposition, fallbackName);
+        fiTriggerDownload(blob, fileName);
+        return true;
+    } catch (error) {
+        fiShowWarningModal(error && error.message ? error.message : 'Download failed. Please try again.');
+        return false;
+    } finally {
         if (manageLoading) {
-            fiShowLoadingModal(loadingMessage);
+            fiHideLoadingModal();
         }
-        window.addEventListener('focus', handleWindowFocus);
-        frame.addEventListener('load', handleFrameLoad, { once: true });
-
-        document.body.appendChild(form);
-        form.submit();
-        form.remove();
-
-        setTimeout(function () {
-            completeDownloadUI();
-        }, 1200);
-    });
+        if (printButton) {
+            printButton.disabled = false;
+        }
+    }
 }
 
 async function fiPrintAllCopies() {
@@ -1249,9 +1297,13 @@ async function fiPrintAllCopies() {
                 fiEls.loadingModalText.textContent = loadingLabel;
             }
 
-            await fiPrintOfficeCopy(copy.copyKey, {
+            const wasSuccessful = await fiPrintOfficeCopy(copy.copyKey, {
                 manageLoading: false,
             });
+
+            if (!wasSuccessful) {
+                break;
+            }
         }
     } finally {
         fiHideLoadingModal();

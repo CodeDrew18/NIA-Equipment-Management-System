@@ -147,6 +147,7 @@
 <div class="flex gap-2">
 <button type="submit" class="h-[40px] px-4 bg-primary text-white font-bold rounded-lg hover:bg-primary-container">Load Report</button>
 <a href="{{ route('admin.monthly-equipment-utilization-report') }}" class="h-[40px] px-4 bg-surface border border-outline-variant/40 rounded-lg text-on-surface-variant font-bold flex items-center">Reset</a>
+<a href="{{ route('admin.monthly-equipment-utilization-report.download', request()->query()) }}" target="_blank" class="h-[40px] px-4 bg-[#3a6843] text-white font-bold rounded-lg flex items-center hover:bg-[#22502d] transition-colors"><span class="material-symbols-outlined mr-2 text-[18px]">print</span>Print Report</a>
 </div>
 </form>
 </div>
@@ -219,6 +220,7 @@
 <td class="p-3 font-semibold leading-tight py-4">{{ $row['typeLabel'] }}</td>
 <td class="p-3 text-center font-mono py-4">{{ $row['serialLabel'] }}</td>
 <td class="p-3 text-center py-4">{{ $row['propPlateLabel'] }}</td>
+@if ($row['totalDistance'] > 0)
 @foreach ($row['days'] as $distance)
 @php
     $distanceValue = is_numeric($distance) ? (float) $distance : 0.0;
@@ -228,9 +230,18 @@
 {{ $hasDistance ? number_format($distanceValue, 1) : '0' }}
 </td>
 @endforeach
+@else
+<td colspan="{{ $daysInMonth }}" class="p-3 text-center font-bold tracking-[0.3em] text-outline/50 bg-surface-container-low/30 border-l border-r uppercase">
+NO OPERATION
+</td>
+@endif
 <td class="p-3 text-center font-bold py-4 bg-surface-container/30 text-primary">{{ number_format((float) $row['totalDistance'], 1) }}</td>
-<td class="p-3 text-center py-4 text-right pr-4 italic text-on-surface-variant">N/A</td>
-<td class="p-3 text-right pr-4 font-black py-4">N/A</td>
+<td class="p-3 text-center py-4 text-right pr-4 italic {{ $row['rentalRate'] > 0 ? 'text-primary font-bold' : 'text-on-surface-variant' }}">
+    {{ $row['rentalRate'] > 0 ? '₱ ' . number_format($row['rentalRate'], 2) : 'N/A' }}
+</td>
+<td class="p-3 text-right pr-4 font-black py-4 {{ $row['rentalRate'] > 0 && $row['totalDistance'] > 0 ? 'text-secondary' : 'text-on-surface-variant' }}">
+    {{ $row['rentalRate'] > 0 && $row['totalDistance'] > 0 ? '₱ ' . number_format($row['totalDistance'] * $row['rentalRate'], 2) : 'N/A' }}
+</td>
 </tr>
 @empty
 <tr>
@@ -240,11 +251,15 @@
 </tbody>
 <tfoot>
 <tr class="bg-primary text-white font-black uppercase">
-<td class="p-6 text-right tracking-[0.2em] text-base border-r border-white/10" colspan="{{ $daysInMonth + 3 }}">Grand Total Utilization (Kms/Hrs)</td>
-<td class="p-6 text-right pr-6 text-2xl font-black" colspan="3">
+<td class="p-6 text-right tracking-[0.2em] text-base border-r border-white/10" colspan="{{ $daysInMonth + 3 }}">Grand Total</td>
+<td class="p-6 text-center text-xl font-bold border-r border-white/10">
+{{ number_format((float) $grandTotalDistance, 1) }}
+</td>
+<td class="p-6 border-r border-white/10"></td>
+<td class="p-6 text-right pr-6 text-2xl font-black">
 <div class="flex justify-between items-center">
 <span class="text-sm opacity-70 font-normal">₱</span>
-<span>{{ number_format((float) $grandTotalDistance, 1) }}</span>
+<span>{{ number_format((float) ($grandTotalAmount ?? 0), 2) }}</span>
 </div>
 </td>
 </tr>

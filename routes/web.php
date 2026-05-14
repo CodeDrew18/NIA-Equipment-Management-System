@@ -123,6 +123,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/admin/reports/travel/export', [App\Http\Controllers\admin\travelReportController::class, 'export'])->name('admin.travel-reports.export');
         Route::get('/admin/reports/fuel-consumption', [App\Http\Controllers\admin\fuelConsumptionReportController::class, 'index'])->name('admin.fuel-consumption-report');
         Route::get('/admin/reports/monthly-equipment-utilization', [App\Http\Controllers\admin\monthlyEquipmentUtilizationReportController::class, 'index'])->name('admin.monthly-equipment-utilization-report');
+        Route::get('/admin/reports/monthly-equipment-utilization/download', [App\Http\Controllers\admin\monthlyEquipmentUtilizationReportController::class, 'download'])->name('admin.monthly-equipment-utilization-report.download');
         Route::get('/admin/notifications/pending-transportation-requests', [NotificationModalController::class, 'adminPendingTransportationRequests'])->name('admin.notifications.pending-transportation-requests');
 
         Route::get("/admin/monthly-official-travel-report", [App\Http\Controllers\admin\monthlyTravelReportController::class, 'index'])->name('admin.monthly-official-travel-report');

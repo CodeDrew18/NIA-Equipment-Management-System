@@ -21,6 +21,7 @@ class AdminVehicleAvailability extends Model
         'status',
         'image_url',
         'remarks',
+        'rental_rate',
     ];
 
     public function getResolvedImageUrlAttribute(): ?string

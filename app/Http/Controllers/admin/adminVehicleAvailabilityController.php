@@ -56,6 +56,7 @@ class adminVehicleAvailabilityController extends Controller
             'create_driver_name' => ['required', 'string', 'max:255'],
             'create_status' => ['required', 'in:Available,On Business Trip,Maintenance,Reserved,Unavailable'],
             'create_vehicle_image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'create_rental_rate' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $driverName = trim((string) ($validated['create_driver_name'] ?? ''));
@@ -75,6 +76,7 @@ class adminVehicleAvailabilityController extends Controller
             'capacity_label' => trim((string) ($validated['create_capacity_label'] ?? '')),
             'driver_name' => $driverName,
             'status' => (string) ($validated['create_status'] ?? 'Available'),
+            'rental_rate' => $validated['create_rental_rate'] ?? null,
         ];
 
         if ($request->hasFile('create_vehicle_image')) {
@@ -95,11 +97,13 @@ class adminVehicleAvailabilityController extends Controller
             'driver_name' => ['nullable', 'string', 'max:255'],
             'status' => ['required', 'in:Available,On Business Trip,Maintenance,Reserved,Unavailable'],
             'vehicle_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'rental_rate' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $data = [
             'driver_name' => null,
             'status' => $validated['status'],
+            'rental_rate' => $validated['rental_rate'] ?? null,
         ];
 
         $driverName = trim((string) ($validated['driver_name'] ?? ''));

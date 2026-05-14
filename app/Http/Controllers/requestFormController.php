@@ -117,6 +117,12 @@ class requestFormController extends Controller
             ->values();
 
         if ($selectedVehicleRequests->isEmpty()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Select at least one vehicle type and quantity.',
+                ], 422);
+            }
+
             return back()
                 ->withErrors(['vehicle_requests' => 'Select at least one vehicle type and quantity.'])
                 ->withInput();
@@ -132,6 +138,12 @@ class requestFormController extends Controller
         });
 
         if ($hasUnavailableVehicle) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'One or more selected vehicles are currently unavailable.',
+                ], 422);
+            }
+
             return back()
                 ->withErrors(['vehicle_requests' => 'One or more selected vehicles are currently unavailable.'])
                 ->withInput();
@@ -143,9 +155,16 @@ class requestFormController extends Controller
             $maxAllowed = (int) ($availableVehicleCounts[$vehicleType] ?? 0);
 
             if ($requestedQuantity > $maxAllowed) {
+                $errorMessage = 'Requested quantity for ' . strtoupper($vehicleType) . ' exceeds available units (' . $maxAllowed . ').';
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => $errorMessage,
+                    ], 422);
+                }
+
                 return back()
                     ->withErrors([
-                        'vehicle_requests' => 'Requested quantity for ' . strtoupper($vehicleType) . ' exceeds available units (' . $maxAllowed . ').',
+                        'vehicle_requests' => $errorMessage,
                     ])
                     ->withInput();
             }
@@ -198,9 +217,16 @@ class requestFormController extends Controller
 
         $templatePath = storage_path('app/public/forms/form_05_Transportation_Request_rev_08.xlsx');
         if (!is_readable($templatePath)) {
+            $message = 'Transportation request was saved, but the spreadsheet template file could not be found.';
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $message,
+                ], 500);
+            }
+
             return redirect()
                 ->route('request-form')
-                ->with('error', 'Transportation request was saved, but the spreadsheet template file could not be found.');
+                ->with('error', $message);
         }
 
         $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
@@ -313,6 +339,12 @@ class requestFormController extends Controller
                 ->route('request-form')
                 ->with('request_form_success', 'Transportation request download successfully.');
         } catch (\Throwable $e) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Transportation request was saved, but spreadsheet generation failed. Please contact support.',
+                ], 500);
+            }
+
             return redirect()
                 ->route('request-form')
                 ->with('error', 'Transportation request was saved, but spreadsheet generation failed. Please contact support.');

@@ -79,9 +79,8 @@ class monthlyTravelReportController extends Controller
         $sheet->setCellValue('G48', $this->formatTextForTemplate($driverName));
         $sheet->setCellValue('D50', $this->formatTextForTemplate($reportData['primaryDriver'] ?? null));
 
-        $writer = new Xlsx($spreadsheet);
-
-        return response()->streamDownload(function () use ($writer, $spreadsheet) {
+        return response()->streamDownload(function () use ($spreadsheet) {
+            $writer = new Xlsx($spreadsheet);
             $writer->save('php://output');
             $spreadsheet->disconnectWorksheets();
         }, $fileName, [
@@ -964,11 +963,23 @@ class monthlyTravelReportController extends Controller
     private function resolvePassengerNames(DailyDriversTripTicket $ticket): array
     {
         $snapshot = $this->decodeSnapshot($ticket->request_form_data);
+        
         $passengerValue = $snapshot['business_passengers']
             ?? $snapshot['passengers']
             ?? $snapshot['passenger_names']
             ?? $snapshot['passenger']
-            ?? [];
+            ?? null;
+
+        if (($passengerValue === null || empty($passengerValue)) && $ticket->transportationRequestForm) {
+            $passengerValue = $ticket->transportationRequestForm->business_passengers;
+            
+            if (empty($passengerValue)) {
+                $personnel = $ticket->transportationRequestForm->division_personnel;
+                if (!empty($personnel)) {
+                    $passengerValue = $personnel;
+                }
+            }
+        }
 
         if (is_string($passengerValue)) {
             $tokens = preg_split('/\s*,\s*|\s*;\s*|\R+/', $passengerValue, -1, PREG_SPLIT_NO_EMPTY) ?: [];
@@ -981,7 +992,7 @@ class monthlyTravelReportController extends Controller
         return collect($tokens)
             ->map(function ($passenger): string {
                 if (is_array($passenger)) {
-                    return trim((string) ($passenger['name'] ?? $passenger['passenger'] ?? ''));
+                    return trim((string) ($passenger['name'] ?? $passenger['passenger'] ?? $passenger['driver_name'] ?? ''));
                 }
 
                 return trim((string) $passenger);
