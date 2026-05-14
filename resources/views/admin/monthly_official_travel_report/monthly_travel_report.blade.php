@@ -85,7 +85,7 @@
 </head>
 <body class="bg-surface font-body text-on-surface antialiased min-h-screen flex flex-col">
 <!-- TopNavBar -->
-@include('layouts.admin_header')
+@include('layouts.admin_git header')
 <main class="mt-24 mb-16 flex-grow w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12">
 <!-- Page Header -->
 <div class="max-w-[1920px] mx-auto mb-8 flex flex-col md:flex-row justify-between items-end gap-6">
@@ -337,7 +337,7 @@
 <td class="px-4 py-4 border-r border-white/10">{{ number_format($totalDistance, 1) }}</td>
 <td class="px-4 py-4 border-r border-white/10">{{ number_format($totalDiesel, 1) }}</td>
 <td class="px-4 py-4 border-r border-white/10">{{ number_format($totalDieselPurchased, 1) }}</td>
-<td class="px-4 py-4 border-r border-white/10">{{ number_format($totalDieselIssued, 1) }}</td>
+<td class="px-4 py-4 border-r border-white/10">{{ is_numeric($totalDieselIssued) ? number_format($totalDieselIssued, 1) : '—' }}</td>
 <td class="px-4 py-4 border-r border-white/10">{{ number_format($totalDieselConsumed, 1) }}</td>
 <td class="px-4 py-4 border-r border-white/10">{{ number_format($totalGasoline, 1) }}</td>
 <td class="px-4 py-4 border-r border-white/10">{{ is_numeric($latestDieselBalanceAfter) ? number_format($latestDieselBalanceAfter, 1) : '—' }}</td>

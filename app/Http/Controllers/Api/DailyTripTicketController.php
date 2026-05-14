@@ -89,9 +89,7 @@ class DailyTripTicketController extends Controller
             'odometer_start' => ['nullable', 'numeric'],
             'distance_travelled' => ['nullable', 'numeric'],
             'fuel_balance_before' => ['nullable', 'numeric'],
-            'fuel_issued_regional' => ['nullable', 'numeric'],
             'fuel_purchased_trip' => ['nullable', 'numeric'],
-            'fuel_issued_nia' => ['nullable', 'numeric'],
             'fuel_total' => ['nullable', 'numeric'],
             'fuel_used' => ['nullable', 'numeric'],
             'fuel_balance_after' => ['nullable', 'numeric'],
@@ -158,9 +156,7 @@ class DailyTripTicketController extends Controller
                 'odometer_end',
                 'odometer_start',
                 'fuel_balance_before',
-                'fuel_issued_regional',
                 'fuel_purchased_trip',
-                'fuel_issued_nia',
                 'fuel_used',
                 'gear_oil_liters',
                 'engine_oil_liters',
@@ -184,9 +180,9 @@ class DailyTripTicketController extends Controller
 
         // Formula 2: Total = fuel_balance_before + fuel_issued_regional + fuel_purchased_trip + fuel_issued_nia
         $fuelBalanceBefore = $this->resolveNumericField($request, $validated, $existingTicket, 'fuel_balance_before');
-        $fuelIssuedRegional = $this->resolveNumericField($request, $validated, $existingTicket, 'fuel_issued_regional');
+        $fuelIssuedRegional = $this->toNullableFloat($existingTicket?->fuel_issued_regional);
         $fuelPurchasedTrip = $this->resolveNumericField($request, $validated, $existingTicket, 'fuel_purchased_trip');
-        $fuelIssuedNia = $this->resolveNumericField($request, $validated, $existingTicket, 'fuel_issued_nia');
+        $fuelIssuedNia = $this->toNullableFloat($existingTicket?->fuel_issued_nia);
 
         $fuelValues = [$fuelBalanceBefore, $fuelIssuedRegional, $fuelPurchasedTrip, $fuelIssuedNia];
         $hasFuelValue = collect($fuelValues)->contains(function ($value) {
@@ -409,4 +405,3 @@ class DailyTripTicketController extends Controller
             });
     }
 }
-

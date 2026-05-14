@@ -318,6 +318,15 @@ class monthlyTravelReportController extends Controller
             return is_numeric($distance) ? (float) $distance : 0.0;
         });
 
+        $issuedValues = $reportRows
+            ->pluck('dieselIssued')
+            ->filter(function ($value): bool {
+                return is_numeric($value);
+            });
+        $totalDieselIssued = $issuedValues->isNotEmpty()
+            ? round((float) $issuedValues->sum(), 1)
+            : null;
+
         return [
             'selectedMonth' => $selectedMonth,
             'selectedDriver' => $selectedDriver,
@@ -333,7 +342,7 @@ class monthlyTravelReportController extends Controller
             'totalDiesel' => $this->sumReportRowsMetric($reportRows, 'diesel'),
             'totalGasoline' => $this->sumReportRowsMetric($reportRows, 'gasoline'),
             'totalDieselPurchased' => $this->sumReportRowsMetric($reportRows, 'dieselPurchased'),
-            'totalDieselIssued' => $this->sumReportRowsMetric($reportRows, 'dieselIssued'),
+            'totalDieselIssued' => $totalDieselIssued,
             'totalDieselConsumed' => $this->sumReportRowsMetric($reportRows, 'dieselConsumed'),
             'latestDieselBalanceAfter' => $this->resolveLatestRowMetric($reportRows, 'dieselBalanceAfter'),
             'totalEngineOil' => $this->sumReportRowsMetric($reportRows, 'engineOil'),
@@ -511,7 +520,7 @@ class monthlyTravelReportController extends Controller
             return max(0.0, round($odometerEnd - $odometerStart, 2));
         }
 
-        return $this->resolveDurationHours($ticket);
+        return null;
     }
 
     private function resolveFuelLitersByKind(DailyDriversTripTicket $ticket, string $fuelKind): ?float
@@ -526,29 +535,7 @@ class monthlyTravelReportController extends Controller
             return $explicitFuel;
         }
 
-        $fuelTotal = $this->toNullableFloat($ticket->fuel_total);
-        if ($fuelTotal === null) {
-            $componentValues = [
-                $this->toNullableFloat($ticket->fuel_issued_regional),
-                $this->toNullableFloat($ticket->fuel_purchased_trip),
-                $this->toNullableFloat($ticket->fuel_issued_nia),
-            ];
-
-            $hasComponent = false;
-            $componentTotal = 0.0;
-            foreach ($componentValues as $componentValue) {
-                if ($componentValue === null) {
-                    continue;
-                }
-
-                $hasComponent = true;
-                $componentTotal += $componentValue;
-            }
-
-            if ($hasComponent) {
-                $fuelTotal = $componentTotal;
-            }
-        }
+        $fuelTotal = $this->resolveGeneralFuelLiters($ticket, $snapshot);
 
         if ($fuelTotal === null) {
             return null;
@@ -822,10 +809,6 @@ class monthlyTravelReportController extends Controller
 
     private function resolveDieselIssuedLiters(DailyDriversTripTicket $ticket): ?float
     {
-        if ($this->shouldSkipDieselMetrics($ticket)) {
-            return null;
-        }
-
         $snapshot = $this->decodeSnapshot($ticket->request_form_data);
 
         $issuedRegional = $this->toNullableFloat($ticket->fuel_issued_regional)
@@ -848,18 +831,72 @@ class monthlyTravelReportController extends Controller
         return $hasValue ? $total : null;
     }
 
+    private function resolveGeneralFuelLiters(DailyDriversTripTicket $ticket, array $snapshot): ?float
+    {
+        $fuelTotal = $this->toNullableFloat($ticket->fuel_total);
+        $issuedTotal = $this->sumNullableFuelValues([
+            $this->toNullableFloat($ticket->fuel_issued_regional)
+                ?? $this->readNumericFromArray($snapshot, ['fuel_issued_regional', 'fuelIssuedRegional']),
+            $this->toNullableFloat($ticket->fuel_issued_nia)
+                ?? $this->readNumericFromArray($snapshot, ['fuel_issued_nia', 'fuelIssuedNia']),
+            $this->readNumericFromArray($snapshot, ['diesel_issued', 'dieselIssued', 'fuel_issued', 'fuelIssued']),
+        ]);
+
+        if ($fuelTotal !== null) {
+            $generalFuel = round($fuelTotal - (float) ($issuedTotal ?? 0.0), 2);
+
+            return $generalFuel > 0 ? $generalFuel : null;
+        }
+
+        return $this->sumNullableFuelValues([
+            $this->toNullableFloat($ticket->fuel_purchased_trip)
+                ?? $this->readNumericFromArray($snapshot, [
+                    'fuel_purchased_trip',
+                    'fuelPurchasedTrip',
+                    'diesel_purchased_trip',
+                    'dieselPurchasedTrip',
+                    'diesel_purchased',
+                    'dieselPurchased',
+                ]),
+        ]);
+    }
+
+    private function sumNullableFuelValues(array $values): ?float
+    {
+        $total = 0.0;
+        $hasValue = false;
+
+        foreach ($values as $value) {
+            if ($value === null) {
+                continue;
+            }
+
+            $hasValue = true;
+            $total += (float) $value;
+        }
+
+        return $hasValue ? round($total, 2) : null;
+    }
+
     private function resolveDieselConsumedLiters(DailyDriversTripTicket $ticket): ?float
     {
         if ($this->shouldSkipDieselMetrics($ticket)) {
             return null;
         }
 
-        $distance = $this->resolveDistanceMetric($ticket);
-        if ($distance === null) {
-            return null;
-        }
+        $snapshot = $this->decodeSnapshot($ticket->request_form_data);
 
-        return round(((float) $distance) / 10, 1);
+        $explicitConsumed = $this->toNullableFloat($ticket->fuel_used)
+            ?? $this->readNumericFromArray($snapshot, [
+                'fuel_used',
+                'fuelUsed',
+                'diesel_consumed',
+                'dieselConsumed',
+                'fuel_consumed',
+                'fuelConsumed',
+            ]);
+
+        return $explicitConsumed;
     }
 
     private function resolveDieselBalanceAfterLiters(DailyDriversTripTicket $ticket): ?float
@@ -869,6 +906,20 @@ class monthlyTravelReportController extends Controller
         }
 
         $snapshot = $this->decodeSnapshot($ticket->request_form_data);
+
+        $explicitBalanceAfter = $this->toNullableFloat($ticket->fuel_balance_after)
+            ?? $this->readNumericFromArray($snapshot, [
+                'fuel_balance_after',
+                'fuelBalanceAfter',
+                'diesel_balance_after',
+                'dieselBalanceAfter',
+                'balance_after',
+                'balanceAfter',
+            ]);
+
+        if ($explicitBalanceAfter !== null) {
+            return $explicitBalanceAfter;
+        }
 
         $balanceBefore = $this->toNullableFloat($ticket->fuel_balance_before)
             ?? $this->readNumericFromArray($snapshot, [
@@ -885,6 +936,10 @@ class monthlyTravelReportController extends Controller
         $consumed = $this->resolveDieselConsumedLiters($ticket);
 
         if ($balanceBefore !== null || $purchased !== null || $issued !== null || $consumed !== null) {
+            if ($consumed === null) {
+                return null;
+            }
+
             $computed = (float) ($balanceBefore ?? 0)
                 + (float) ($purchased ?? 0)
                 + (float) ($issued ?? 0)
@@ -893,15 +948,7 @@ class monthlyTravelReportController extends Controller
             return round($computed, 1);
         }
 
-        return $this->toNullableFloat($ticket->fuel_balance_after)
-            ?? $this->readNumericFromArray($snapshot, [
-                'fuel_balance_after',
-                'fuelBalanceAfter',
-                'diesel_balance_after',
-                'dieselBalanceAfter',
-                'balance_after',
-                'balanceAfter',
-            ]);
+        return null;
     }
 
     private function shouldSkipDieselMetrics(DailyDriversTripTicket $ticket): bool

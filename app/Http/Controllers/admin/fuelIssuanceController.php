@@ -4,6 +4,7 @@ namespace App\Http\Controllers\admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminVehicleAvailability;
+use App\Models\DailyDriversTripTicket;
 use App\Models\FuelIssuance;
 use App\Models\FuelIssuancePartnership;
 use App\Models\TransportationRequestFormModel;
@@ -208,6 +209,15 @@ class fuelIssuanceController extends Controller
                         'dispatched_at' => now(),
                     ]
                 );
+
+                $this->syncFuelIssuanceToDailyTripTicket($transportationRequest, $expectedCopy, [
+                    'dealer' => $dealer,
+                    'gasoline' => $gasolineQuantity,
+                    'diesel' => $dieselQuantity,
+                    'fuel_save' => $fuelSaveQuantity,
+                    'v_power' => $vPowerQuantity,
+                    'total_amount' => $calculatedTotal,
+                ]);
             }
 
             $transportationRequest->update([
@@ -602,26 +612,41 @@ class fuelIssuanceController extends Controller
             'copy_key' => $copyKey,
         ]);
 
-        if (!$fuelIssuance->exists) {
-            $fuelIssuance->fill([
-                'fuel_issuance_partnership_id' => $activePartnership?->id,
-                'copy_number' => (int) ($selectedCopy['copyNumber'] ?? 1),
-                'ctrl_number' => (string) ($selectedCopy['ctrlNumber'] ?? ''),
-                'vehicle_id' => (string) ($selectedCopy['vehicleId'] ?? ''),
-                'driver_name' => (string) ($selectedCopy['driverName'] ?? 'N/A'),
-                'dealer' => trim((string) ($validated['dealer'] ?? '')),
-                'gasoline_quantity' => round((float) ($validated['gasoline'] ?? 0), 2),
-                'gasoline_price' => round((float) ($activePartnership?->gasoline_price_per_liter ?? 0), 2),
-                'diesel_quantity' => round((float) ($validated['diesel'] ?? 0), 2),
-                'diesel_price' => round((float) ($activePartnership?->diesel_price_per_liter ?? 0), 2),
-                'fuel_save_quantity' => round((float) ($validated['fuel_save'] ?? 0), 2),
-                'fuel_save_price' => round((float) ($activePartnership?->fuel_save_price_per_liter ?? 0), 2),
-                'v_power_quantity' => round((float) ($validated['v_power'] ?? 0), 2),
-                'v_power_price' => round((float) ($activePartnership?->v_power_price_per_liter ?? 0), 2),
-                'total_amount' => round((float) ($validated['total_amount'] ?? 0), 2),
-                'request_form_data' => $this->buildRequestFormDataSnapshot($transportationRequest),
-            ]);
-        }
+        $gasolinePrice = $this->resolveNumericValue($fuelIssuance->gasoline_price ?? null, (float) ($activePartnership?->gasoline_price_per_liter ?? 0));
+        $dieselPrice = $this->resolveNumericValue($fuelIssuance->diesel_price ?? null, (float) ($activePartnership?->diesel_price_per_liter ?? 0));
+        $fuelSavePrice = $this->resolveNumericValue($fuelIssuance->fuel_save_price ?? null, (float) ($activePartnership?->fuel_save_price_per_liter ?? 0));
+        $vPowerPrice = $this->resolveNumericValue($fuelIssuance->v_power_price ?? null, (float) ($activePartnership?->v_power_price_per_liter ?? 0));
+
+        $gasolineQuantity = $this->resolveNumericValue($validated['gasoline'] ?? null, 0);
+        $dieselQuantity = $this->resolveNumericValue($validated['diesel'] ?? null, 0);
+        $fuelSaveQuantity = $this->resolveNumericValue($validated['fuel_save'] ?? null, 0);
+        $vPowerQuantity = $this->resolveNumericValue($validated['v_power'] ?? null, 0);
+        $totalAmount = $this->resolveNumericValue(
+            $validated['total_amount'] ?? null,
+            ($gasolineQuantity * $gasolinePrice)
+                + ($dieselQuantity * $dieselPrice)
+                + ($fuelSaveQuantity * $fuelSavePrice)
+                + ($vPowerQuantity * $vPowerPrice)
+        );
+
+        $fuelIssuance->fill([
+            'fuel_issuance_partnership_id' => $fuelIssuance->fuel_issuance_partnership_id ?: $activePartnership?->id,
+            'copy_number' => (int) ($selectedCopy['copyNumber'] ?? 1),
+            'ctrl_number' => (string) ($selectedCopy['ctrlNumber'] ?? ''),
+            'vehicle_id' => (string) ($selectedCopy['vehicleId'] ?? ''),
+            'driver_name' => (string) ($selectedCopy['driverName'] ?? 'N/A'),
+            'dealer' => trim((string) ($validated['dealer'] ?? '')),
+            'gasoline_quantity' => $gasolineQuantity,
+            'gasoline_price' => $gasolinePrice,
+            'diesel_quantity' => $dieselQuantity,
+            'diesel_price' => $dieselPrice,
+            'fuel_save_quantity' => $fuelSaveQuantity,
+            'fuel_save_price' => $fuelSavePrice,
+            'v_power_quantity' => $vPowerQuantity,
+            'v_power_price' => $vPowerPrice,
+            'total_amount' => $totalAmount,
+            'request_form_data' => $this->buildRequestFormDataSnapshot($transportationRequest),
+        ]);
 
         $previousPath = trim((string) data_get($fuelIssuance->attachment, 'file_path', ''));
         $nextPath = trim((string) ($attachmentPayload['file_path'] ?? ''));
@@ -639,6 +664,126 @@ class fuelIssuanceController extends Controller
             'attachment' => $attachmentPayload,
         ]);
         $fuelIssuance->save();
+
+        $this->syncFuelIssuanceToDailyTripTicket($transportationRequest, $selectedCopy, $validated);
+    }
+
+    private function syncFuelIssuanceToDailyTripTicket(
+        TransportationRequestFormModel $transportationRequest,
+        array $selectedCopy,
+        array $values
+    ): void {
+        $fuelIssuedNia = $this->resolveIssuedFuelLiters($values);
+        $vehicleCode = trim((string) ($selectedCopy['vehicleId'] ?? ''));
+        $driverName = trim((string) ($selectedCopy['driverName'] ?? ''));
+        $ticket = $this->resolveDailyTripTicketForFuelCopy($transportationRequest, $vehicleCode, $driverName);
+
+        if (!$ticket) {
+            $ticket = new DailyDriversTripTicket([
+                'transportation_request_form_id' => $transportationRequest->id,
+                'assigned_vehicle_code' => $this->isUsableTripTicketValue($vehicleCode) ? $vehicleCode : null,
+            ]);
+        }
+
+        if (trim((string) ($ticket->assigned_driver_name ?? '')) === '' && $this->isUsableTripTicketValue($driverName)) {
+            $ticket->assigned_driver_name = $driverName;
+        }
+
+        if (!is_array($ticket->request_form_data) || empty($ticket->request_form_data)) {
+            $ticket->request_form_data = $this->buildRequestFormDataSnapshot($transportationRequest);
+        }
+
+        $ticket->fuel_issued_nia = $fuelIssuedNia;
+        $this->refreshDailyTripTicketFuelTotals($ticket);
+        $ticket->save();
+    }
+
+    private function resolveDailyTripTicketForFuelCopy(
+        TransportationRequestFormModel $transportationRequest,
+        string $vehicleCode,
+        string $driverName
+    ): ?DailyDriversTripTicket {
+        $baseQuery = DailyDriversTripTicket::query()
+            ->where('transportation_request_form_id', $transportationRequest->id);
+
+        if ($this->isUsableTripTicketValue($vehicleCode)) {
+            $ticket = (clone $baseQuery)
+                ->where('assigned_vehicle_code', $vehicleCode)
+                ->first();
+
+            if ($ticket) {
+                return $ticket;
+            }
+        }
+
+        if ($this->isUsableTripTicketValue($driverName)) {
+            $ticket = (clone $baseQuery)
+                ->where('assigned_driver_name', $driverName)
+                ->first();
+
+            if ($ticket) {
+                return $ticket;
+            }
+        }
+
+        $tickets = $baseQuery->get();
+
+        return $tickets->count() === 1 ? $tickets->first() : null;
+    }
+
+    private function resolveIssuedFuelLiters(array $values): float
+    {
+        return round(
+            $this->resolveNumericValue($values['gasoline'] ?? null, 0)
+                + $this->resolveNumericValue($values['diesel'] ?? null, 0)
+                + $this->resolveNumericValue($values['fuel_save'] ?? null, 0)
+                + $this->resolveNumericValue($values['v_power'] ?? null, 0),
+            2
+        );
+    }
+
+    private function refreshDailyTripTicketFuelTotals(DailyDriversTripTicket $ticket): void
+    {
+        $fuelValues = [
+            $this->toNullableFloat($ticket->fuel_balance_before),
+            $this->toNullableFloat($ticket->fuel_issued_regional),
+            $this->toNullableFloat($ticket->fuel_purchased_trip),
+            $this->toNullableFloat($ticket->fuel_issued_nia),
+        ];
+
+        $hasFuelValue = collect($fuelValues)->contains(function (?float $value): bool {
+            return $value !== null;
+        });
+
+        $fuelTotal = $hasFuelValue
+            ? round(array_sum(array_map(function (?float $value): float {
+                return (float) ($value ?? 0.0);
+            }, $fuelValues)), 2)
+            : null;
+
+        $distanceTravelled = $this->toNullableFloat($ticket->distance_travelled);
+        $ticket->fuel_total = $fuelTotal;
+        $ticket->fuel_balance_after = $fuelTotal !== null && $fuelTotal != 0.0 && $distanceTravelled !== null
+            ? round($fuelTotal - (($distanceTravelled / $fuelTotal) / 4), 2)
+            : null;
+    }
+
+    private function toNullableFloat(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_numeric($value) ? (float) $value : null;
+    }
+
+    private function isUsableTripTicketValue(string $value): bool
+    {
+        $normalized = trim($value);
+
+        return $normalized !== ''
+            && strtolower($normalized) !== 'n/a'
+            && trim($normalized, '_') !== '';
     }
 
     private function buildPayload(Request $request): array
